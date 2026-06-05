@@ -1,0 +1,10 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/optimus-be ./cmd/server"
+bin = "./tmp/optimus-be"
+include_ext = ["go", "yaml"]
+exclude_dir = ["tmp", "bin", "migrations"]
+delay = 500
+kill_delay = "2s"
