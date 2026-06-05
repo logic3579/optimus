@@ -23,3 +23,17 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Go
+optimus-be/bin/
+optimus-be/tmp/
+*.test
+*.out
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+postgres-data/
