@@ -31,9 +31,5 @@ optimus-be/server
 *.test
 *.out
 
-# IDE
-.vscode/
-.idea/
-
 # Docker
 postgres-data/
