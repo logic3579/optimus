@@ -1,0 +1,44 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 15s
+  write_timeout: 15s
+  shutdown_timeout: 20s
+
+database:
+  driver: postgres
+  dsn: "host=localhost port=5432 user=optimus password=optimus dbname=optimus sslmode=disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 1h
+
+jwt:
+  secret: ""
+  access_ttl: 15m
+  refresh_ttl: 168h
+
+auth:
+  bcrypt_cost: 10
+  login_rate_limit:
+    per_ip: 5
+    per_username: 5
+    window: 1m
+    block: 1m
+
+log:
+  level: info
+  format: json
+  output: stdout
+
+cors:
+  allowed_origins: ["http://localhost:5173"]
+  allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  allow_credentials: false
+
+i18n:
+  default_lang: zh-CN
+  supported: ["zh-CN", "en-US"]
+
+bootstrap:
+  admin_username: admin
+  admin_email: admin@example.com
