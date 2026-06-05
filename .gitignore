@@ -27,9 +27,9 @@ npm-debug.log*
 # Go
 optimus-be/bin/
 optimus-be/tmp/
+optimus-be/server
 *.test
 *.out
-.env
 
 # IDE
 .vscode/
