@@ -18,7 +18,13 @@ lint:
 	golangci-lint run
 
 swag:
-	swag init -g cmd/server/main.go -o api/docs
+	swag init -g cmd/server/main.go -o api/docs --parseDependency --parseInternal
+	cp api/docs/swagger.json ../docs/api/swagger.json
+
+swagger-diff:
+	@swag init -g cmd/server/main.go -o /tmp/optimus-swag --parseDependency --parseInternal >/dev/null
+	@diff -q /tmp/optimus-swag/swagger.json ../docs/api/swagger.json || \
+	  (echo "swagger.json is stale — run 'make swag' and commit"; exit 1)
 
 migrate-up:
 	goose -dir migrations postgres "$(DSN)" up

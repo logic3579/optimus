@@ -1,0 +1,1097 @@
+basePath: /api/v1
+definitions:
+  internal_modules_auth.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  internal_modules_auth.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  internal_modules_auth.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  internal_modules_menu.CreateRequest:
+    properties:
+      code:
+        maxLength: 64
+        minLength: 2
+        type: string
+      component:
+        maxLength: 255
+        type: string
+      hidden:
+        type: boolean
+      icon:
+        maxLength: 64
+        type: string
+      name:
+        maxLength: 128
+        type: string
+      parent_id:
+        type: integer
+      path:
+        maxLength: 255
+        type: string
+      permission_code:
+        maxLength: 128
+        type: string
+      sort_order:
+        type: integer
+    required:
+    - code
+    - name
+    type: object
+  internal_modules_menu.UpdateRequest:
+    properties:
+      component:
+        maxLength: 255
+        type: string
+      hidden:
+        type: boolean
+      icon:
+        maxLength: 64
+        type: string
+      name:
+        maxLength: 128
+        type: string
+      parent_id:
+        type: integer
+      path:
+        maxLength: 255
+        type: string
+      permission_code:
+        maxLength: 128
+        type: string
+      sort_order:
+        type: integer
+    type: object
+  internal_modules_role.CreateRequest:
+    properties:
+      code:
+        maxLength: 64
+        minLength: 2
+        type: string
+      description:
+        maxLength: 512
+        type: string
+      name:
+        maxLength: 128
+        type: string
+    required:
+    - code
+    - name
+    type: object
+  internal_modules_role.SetPermissionsRequest:
+    properties:
+      permission_codes:
+        items:
+          type: string
+        type: array
+    required:
+    - permission_codes
+    type: object
+  internal_modules_role.UpdateRequest:
+    properties:
+      description:
+        maxLength: 512
+        type: string
+      name:
+        maxLength: 128
+        type: string
+    type: object
+  internal_modules_user.CreateRequest:
+    properties:
+      display_name:
+        maxLength: 128
+        type: string
+      email:
+        maxLength: 128
+        type: string
+      password:
+        maxLength: 128
+        minLength: 8
+        type: string
+      role_ids:
+        items:
+          type: integer
+        type: array
+      username:
+        maxLength: 64
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  internal_modules_user.SetPasswordRequest:
+    properties:
+      password:
+        maxLength: 128
+        minLength: 8
+        type: string
+    required:
+    - password
+    type: object
+  internal_modules_user.SetRolesRequest:
+    properties:
+      role_ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - role_ids
+    type: object
+  internal_modules_user.SetStatusRequest:
+    properties:
+      status:
+        enum:
+        - enabled
+        - disabled
+        type: string
+    required:
+    - status
+    type: object
+  internal_modules_user.UpdateRequest:
+    properties:
+      avatar_url:
+        maxLength: 512
+        type: string
+      display_name:
+        maxLength: 128
+        type: string
+      email:
+        maxLength: 128
+        type: string
+    type: object
+  optimus-be_internal_infra_response.Envelope:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+      message_key:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: |-
+    P0 admin backend for Optimus — auth, RBAC, users, roles, permissions, menus, audit.
+    All authenticated endpoints expect `Authorization: Bearer <access_token>`.
+  title: Optimus Admin API
+  version: "1.0"
+paths:
+  /audit-logs:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page_size (default 20, max 100)
+        in: query
+        name: page_size
+        type: integer
+      - description: filter by action code
+        in: query
+        name: action
+        type: string
+      - description: filter by actor user ID
+        in: query
+        name: user_id
+        type: integer
+      - description: start time (RFC3339)
+        in: query
+        name: start
+        type: string
+      - description: end time (RFC3339)
+        in: query
+        name: end
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List audit logs
+      tags:
+      - audit
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_auth.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      summary: Login
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: refresh token to revoke
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_auth.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      summary: Logout
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: refresh token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_auth.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      summary: Refresh tokens
+      tags:
+      - auth
+  /health:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - health
+  /me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Current user profile
+      tags:
+      - me
+  /me/menus:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Current user menu tree
+      tags:
+      - me
+  /me/permissions:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Current user permission codes
+      tags:
+      - me
+  /menus:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Menu tree
+      tags:
+      - menus
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: menu payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_menu.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create menu
+      tags:
+      - menus
+  /menus/{id}:
+    delete:
+      parameters:
+      - description: menu ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete menu
+      tags:
+      - menus
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: menu ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: menu payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_menu.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update menu
+      tags:
+      - menus
+  /permissions:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List permissions
+      tags:
+      - permissions
+  /roles:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List roles
+      tags:
+      - roles
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: role payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_role.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create role
+      tags:
+      - roles
+  /roles/{id}:
+    delete:
+      parameters:
+      - description: role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete role
+      tags:
+      - roles
+    get:
+      parameters:
+      - description: role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get role
+      tags:
+      - roles
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: role payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_role.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update role
+      tags:
+      - roles
+  /roles/{id}/permissions:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: permission codes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_role.SetPermissionsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Set role permissions
+      tags:
+      - roles
+  /users:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page_size (default 20, max 100)
+        in: query
+        name: page_size
+        type: integer
+      - description: search by username/email
+        in: query
+        name: search
+        type: string
+      - description: enabled | disabled
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List users
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: user payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_user.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create user
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      parameters:
+      - description: user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - users
+    get:
+      parameters:
+      - description: user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get user
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: profile fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_user.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update user
+      tags:
+      - users
+  /users/{id}/password:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: new password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_user.SetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Set user password
+      tags:
+      - users
+  /users/{id}/roles:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: role IDs
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_user.SetRolesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Set user roles
+      tags:
+      - users
+  /users/{id}/status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_user.SetStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Set user status
+      tags:
+      - users
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and the JWT access token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
