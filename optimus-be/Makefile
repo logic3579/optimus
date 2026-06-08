@@ -1,4 +1,4 @@
-.PHONY: run build test test-int lint swag migrate-up migrate-down migrate-new seed perm-check air-install goose-install tools
+.PHONY: run build test test-int lint swag swagger-diff migrate-up migrate-down migrate-new seed dump-perms perm-check perm-db-check air-install goose-install tools
 
 DSN ?= host=localhost port=5432 user=optimus password=optimus dbname=optimus sslmode=disable
 
@@ -33,7 +33,15 @@ migrate-new:
 seed:
 	go run ./cmd/seed
 
+dump-perms:
+	go run ./cmd/dump-permissions > ../docs/permissions.md
+
 perm-check:
+	@go run ./cmd/dump-permissions > /tmp/optimus-perms.md
+	@diff -q /tmp/optimus-perms.md ../docs/permissions.md || \
+	  (echo "permissions.md is stale — run 'make dump-perms' and commit"; exit 1)
+
+perm-db-check:
 	go run ./cmd/server -check-permissions
 
 tools:
