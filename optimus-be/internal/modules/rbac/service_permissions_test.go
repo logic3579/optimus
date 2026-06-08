@@ -33,7 +33,7 @@ func TestMeService_ListPermissions_AdminGetsAll(t *testing.T) {
 	gdb.Create(u)
 	gdb.Create(&models.UserRole{UserID: u.ID, RoleID: admin.ID})
 
-	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, time.Minute))
+	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, time.Minute), nil)
 	codes, err := svc.ListPermissions(context.Background(), u.ID)
 	require.NoError(t, err)
 	require.Equal(t, len(permissions.All), len(codes))
@@ -54,7 +54,7 @@ func TestMeService_ListPermissions_ViewerGetsOnlyReads(t *testing.T) {
 	gdb.Create(u)
 	gdb.Create(&models.UserRole{UserID: u.ID, RoleID: viewer.ID})
 
-	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, time.Minute))
+	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, time.Minute), nil)
 	codes, err := svc.ListPermissions(context.Background(), u.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, codes)

@@ -226,6 +226,23 @@ func (s *Service) SetPassword(ctx context.Context, actorID uint64, ip, ua string
 	return nil
 }
 
+// UpdateProfile is a thin adapter over Update used by rbac.MeService for the
+// /me write path. It exists so the rbac package can declare a minimal
+// UserWriter interface without importing user (which would close the
+// existing user → rbac.PermissionCache import cycle).
+//
+// The refreshed *Detail returned by Update is intentionally discarded —
+// rbac.MeService re-reads its own MeUserDTO via MeService.GetUser so the Me
+// DTO stays a single source of truth.
+func (s *Service) UpdateProfile(ctx context.Context, actorID uint64, ip, ua string, id uint64, email, displayName, avatarURL *string) error {
+	_, err := s.Update(ctx, actorID, ip, ua, id, UpdateRequest{
+		Email:       email,
+		DisplayName: displayName,
+		AvatarURL:   avatarURL,
+	})
+	return err
+}
+
 // ChangePassword verifies oldPassword then updates the hash.
 // Distinct from SetPassword (admin reset) — it requires old credential and audits as user.change_password.
 func (s *Service) ChangePassword(ctx context.Context, userID uint64, ip, ua, oldPassword, newPassword string) error {
