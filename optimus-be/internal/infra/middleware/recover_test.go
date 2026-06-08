@@ -23,7 +23,7 @@ func TestRecover_ConvertsPanicToInternalEnvelope(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.RequestID())
 	r.Use(middleware.Recover(logger))
-	r.GET("/boom", func(c *gin.Context) { panic("oops") })
+	r.GET("/boom", func(_ *gin.Context) { panic("oops") })
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/boom", nil))
