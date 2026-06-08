@@ -141,10 +141,46 @@ func (s *Service) Refresh(ctx context.Context, refresh, ip, ua string) (*TokenPa
 		return nil, apperr.New(apperr.CodeTokenExpired, "auth.token_expired", "refresh token expired")
 	}
 
-	if err := s.repo.RevokeRefreshToken(ctx, row.ID); err != nil {
+	// Atomic rotation: revoke old + issue new in one transaction.
+	var pair *TokenPair
+	if err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		if err := txRepo.RevokeRefreshToken(ctx, row.ID); err != nil {
+			return err
+		}
+		// inline pair issuance using tx-bound repo
+		jti, err := randomHex(16)
+		if err != nil {
+			return err
+		}
+		access, err := s.signer.Sign(crypto.JWTClaims{UserID: row.UserID, JTI: jti}, s.opts.AccessTTL)
+		if err != nil {
+			return err
+		}
+		refreshNew, err := randomBase64(32)
+		if err != nil {
+			return err
+		}
+		expiresAt := time.Now().Add(s.opts.RefreshTTL)
+		if _, err := txRepo.CreateRefreshToken(ctx, row.UserID, sha256Hex(refreshNew), expiresAt, ua, ip); err != nil {
+			return err
+		}
+		pair = &TokenPair{
+			AccessToken:  access,
+			RefreshToken: refreshNew,
+			ExpiresAt:    time.Now().Add(s.opts.AccessTTL),
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	return s.issuePair(ctx, row.UserID, ip, ua)
+
+	// Audit refresh success (write outside the tx so an audit-write failure
+	// doesn't undo a successful rotation).
+	uid := row.UserID
+	_ = s.repo.InsertAuditLog(ctx, &uid, "auth.refresh.success", ip, ua, nil)
+
+	return pair, nil
 }
 
 // Logout revokes the given refresh token. Idempotent: unknown / already-revoked tokens
@@ -163,5 +199,10 @@ func (s *Service) Logout(ctx context.Context, refresh string) error {
 	if row.RevokedAt != nil {
 		return nil
 	}
-	return s.repo.RevokeRefreshToken(ctx, row.ID)
+	if err := s.repo.RevokeRefreshToken(ctx, row.ID); err != nil {
+		return err
+	}
+	uid := row.UserID
+	_ = s.repo.InsertAuditLog(ctx, &uid, "auth.logout", "", "", nil)
+	return nil
 }

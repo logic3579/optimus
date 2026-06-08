@@ -83,3 +83,10 @@ func (r *Repo) InsertAuditLog(ctx context.Context, userID *uint64, action, ip, u
 		Payload:   payload,
 	}).Error
 }
+
+// WithTx returns a Repo bound to the given transaction. The returned Repo can be
+// used inside a Transaction callback to keep multiple operations atomic.
+func (r *Repo) WithTx(tx *gorm.DB) *Repo { return &Repo{db: tx} }
+
+// DB returns the underlying *gorm.DB. Use only when you need to start a Transaction.
+func (r *Repo) DB() *gorm.DB { return r.db }

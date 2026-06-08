@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
 
 	apperr "optimus-be/internal/infra/errors"
@@ -30,7 +32,8 @@ func RequirePermission(cache *rbac.PermissionCache, code string) gin.HandlerFunc
 				return
 			}
 		}
-		response.Error(c, apperr.New(apperr.CodePermissionDenied, "auth.permission_denied", "missing permission: "+code))
+		slog.Warn("rbac denied", "user_id", uid, "required_code", code, "path", c.Request.URL.Path)
+		response.Error(c, apperr.New(apperr.CodePermissionDenied, "auth.permission_denied", "permission denied"))
 		c.Abort()
 	}
 }
