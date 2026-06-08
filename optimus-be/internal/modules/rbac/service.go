@@ -32,3 +32,8 @@ func (s *MeService) GetUser(ctx context.Context, userID uint64) (*MeUserDTO, err
 		LastLoginAt: u.LastLoginAt,
 	}, nil
 }
+
+// ListPermissions returns the permission codes the user has (via cache).
+func (s *MeService) ListPermissions(ctx context.Context, userID uint64) ([]string, error) {
+	return s.cache.Get(ctx, userID)
+}
