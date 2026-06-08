@@ -12,7 +12,7 @@ test:
 	go test ./... -race -cover
 
 test-int:
-	go test ./... -tags=integration -race
+	go test ./... -tags=dbtest -race
 
 lint:
 	golangci-lint run

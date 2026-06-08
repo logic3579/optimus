@@ -61,6 +61,17 @@ func TestRun_AdminRoleHasAllPermissions(t *testing.T) {
 	require.Equal(t, int64(len(permissions.All)), bound)
 }
 
+func TestRun_FailsLoudlyWhenNoPermissionsRegistered(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+	// Note: we deliberately do NOT call permissions.Register
+	_, err := seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "permissions")
+}
+
 func TestRun_ViewerRoleHasOnlyReadPermissions(t *testing.T) {
 	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
 	defer teardown()

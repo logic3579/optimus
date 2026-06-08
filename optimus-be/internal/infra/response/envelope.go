@@ -2,6 +2,7 @@ package response
 
 import (
 	stderrors "errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -43,9 +44,15 @@ func Error(c *gin.Context, err error) {
 		})
 		return
 	}
+	// Do NOT leak raw error text to clients. Log internally; respond generically.
+	slog.Error("unhandled error in HTTP handler",
+		"err", err.Error(),
+		"path", c.FullPath(),
+		"method", c.Request.Method,
+	)
 	c.JSON(http.StatusInternalServerError, Envelope{
 		Code:    int(apperr.CodeInternal),
 		Data:    nil,
-		Message: err.Error(),
+		Message: "internal server error",
 	})
 }

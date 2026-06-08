@@ -1,7 +1,6 @@
 package health
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +19,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 }
 
 func (h *Handler) health(c *gin.Context) {
-	if err := db.Ping(context.Background(), h.DB); err != nil {
+	if err := db.Ping(c.Request.Context(), h.DB); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"db":      "down",
 			"version": h.Version,

@@ -28,7 +28,10 @@ func main() {
 	checkPerms := flag.Bool("check-permissions", false, "register permission codes and exit")
 	flag.Parse()
 
-	abs, _ := filepath.Abs(*cfgPath)
+	abs, err := filepath.Abs(*cfgPath)
+	if err != nil {
+		fail("resolve config path", err)
+	}
 	cfg, err := config.Load(abs)
 	if err != nil {
 		fail("load config", err)

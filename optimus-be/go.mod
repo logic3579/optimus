@@ -4,8 +4,14 @@ go 1.25.7
 
 require (
 	github.com/gin-gonic/gin v1.12.0
+	github.com/ory/dockertest/v3 v3.12.0
+	github.com/pressly/goose/v3 v3.22.1
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/crypto v0.50.0
+	gorm.io/datatypes v1.2.1
+	gorm.io/driver/postgres v1.6.0
+	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -59,11 +65,9 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opencontainers/runc v1.2.3 // indirect
-	github.com/ory/dockertest/v3 v3.12.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/pressly/goose/v3 v3.27.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
@@ -83,7 +87,6 @@ require (
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
-	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
@@ -93,8 +96,5 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/datatypes v1.2.1 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
-	gorm.io/driver/postgres v1.6.0 // indirect
-	gorm.io/gorm v1.31.1 // indirect
 )

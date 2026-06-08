@@ -5,7 +5,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"log"
 	"path/filepath"
 	"testing"
 	"time"
@@ -68,7 +67,6 @@ func StartTestPostgres(t *testing.T, migrationsDir string) (*gorm.DB, func()) {
 		t.Fatal(err)
 	}
 	if err := goose.Up(sqlDB, migrationsAbs); err != nil {
-		log.Printf("migration up failed: %v", err)
 		_ = pool.Purge(res)
 		t.Fatal(err)
 	}

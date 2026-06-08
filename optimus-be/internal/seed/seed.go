@@ -84,6 +84,9 @@ func bindAdminPermissions(ctx context.Context, tx *gorm.DB) error {
 	if err := tx.WithContext(ctx).Find(&perms).Error; err != nil {
 		return err
 	}
+	if len(perms) == 0 {
+		return errors.New("no permissions found in DB; run permissions.Register before seed.Run")
+	}
 	return bindPermsToRole(ctx, tx, role.ID, perms)
 }
 

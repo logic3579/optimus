@@ -15,8 +15,7 @@ import (
 
 func Open(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	gdb, err := gorm.Open(postgres.Open(cfg.DSN), &gorm.Config{
-		Logger:                 logger.Default.LogMode(logger.Silent),
-		SkipDefaultTransaction: false,
+		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gorm open: %w", err)
