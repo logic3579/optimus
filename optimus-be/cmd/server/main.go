@@ -12,7 +12,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
+	// Blank import registers the generated OpenAPI spec with swag at init time
+	// so /swagger/* serves it. Regenerate via `make swag` whenever annotations
+	// change — CI's `make swagger-diff` will catch drift otherwise.
+	_ "optimus-be/api/docs"
 	"optimus-be/internal/infra/config"
 	"optimus-be/internal/infra/crypto"
 	"optimus-be/internal/infra/db"
@@ -32,6 +38,18 @@ import (
 
 var Version = "dev"
 
+// @title           Optimus Admin API
+// @version         1.0
+// @description     P0 admin backend for Optimus — auth, RBAC, users, roles, permissions, menus, audit.
+// @description     All authenticated endpoints expect `Authorization: Bearer <access_token>`.
+// @host            localhost:8080
+// @BasePath        /api/v1
+// @schemes         http https
+//
+// @securityDefinitions.apikey BearerAuth
+// @in   header
+// @name Authorization
+// @description Type "Bearer" followed by a space and the JWT access token.
 func main() {
 	cfgPath := flag.String("config", "configs/config.yaml", "path to config")
 	checkPerms := flag.Bool("check-permissions", false, "register permission codes and exit")
@@ -91,6 +109,10 @@ func main() {
 	r.Use(middleware.Recover(logger))
 	r.Use(middleware.CORS(cfg.CORS))
 	r.Use(middleware.I18n(cfg.I18n))
+
+	// Swagger UI: served at /swagger/index.html. The spec is bundled via the
+	// blank import of optimus-be/api/docs above.
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api/v1")
 

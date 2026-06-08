@@ -47,6 +47,15 @@ func (h *Handler) parseID(c *gin.Context) (uint64, bool) {
 	return id, true
 }
 
+// list returns all roles with their bound permissions.
+// @Summary  List roles
+// @Tags     roles
+// @Security BearerAuth
+// @Produce  json
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Router   /roles [get]
 func (h *Handler) list(c *gin.Context) {
 	out, err := h.svc.List(c.Request.Context())
 	if err != nil {
@@ -56,6 +65,17 @@ func (h *Handler) list(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// get returns a single role by ID.
+// @Summary  Get role
+// @Tags     roles
+// @Security BearerAuth
+// @Produce  json
+// @Param    id  path     int true "role ID"
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Failure  404 {object} response.Envelope
+// @Router   /roles/{id} [get]
 func (h *Handler) get(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -69,6 +89,19 @@ func (h *Handler) get(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// create creates a new role (without permissions; bind via setPermissions).
+// @Summary  Create role
+// @Tags     roles
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    body body     CreateRequest true "role payload"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  409  {object} response.Envelope
+// @Router   /roles [post]
 func (h *Handler) create(c *gin.Context) {
 	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -83,6 +116,20 @@ func (h *Handler) create(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// update mutates role name/description fields.
+// @Summary  Update role
+// @Tags     roles
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    id   path     int           true "role ID"
+// @Param    body body     UpdateRequest true "role payload"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /roles/{id} [put]
 func (h *Handler) update(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -101,6 +148,17 @@ func (h *Handler) update(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// delete removes a role (and its bindings).
+// @Summary  Delete role
+// @Tags     roles
+// @Security BearerAuth
+// @Produce  json
+// @Param    id  path     int true "role ID"
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Failure  404 {object} response.Envelope
+// @Router   /roles/{id} [delete]
 func (h *Handler) delete(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -113,6 +171,20 @@ func (h *Handler) delete(c *gin.Context) {
 	response.Success(c, gin.H{"ok": true})
 }
 
+// setPermissions replaces a role's permission bindings with the supplied set of codes.
+// @Summary  Set role permissions
+// @Tags     roles
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    id   path     int                   true "role ID"
+// @Param    body body     SetPermissionsRequest true "permission codes"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /roles/{id}/permissions [put]
 func (h *Handler) setPermissions(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {

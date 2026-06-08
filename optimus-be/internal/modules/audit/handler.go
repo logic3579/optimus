@@ -25,6 +25,22 @@ func (h *Handler) Register(g *gin.RouterGroup) {
 // under a group gated by middleware.RequirePermission.
 func (h *Handler) HandleList() gin.HandlerFunc { return h.list }
 
+// list returns paginated audit log entries with optional filters.
+// @Summary  List audit logs
+// @Tags     audit
+// @Security BearerAuth
+// @Produce  json
+// @Param    page      query int    false "page (default 1)"
+// @Param    page_size query int    false "page_size (default 20, max 100)"
+// @Param    action    query string false "filter by action code"
+// @Param    user_id   query int    false "filter by actor user ID"
+// @Param    start     query string false "start time (RFC3339)"
+// @Param    end       query string false "end time (RFC3339)"
+// @Success  200 {object} response.Envelope
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Router   /audit-logs [get]
 func (h *Handler) list(c *gin.Context) {
 	p := pagination.Parse(c)
 	q := ListQuery{Action: c.Query("action")}

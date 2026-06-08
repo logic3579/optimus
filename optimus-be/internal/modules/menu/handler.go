@@ -41,6 +41,15 @@ func (h *Handler) parseID(c *gin.Context) (uint64, bool) {
 	return id, true
 }
 
+// tree returns the full menu tree.
+// @Summary  Menu tree
+// @Tags     menus
+// @Security BearerAuth
+// @Produce  json
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Router   /menus [get]
 func (h *Handler) tree(c *gin.Context) {
 	out, err := h.svc.Tree(c.Request.Context())
 	if err != nil {
@@ -50,6 +59,18 @@ func (h *Handler) tree(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// create creates a menu node.
+// @Summary  Create menu
+// @Tags     menus
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    body body     CreateRequest true "menu payload"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Router   /menus [post]
 func (h *Handler) create(c *gin.Context) {
 	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -64,6 +85,20 @@ func (h *Handler) create(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// update mutates a menu node.
+// @Summary  Update menu
+// @Tags     menus
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    id   path     int           true "menu ID"
+// @Param    body body     UpdateRequest true "menu payload"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /menus/{id} [put]
 func (h *Handler) update(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -82,6 +117,17 @@ func (h *Handler) update(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// delete removes a menu node.
+// @Summary  Delete menu
+// @Tags     menus
+// @Security BearerAuth
+// @Produce  json
+// @Param    id  path     int true "menu ID"
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Failure  404 {object} response.Envelope
+// @Router   /menus/{id} [delete]
 func (h *Handler) delete(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {

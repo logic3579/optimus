@@ -25,6 +25,15 @@ func (h *Handler) Register(g *gin.RouterGroup) {
 // under a group gated by middleware.RequirePermission.
 func (h *Handler) HandleList() gin.HandlerFunc { return h.list }
 
+// list returns the permission registry (read-only).
+// @Summary  List permissions
+// @Tags     permissions
+// @Security BearerAuth
+// @Produce  json
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Router   /permissions [get]
 func (h *Handler) list(c *gin.Context) {
 	var rows []models.Permission
 	if err := h.db.WithContext(c.Request.Context()).Order("category ASC, code ASC").Find(&rows).Error; err != nil {

@@ -19,6 +19,13 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	rg.GET("/health", h.health)
 }
 
+// health reports DB liveness and the server build version.
+// @Summary  Health check
+// @Tags     health
+// @Produce  json
+// @Success  200 {object} map[string]string
+// @Failure  503 {object} map[string]string
+// @Router   /health [get]
 func (h *Handler) health(c *gin.Context) {
 	if err := db.Ping(c.Request.Context(), h.DB); err != nil {
 		// Log internally but never expose error text to unauthenticated callers.

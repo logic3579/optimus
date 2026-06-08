@@ -25,6 +25,15 @@ func (h *Handler) RegisterMe(g *gin.RouterGroup) {
 	g.GET("/me/permissions", h.getMyPermissions)
 }
 
+// getMe returns the authenticated user's profile.
+// @Summary  Current user profile
+// @Tags     me
+// @Security BearerAuth
+// @Produce  json
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  404 {object} response.Envelope
+// @Router   /me [get]
 func (h *Handler) getMe(c *gin.Context) {
 	uid := c.GetUint64(ctxUserID)
 	if uid == 0 {
@@ -39,6 +48,14 @@ func (h *Handler) getMe(c *gin.Context) {
 	response.Success(c, dto)
 }
 
+// getMyMenus returns the menu tree visible to the authenticated user.
+// @Summary  Current user menu tree
+// @Tags     me
+// @Security BearerAuth
+// @Produce  json
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Router   /me/menus [get]
 func (h *Handler) getMyMenus(c *gin.Context) {
 	uid := c.GetUint64(ctxUserID)
 	if uid == 0 {
@@ -53,6 +70,14 @@ func (h *Handler) getMyMenus(c *gin.Context) {
 	response.Success(c, tree)
 }
 
+// getMyPermissions returns the flat list of permission codes the authenticated user holds.
+// @Summary  Current user permission codes
+// @Tags     me
+// @Security BearerAuth
+// @Produce  json
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Router   /me/permissions [get]
 func (h *Handler) getMyPermissions(c *gin.Context) {
 	uid := c.GetUint64(ctxUserID)
 	if uid == 0 {

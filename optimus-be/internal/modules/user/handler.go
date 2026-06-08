@@ -53,6 +53,19 @@ func (h *Handler) parseID(c *gin.Context) (uint64, bool) {
 	return id, true
 }
 
+// list returns a paginated list of users.
+// @Summary  List users
+// @Tags     users
+// @Security BearerAuth
+// @Produce  json
+// @Param    page      query int    false "page (default 1)"
+// @Param    page_size query int    false "page_size (default 20, max 100)"
+// @Param    search    query string false "search by username/email"
+// @Param    status    query string false "enabled | disabled"
+// @Success  200 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Router   /users [get]
 func (h *Handler) list(c *gin.Context) {
 	p := pagination.Parse(c)
 	q := ListQuery{Search: c.Query("search"), Status: c.Query("status")}
@@ -64,6 +77,19 @@ func (h *Handler) list(c *gin.Context) {
 	response.Success(c, page)
 }
 
+// create creates a new user.
+// @Summary  Create user
+// @Tags     users
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    body body     CreateRequest true "user payload"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  409  {object} response.Envelope
+// @Router   /users [post]
 func (h *Handler) create(c *gin.Context) {
 	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -78,6 +104,17 @@ func (h *Handler) create(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// get returns a single user by ID.
+// @Summary  Get user
+// @Tags     users
+// @Security BearerAuth
+// @Produce  json
+// @Param    id   path     int true "user ID"
+// @Success  200  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /users/{id} [get]
 func (h *Handler) get(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -91,6 +128,20 @@ func (h *Handler) get(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// update mutates user profile fields (does not change roles, status, or password).
+// @Summary  Update user
+// @Tags     users
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    id   path     int           true "user ID"
+// @Param    body body     UpdateRequest true "profile fields"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /users/{id} [put]
 func (h *Handler) update(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -109,6 +160,17 @@ func (h *Handler) update(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// delete soft-deletes a user.
+// @Summary  Delete user
+// @Tags     users
+// @Security BearerAuth
+// @Produce  json
+// @Param    id   path     int true "user ID"
+// @Success  200  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /users/{id} [delete]
 func (h *Handler) delete(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -121,6 +183,20 @@ func (h *Handler) delete(c *gin.Context) {
 	response.Success(c, gin.H{"ok": true})
 }
 
+// setRoles replaces a user's role bindings with the supplied set.
+// @Summary  Set user roles
+// @Tags     users
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    id   path     int             true "user ID"
+// @Param    body body     SetRolesRequest true "role IDs"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /users/{id}/roles [put]
 func (h *Handler) setRoles(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -143,6 +219,20 @@ func (h *Handler) setRoles(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// setStatus toggles a user between enabled and disabled.
+// @Summary  Set user status
+// @Tags     users
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    id   path     int              true "user ID"
+// @Param    body body     SetStatusRequest true "status"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /users/{id}/status [put]
 func (h *Handler) setStatus(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
@@ -165,6 +255,20 @@ func (h *Handler) setStatus(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// setPassword resets a user's password (admin action).
+// @Summary  Set user password
+// @Tags     users
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    id   path     int                true "user ID"
+// @Param    body body     SetPasswordRequest true "new password"
+// @Success  200  {object} response.Envelope
+// @Failure  400  {object} response.Envelope
+// @Failure  401  {object} response.Envelope
+// @Failure  403  {object} response.Envelope
+// @Failure  404  {object} response.Envelope
+// @Router   /users/{id}/password [put]
 func (h *Handler) setPassword(c *gin.Context) {
 	id, ok := h.parseID(c)
 	if !ok {
