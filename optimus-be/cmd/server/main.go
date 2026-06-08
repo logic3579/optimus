@@ -9,19 +9,23 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"optimus-be/internal/infra/config"
+	"optimus-be/internal/infra/crypto"
 	"optimus-be/internal/infra/db"
 	"optimus-be/internal/infra/log"
+	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/infra/permissions"
+	"optimus-be/internal/infra/ratelimit"
+	"optimus-be/internal/modules/auth"
 	"optimus-be/internal/modules/health"
+	"optimus-be/internal/modules/rbac"
 )
 
-var (
-	Version = "dev" // set via -ldflags at build time
-)
+var Version = "dev"
 
 func main() {
 	cfgPath := flag.String("config", "configs/config.yaml", "path to config")
@@ -56,12 +60,43 @@ func main() {
 		return
 	}
 
+	signer := crypto.NewJWTSigner(cfg.JWT.Secret)
+	limiter := ratelimit.NewLoginLimiter(
+		cfg.Auth.LoginRateLimit.PerIP,
+		cfg.Auth.LoginRateLimit.Window,
+		cfg.Auth.LoginRateLimit.Block,
+	)
+	authRepo := auth.NewRepo(gdb)
+	authSvc := auth.NewService(authRepo, signer, limiter, auth.ServiceOptions{
+		AccessTTL:  cfg.JWT.AccessTTL,
+		RefreshTTL: cfg.JWT.RefreshTTL,
+		BcryptCost: cfg.Auth.BcryptCost,
+	})
+	authHandler := auth.NewHandler(authSvc)
+
+	// Permission cache TTL: 60s per spec §7.4.
+	permCache := rbac.NewPermissionCache(gdb, 60*time.Second)
+	meSvc := rbac.NewMeService(gdb, permCache)
+	meHandler := rbac.NewHandler(meSvc)
+
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(middleware.RequestID())
+	r.Use(middleware.Logger(logger))
+	r.Use(middleware.Recover(logger))
+	r.Use(middleware.CORS(cfg.CORS))
+	r.Use(middleware.I18n(cfg.I18n))
 
 	api := r.Group("/api/v1")
+
+	// public
 	(&health.Handler{DB: gdb, Version: Version}).Register(api)
+	authHandler.Register(api.Group("/auth"))
+
+	// authenticated
+	protected := api.Group("")
+	protected.Use(middleware.JWTAuth(signer))
+	meHandler.RegisterMe(protected)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
@@ -82,13 +117,11 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	logger.Info("shutting down")
-
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("shutdown", "err", err)
 	}
-
 	if sqlDB, _ := gdb.DB(); sqlDB != nil {
 		_ = sqlDB.Close()
 	}
