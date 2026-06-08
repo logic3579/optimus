@@ -106,7 +106,7 @@ func (h *Handler) changeMyPassword(c *gin.Context) {
 		response.Error(c, err)
 		return
 	}
-	response.Success(c, nil)
+	response.Success(c, gin.H{"ok": true})
 }
 
 // getMyMenus returns the menu tree visible to the authenticated user.

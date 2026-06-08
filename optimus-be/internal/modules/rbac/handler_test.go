@@ -114,13 +114,12 @@ func TestHandler_UpdateMe_OK(t *testing.T) {
 	h := buildMeHandlerHarness(t)
 	defer h.cleanup()
 
-	uid, token := h.loginUser(t, "alice", "alice@example.com", "oldpass1234")
+	_, token := h.loginUser(t, "alice", "alice@example.com", "oldpass1234")
 	body := `{"display_name":"Alice C","email":"alice2@example.com"}`
 	w := h.do(t, http.MethodPut, "/api/v1/me", body, token)
 
 	require.Equal(t, 200, w.Code)
 	require.Contains(t, w.Body.String(), `"display_name":"Alice C"`)
-	_ = uid
 }
 
 func TestHandler_ChangeMyPassword_WrongOld(t *testing.T) {
@@ -130,5 +129,5 @@ func TestHandler_ChangeMyPassword_WrongOld(t *testing.T) {
 	_, token := h.loginUser(t, "bob", "bob@example.com", "rightpass00")
 	w := h.do(t, http.MethodPut, "/api/v1/me/password", `{"old_password":"wrong","new_password":"newpass5678"}`, token)
 
-	require.NotEqual(t, 200, w.Code)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
