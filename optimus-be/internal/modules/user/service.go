@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
+	"optimus-be/internal/infra/crypto"
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/pagination"
 	"optimus-be/internal/models"
@@ -220,6 +221,33 @@ func (s *Service) SetPassword(ctx context.Context, actorID uint64, ip, ua string
 	}
 	_ = s.audit.Record(ctx, audit.Event{
 		UserID: &actorID, Action: "user.reset_password", TargetType: "user", TargetID: uintToStr(id),
+		IP: ip, UserAgent: ua,
+	})
+	return nil
+}
+
+// ChangePassword verifies oldPassword then updates the hash.
+// Distinct from SetPassword (admin reset) — it requires old credential and audits as user.change_password.
+func (s *Service) ChangePassword(ctx context.Context, userID uint64, ip, ua, oldPassword, newPassword string) error {
+	u, err := s.repo.Get(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.New(apperr.CodeNotFound, "common.not_found", "user not found")
+		}
+		return err
+	}
+	if err := crypto.ComparePassword(u.PasswordHash, oldPassword); err != nil {
+		return apperr.New(apperr.CodeInvalidCredentials, "auth.invalid_credentials", "invalid old password")
+	}
+	hash, err := crypto.HashPassword(newPassword, s.opts.BcryptCost)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.Update(ctx, userID, map[string]any{"password_hash": hash}); err != nil {
+		return err
+	}
+	_ = s.audit.Record(ctx, audit.Event{
+		UserID: &userID, Action: "user.change_password", TargetType: "user", TargetID: uintToStr(userID),
 		IP: ip, UserAgent: ua,
 	})
 	return nil
