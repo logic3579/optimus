@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"optimus-be/internal/infra/db"
+	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/permissions"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
@@ -20,13 +21,23 @@ import (
 	"optimus-be/internal/seed"
 )
 
+// nopUserWriter satisfies UserWriter for tests that don't exercise writes.
+type nopUserWriter struct{}
+
+func (nopUserWriter) UpdateProfile(_ context.Context, _ uint64, _, _ string, _ uint64, _, _, _ *string) error {
+	return nil
+}
+func (nopUserWriter) ChangePassword(_ context.Context, _ uint64, _, _, _, _ string) error {
+	return nil
+}
+
 func TestMeService_GetUser(t *testing.T) {
 	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
 	defer teardown()
 	u := &models.User{Username: "alice", Email: "a@x", PasswordHash: "x", Status: "enabled", DisplayName: "Alice"}
 	require.NoError(t, gdb.Create(u).Error)
 
-	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, time.Minute), nil)
+	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, time.Minute), nopUserWriter{})
 	dto, err := svc.GetUser(context.Background(), u.ID)
 	require.NoError(t, err)
 	require.Equal(t, u.ID, dto.ID)
@@ -37,7 +48,7 @@ func TestMeService_GetUser(t *testing.T) {
 func TestMeService_GetUser_NotFound(t *testing.T) {
 	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
 	defer teardown()
-	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, 0), nil)
+	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, 0), nopUserWriter{})
 	_, err := svc.GetUser(context.Background(), 999999)
 	require.Error(t, err)
 }
@@ -115,4 +126,7 @@ func TestMeService_ChangeMyPassword_WrongOld(t *testing.T) {
 	uid := d.seedUserWithPassword(t, "alice", "alice@example.com", "rightpass00")
 	err := d.svc.ChangeMyPassword(d.ctx, uid, "1.1.1.1", "ua", "wrongpass", "newpass5678")
 	require.Error(t, err)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeInvalidCredentials, be.Code)
 }
