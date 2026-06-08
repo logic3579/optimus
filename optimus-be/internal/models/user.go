@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -22,3 +23,5 @@ type User struct {
 }
 
 func (User) TableName() string { return "users" }
+
+func (u User) IDString() string { return strconv.FormatUint(u.ID, 10) }
