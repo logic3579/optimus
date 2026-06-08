@@ -43,7 +43,7 @@ type JWTConfig struct {
 }
 
 type AuthConfig struct {
-	BcryptCost     int                 `mapstructure:"bcrypt_cost"`
+	BcryptCost     int                  `mapstructure:"bcrypt_cost"`
 	LoginRateLimit LoginRateLimitConfig `mapstructure:"login_rate_limit"`
 }
 
