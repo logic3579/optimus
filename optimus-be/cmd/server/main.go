@@ -20,9 +20,14 @@ import (
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/infra/permissions"
 	"optimus-be/internal/infra/ratelimit"
+	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/auth"
 	"optimus-be/internal/modules/health"
+	"optimus-be/internal/modules/menu"
+	"optimus-be/internal/modules/permission"
 	"optimus-be/internal/modules/rbac"
+	"optimus-be/internal/modules/role"
+	"optimus-be/internal/modules/user"
 )
 
 var Version = "dev"
@@ -98,6 +103,34 @@ func main() {
 	protected.Use(middleware.JWTAuth(signer))
 	meHandler.RegisterMe(protected)
 
+	// module wiring: per-route RequirePermission via nested sub-groups so the
+	// middleware runs BEFORE the handler (gin only chains middlewares supplied
+	// at Group/Use; passing them as variadic args to GET/POST/... does not
+	// guarantee they run first when handlers are registered separately).
+	auditRec := audit.NewRecorder(gdb)
+
+	userSvc := user.NewService(user.NewRepo(gdb), permCache, auditRec, user.ServiceOptions{
+		BcryptCost:    cfg.Auth.BcryptCost,
+		AdminUsername: cfg.Boot.AdminUsername,
+	})
+	userHandler := user.NewHandler(userSvc)
+	mountUserRoutes(protected, userHandler, permCache)
+
+	roleSvc := role.NewService(role.NewRepo(gdb), permCache, auditRec)
+	roleHandler := role.NewHandler(roleSvc)
+	mountRoleRoutes(protected, roleHandler, permCache)
+
+	permHandler := permission.NewHandler(gdb)
+	mountPermissionRoutes(protected, permHandler, permCache)
+
+	menuSvc := menu.NewService(menu.NewRepo(gdb), auditRec)
+	menuHandler := menu.NewHandler(menuSvc)
+	mountMenuRoutes(protected, menuHandler, permCache)
+
+	auditSvc := audit.NewService(audit.NewRepo(gdb))
+	auditHandler := audit.NewHandler(auditSvc)
+	mountAuditRoutes(protected, auditHandler, permCache)
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 		Handler:      r,
@@ -131,4 +164,71 @@ func main() {
 func fail(stage string, err error) {
 	fmt.Fprintf(os.Stderr, "fatal: %s: %v\n", stage, err)
 	os.Exit(1)
+}
+
+// mountUserRoutes mounts /users with per-route RBAC gates per spec §7.2.
+func mountUserRoutes(protected *gin.RouterGroup, h *user.Handler, cache *rbac.PermissionCache) {
+	g := protected.Group("/users")
+
+	rd := g.Group("", middleware.RequirePermission(cache, "system:user:read"))
+	rd.GET("", h.HandleList())
+	rd.GET("/:id", h.HandleGet())
+
+	wr := g.Group("", middleware.RequirePermission(cache, "system:user:write"))
+	wr.POST("", h.HandleCreate())
+	wr.PUT("/:id", h.HandleUpdate())
+	wr.PUT("/:id/roles", h.HandleSetRoles())
+	wr.PUT("/:id/status", h.HandleSetStatus())
+
+	rp := g.Group("", middleware.RequirePermission(cache, "system:user:reset_pass"))
+	rp.PUT("/:id/password", h.HandleSetPassword())
+
+	del := g.Group("", middleware.RequirePermission(cache, "system:user:delete"))
+	del.DELETE("/:id", h.HandleDelete())
+}
+
+// mountRoleRoutes mounts /roles with per-route RBAC gates per spec §7.2.
+func mountRoleRoutes(protected *gin.RouterGroup, h *role.Handler, cache *rbac.PermissionCache) {
+	g := protected.Group("/roles")
+
+	rd := g.Group("", middleware.RequirePermission(cache, "system:role:read"))
+	rd.GET("", h.HandleList())
+	rd.GET("/:id", h.HandleGet())
+
+	wr := g.Group("", middleware.RequirePermission(cache, "system:role:write"))
+	wr.POST("", h.HandleCreate())
+	wr.PUT("/:id", h.HandleUpdate())
+	wr.PUT("/:id/permissions", h.HandleSetPermissions())
+
+	del := g.Group("", middleware.RequirePermission(cache, "system:role:delete"))
+	del.DELETE("/:id", h.HandleDelete())
+}
+
+// mountPermissionRoutes mounts the read-only /permissions endpoint.
+func mountPermissionRoutes(protected *gin.RouterGroup, h *permission.Handler, cache *rbac.PermissionCache) {
+	g := protected.Group("/permissions")
+	rd := g.Group("", middleware.RequirePermission(cache, "system:permission:read"))
+	rd.GET("", h.HandleList())
+}
+
+// mountMenuRoutes mounts /menus with per-route RBAC gates per spec §7.2.
+func mountMenuRoutes(protected *gin.RouterGroup, h *menu.Handler, cache *rbac.PermissionCache) {
+	g := protected.Group("/menus")
+
+	rd := g.Group("", middleware.RequirePermission(cache, "system:menu:read"))
+	rd.GET("", h.HandleTree())
+
+	wr := g.Group("", middleware.RequirePermission(cache, "system:menu:write"))
+	wr.POST("", h.HandleCreate())
+	wr.PUT("/:id", h.HandleUpdate())
+
+	del := g.Group("", middleware.RequirePermission(cache, "system:menu:delete"))
+	del.DELETE("/:id", h.HandleDelete())
+}
+
+// mountAuditRoutes mounts the read-only /audit-logs endpoint.
+func mountAuditRoutes(protected *gin.RouterGroup, h *audit.Handler, cache *rbac.PermissionCache) {
+	g := protected.Group("/audit-logs")
+	rd := g.Group("", middleware.RequirePermission(cache, "system:audit:read"))
+	rd.GET("", h.HandleList())
 }

@@ -21,6 +21,10 @@ func (h *Handler) Register(g *gin.RouterGroup) {
 	g.GET("", h.list)
 }
 
+// HandleList is the public wrapper used by main.go to mount the list handler
+// under a group gated by middleware.RequirePermission.
+func (h *Handler) HandleList() gin.HandlerFunc { return h.list }
+
 func (h *Handler) list(c *gin.Context) {
 	p := pagination.Parse(c)
 	q := ListQuery{Action: c.Query("action")}

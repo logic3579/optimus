@@ -21,6 +21,10 @@ func (h *Handler) Register(g *gin.RouterGroup) {
 	g.GET("", h.list)
 }
 
+// HandleList is the public wrapper used by main.go to mount the list handler
+// under a group gated by middleware.RequirePermission.
+func (h *Handler) HandleList() gin.HandlerFunc { return h.list }
+
 func (h *Handler) list(c *gin.Context) {
 	var rows []models.Permission
 	if err := h.db.WithContext(c.Request.Context()).Order("category ASC, code ASC").Find(&rows).Error; err != nil {

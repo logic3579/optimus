@@ -30,6 +30,18 @@ func (h *Handler) Register(g *gin.RouterGroup) {
 	g.PUT("/:id/password", h.setPassword)
 }
 
+// Public wrappers used by main.go to register handlers under nested groups
+// gated by middleware.RequirePermission. Each returns the corresponding
+// private handler method so the middleware runs before the handler executes.
+func (h *Handler) HandleList() gin.HandlerFunc        { return h.list }
+func (h *Handler) HandleGet() gin.HandlerFunc         { return h.get }
+func (h *Handler) HandleCreate() gin.HandlerFunc      { return h.create }
+func (h *Handler) HandleUpdate() gin.HandlerFunc      { return h.update }
+func (h *Handler) HandleDelete() gin.HandlerFunc      { return h.delete }
+func (h *Handler) HandleSetRoles() gin.HandlerFunc    { return h.setRoles }
+func (h *Handler) HandleSetStatus() gin.HandlerFunc   { return h.setStatus }
+func (h *Handler) HandleSetPassword() gin.HandlerFunc { return h.setPassword }
+
 func (h *Handler) actor(c *gin.Context) uint64 { return c.GetUint64(middleware.CtxKeyUserID) }
 
 func (h *Handler) parseID(c *gin.Context) (uint64, bool) {

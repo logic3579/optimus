@@ -23,6 +23,13 @@ func (h *Handler) Register(g *gin.RouterGroup) {
 	g.DELETE("/:id", h.delete)
 }
 
+// Public wrappers used by main.go to register handlers under nested groups
+// gated by middleware.RequirePermission.
+func (h *Handler) HandleTree() gin.HandlerFunc   { return h.tree }
+func (h *Handler) HandleCreate() gin.HandlerFunc { return h.create }
+func (h *Handler) HandleUpdate() gin.HandlerFunc { return h.update }
+func (h *Handler) HandleDelete() gin.HandlerFunc { return h.delete }
+
 func (h *Handler) actor(c *gin.Context) uint64 { return c.GetUint64(middleware.CtxKeyUserID) }
 
 func (h *Handler) parseID(c *gin.Context) (uint64, bool) {
