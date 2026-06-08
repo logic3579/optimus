@@ -23,11 +23,11 @@ func NewService(repo *Repo, rec *audit.Recorder) *Service {
 
 func (s *Service) Repo() *Repo { return s.repo }
 
-func (s *Service) Tree(ctx context.Context) ([]MenuNode, error) {
+func (s *Service) Tree(ctx context.Context) ([]Node, error) {
 	return s.repo.Tree(ctx)
 }
 
-func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*MenuNode, error) {
+func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*Node, error) {
 	if _, err := s.repo.FindByCode(ctx, req.Code); err == nil {
 		return nil, apperr.New(apperr.CodeMenuAlreadyExists, "menu.exists", "menu code already in use")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -57,7 +57,7 @@ func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req
 	return toNode(*m), nil
 }
 
-func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id uint64, req UpdateRequest) (*MenuNode, error) {
+func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id uint64, req UpdateRequest) (*Node, error) {
 	before, err := s.repo.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -152,8 +152,8 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 	return nil
 }
 
-func toNode(m models.Menu) *MenuNode {
-	return &MenuNode{
+func toNode(m models.Menu) *Node {
+	return &Node{
 		ID: m.ID, ParentID: m.ParentID, Code: m.Code, Name: m.Name,
 		Path: m.Path, Component: m.Component, Icon: m.Icon,
 		PermissionCode: m.PermissionCode, SortOrder: m.SortOrder, Hidden: m.Hidden,

@@ -2,7 +2,7 @@ package user
 
 import "time"
 
-type UserSummary struct {
+type Summary struct {
 	ID          uint64     `json:"id"`
 	Username    string     `json:"username"`
 	Email       string     `json:"email"`
@@ -12,8 +12,8 @@ type UserSummary struct {
 	CreatedAt   time.Time  `json:"created_at"`
 }
 
-type UserDetail struct {
-	UserSummary
+type Detail struct {
+	Summary
 	AvatarURL string    `json:"avatar_url"`
 	Roles     []RoleRef `json:"roles"`
 }

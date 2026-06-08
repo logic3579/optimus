@@ -1,17 +1,17 @@
 package menu
 
-type MenuNode struct {
-	ID             uint64     `json:"id"`
-	ParentID       *uint64    `json:"parent_id,omitempty"`
-	Code           string     `json:"code"`
-	Name           string     `json:"name"`
-	Path           string     `json:"path"`
-	Component      string     `json:"component"`
-	Icon           string     `json:"icon"`
-	PermissionCode *string    `json:"permission_code,omitempty"`
-	SortOrder      int        `json:"sort_order"`
-	Hidden         bool       `json:"hidden"`
-	Children       []MenuNode `json:"children,omitempty"`
+type Node struct {
+	ID             uint64  `json:"id"`
+	ParentID       *uint64 `json:"parent_id,omitempty"`
+	Code           string  `json:"code"`
+	Name           string  `json:"name"`
+	Path           string  `json:"path"`
+	Component      string  `json:"component"`
+	Icon           string  `json:"icon"`
+	PermissionCode *string `json:"permission_code,omitempty"`
+	SortOrder      int     `json:"sort_order"`
+	Hidden         bool    `json:"hidden"`
+	Children       []Node  `json:"children,omitempty"`
 }
 
 type CreateRequest struct {

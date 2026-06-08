@@ -60,8 +60,8 @@ func (r *Repo) HasChildren(ctx context.Context, id uint64) (bool, error) {
 	return n > 0, err
 }
 
-// Tree returns all menus as a nested MenuNode tree (parents first).
-func (r *Repo) Tree(ctx context.Context) ([]MenuNode, error) {
+// Tree returns all menus as a nested Node tree (parents first).
+func (r *Repo) Tree(ctx context.Context) ([]Node, error) {
 	rows, err := r.List(ctx)
 	if err != nil {
 		return nil, err
@@ -75,12 +75,12 @@ func (r *Repo) Tree(ctx context.Context) ([]MenuNode, error) {
 		}
 		byParent[key] = append(byParent[key], m)
 	}
-	var build func(parentID uint64) []MenuNode
-	build = func(parentID uint64) []MenuNode {
+	var build func(parentID uint64) []Node
+	build = func(parentID uint64) []Node {
 		kids := byParent[parentID]
-		out := make([]MenuNode, 0, len(kids))
+		out := make([]Node, 0, len(kids))
 		for _, m := range kids {
-			out = append(out, MenuNode{
+			out = append(out, Node{
 				ID: m.ID, ParentID: m.ParentID, Code: m.Code, Name: m.Name,
 				Path: m.Path, Component: m.Component, Icon: m.Icon,
 				PermissionCode: m.PermissionCode, SortOrder: m.SortOrder, Hidden: m.Hidden,

@@ -25,19 +25,19 @@ func NewService(repo *Repo, cache *rbac.PermissionCache, rec *audit.Recorder) *S
 
 func (s *Service) Repo() *Repo { return s.repo }
 
-func (s *Service) List(ctx context.Context) ([]RoleSummary, error) {
+func (s *Service) List(ctx context.Context) ([]Summary, error) {
 	rows, err := s.repo.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]RoleSummary, 0, len(rows))
+	out := make([]Summary, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, toSummary(r))
 	}
 	return out, nil
 }
 
-func (s *Service) Get(ctx context.Context, id uint64) (*RoleDetail, error) {
+func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 	m, err := s.repo.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -49,10 +49,10 @@ func (s *Service) Get(ctx context.Context, id uint64) (*RoleDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &RoleDetail{RoleSummary: toSummary(*m), PermissionCodes: codes}, nil
+	return &Detail{Summary: toSummary(*m), PermissionCodes: codes}, nil
 }
 
-func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*RoleDetail, error) {
+func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*Detail, error) {
 	if _, err := s.repo.FindByCode(ctx, req.Code); err == nil {
 		return nil, apperr.New(apperr.CodeRoleAlreadyExists, "role.exists", "role code already in use")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -70,7 +70,7 @@ func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req
 	return s.Get(ctx, m.ID)
 }
 
-func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id uint64, req UpdateRequest) (*RoleDetail, error) {
+func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id uint64, req UpdateRequest) (*Detail, error) {
 	before, err := s.repo.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -147,8 +147,8 @@ func (s *Service) SetPermissions(ctx context.Context, actorID uint64, ip, ua str
 	return nil
 }
 
-func toSummary(r models.Role) RoleSummary {
-	return RoleSummary{
+func toSummary(r models.Role) Summary {
+	return Summary{
 		ID: r.ID, Code: r.Code, Name: r.Name, Description: r.Description,
 		IsBuiltin: r.IsBuiltin, CreatedAt: r.CreatedAt,
 	}

@@ -36,19 +36,19 @@ func NewService(repo *Repo, cache *rbac.PermissionCache, rec *audit.Recorder, op
 
 func (s *Service) Repo() *Repo { return s.repo }
 
-func (s *Service) List(ctx context.Context, q ListQuery, p pagination.Params) (pagination.Page[UserSummary], error) {
+func (s *Service) List(ctx context.Context, q ListQuery, p pagination.Params) (pagination.Page[Summary], error) {
 	rows, total, err := s.repo.List(ctx, q, p)
 	if err != nil {
-		return pagination.Page[UserSummary]{}, err
+		return pagination.Page[Summary]{}, err
 	}
-	items := make([]UserSummary, 0, len(rows))
+	items := make([]Summary, 0, len(rows))
 	for _, u := range rows {
 		items = append(items, toSummary(u))
 	}
 	return pagination.Of(items, total, p), nil
 }
 
-func (s *Service) Get(ctx context.Context, id uint64) (*UserDetail, error) {
+func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 	u, err := s.repo.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -63,7 +63,7 @@ func (s *Service) Get(ctx context.Context, id uint64) (*UserDetail, error) {
 	return toDetail(*u, roles), nil
 }
 
-func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*UserDetail, error) {
+func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*Detail, error) {
 	if _, err := s.repo.FindByUsername(ctx, req.Username); err == nil {
 		return nil, apperr.New(apperr.CodeUserAlreadyExists, "user.exists", "username already in use")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -104,7 +104,7 @@ func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req
 	return s.Get(ctx, u.ID)
 }
 
-func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id uint64, req UpdateRequest) (*UserDetail, error) {
+func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id uint64, req UpdateRequest) (*Detail, error) {
 	before, err := s.repo.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -227,21 +227,21 @@ func (s *Service) SetPassword(ctx context.Context, actorID uint64, ip, ua string
 
 func uintToStr(n uint64) string { return strconv.FormatUint(n, 10) }
 
-func toSummary(u models.User) UserSummary {
-	return UserSummary{
+func toSummary(u models.User) Summary {
+	return Summary{
 		ID: u.ID, Username: u.Username, Email: u.Email, DisplayName: u.DisplayName,
 		Status: u.Status, LastLoginAt: u.LastLoginAt, CreatedAt: u.CreatedAt,
 	}
 }
 
-func toDetail(u models.User, roles []models.Role) *UserDetail {
+func toDetail(u models.User, roles []models.Role) *Detail {
 	refs := make([]RoleRef, 0, len(roles))
 	for _, r := range roles {
 		refs = append(refs, RoleRef{ID: r.ID, Code: r.Code, Name: r.Name})
 	}
-	return &UserDetail{
-		UserSummary: toSummary(u),
-		AvatarURL:   u.AvatarURL,
-		Roles:       refs,
+	return &Detail{
+		Summary:   toSummary(u),
+		AvatarURL: u.AvatarURL,
+		Roles:     refs,
 	}
 }

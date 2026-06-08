@@ -2,7 +2,7 @@ package role
 
 import "time"
 
-type RoleSummary struct {
+type Summary struct {
 	ID          uint64    `json:"id"`
 	Code        string    `json:"code"`
 	Name        string    `json:"name"`
@@ -11,8 +11,8 @@ type RoleSummary struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-type RoleDetail struct {
-	RoleSummary
+type Detail struct {
+	Summary
 	PermissionCodes []string `json:"permission_codes"`
 }
 
