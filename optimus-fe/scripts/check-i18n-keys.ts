@@ -17,7 +17,10 @@ function walk(dir: string, out: string[] = []): string[] {
 export function extractUsedKeys(_path: string, src: string): string[] {
   const out = new Set<string>()
   for (const m of src.matchAll(RE)) {
-    if (m[1]) out.add(m[1])
+    // Skip dynamic keys (template-literal interpolations). The static-key
+    // check cannot verify them; rely on the `unused-key` filter for prefixes
+    // like `menu.*` and `perm.*` to keep declared dynamic targets quiet.
+    if (m[1] && !m[1].includes('${')) out.add(m[1])
   }
   return [...out]
 }
