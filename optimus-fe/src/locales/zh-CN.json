@@ -47,12 +47,14 @@
   },
   "menu": {
     "dashboard": "仪表盘",
-    "system": "系统管理",
-    "system.users": "用户管理",
-    "system.roles": "角色管理",
-    "system.permissions": "权限列表",
-    "system.menus": "菜单管理",
-    "system.audit_logs": "操作审计"
+    "system_group": "系统管理",
+    "system": {
+      "users": "用户管理",
+      "roles": "角色管理",
+      "permissions": "权限列表",
+      "menus": "菜单管理",
+      "audit_logs": "操作审计"
+    }
   },
   "perm": {
     "system": {

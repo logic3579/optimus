@@ -47,12 +47,14 @@
   },
   "menu": {
     "dashboard": "Dashboard",
-    "system": "System",
-    "system.users": "Users",
-    "system.roles": "Roles",
-    "system.permissions": "Permissions",
-    "system.menus": "Menus",
-    "system.audit_logs": "Audit logs"
+    "system_group": "System",
+    "system": {
+      "users": "Users",
+      "roles": "Roles",
+      "permissions": "Permissions",
+      "menus": "Menus",
+      "audit_logs": "Audit logs"
+    }
   },
   "perm": {
     "system": {
