@@ -162,3 +162,117 @@ func TestService_ChangePassword_WrongOld(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, apperr.CodeInvalidCredentials, be.Code)
 }
+
+func TestService_Update_RenameAndEmail(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	out, err := svc.Create(ctx, 1, "", "", user.CreateRequest{
+		Username: "alice", Email: "a1@x", Password: "Pass1234",
+	})
+	require.NoError(t, err)
+
+	newEmail := "a2@x"
+	newName := "Alice"
+	updated, err := svc.Update(ctx, 1, "", "", out.ID, user.UpdateRequest{Email: &newEmail, DisplayName: &newName})
+	require.NoError(t, err)
+	require.Equal(t, "a2@x", updated.Email)
+	require.Equal(t, "Alice", updated.DisplayName)
+}
+
+func TestService_Update_EmailConflict(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	_, err := svc.Create(ctx, 1, "", "", user.CreateRequest{
+		Username: "carol", Email: "carol@example.com", Password: "Pass1234",
+	})
+	require.NoError(t, err)
+	dave, err := svc.Create(ctx, 1, "", "", user.CreateRequest{
+		Username: "dave", Email: "dave@example.com", Password: "Pass1234",
+	})
+	require.NoError(t, err)
+
+	conflicting := "carol@example.com"
+	_, err = svc.Update(ctx, 1, "", "", dave.ID, user.UpdateRequest{Email: &conflicting})
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeUserAlreadyExists, be.Code)
+}
+
+func TestService_Update_NotFound(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	name := "x"
+	_, err := svc.Update(context.Background(), 1, "", "", 99999, user.UpdateRequest{DisplayName: &name})
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
+}
+
+func TestService_SetStatus_HappyAndSelfRejected(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	out, err := svc.Create(ctx, 1, "", "", user.CreateRequest{
+		Username: "alice", Email: "alice@x", Password: "Pass1234",
+	})
+	require.NoError(t, err)
+	require.NoError(t, svc.SetStatus(ctx, 1, "", "", out.ID, "disabled"))
+
+	var u models.User
+	require.NoError(t, svc.Repo().DB().First(&u, out.ID).Error)
+	require.Equal(t, "disabled", u.Status)
+
+	// Self-disable rejected
+	err = svc.SetStatus(ctx, 1, "", "", 1, "disabled")
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeCannotDeleteSelf, be.Code)
+}
+
+func TestService_SetPassword_HashesAndAudits(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	out, err := svc.Create(ctx, 1, "", "", user.CreateRequest{
+		Username: "alice", Email: "alice@x", Password: "Pass1234",
+	})
+	require.NoError(t, err)
+	require.NoError(t, svc.SetPassword(ctx, 1, "", "", out.ID, "newpass5678"))
+
+	var u models.User
+	require.NoError(t, svc.Repo().DB().First(&u, out.ID).Error)
+	require.NoError(t, crypto.ComparePassword(u.PasswordHash, "newpass5678"))
+}
+
+func TestService_UpdateProfile_DelegatesToUpdate(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	out, err := svc.Create(ctx, 1, "", "", user.CreateRequest{
+		Username: "alice", Email: "alice@x", Password: "Pass1234",
+	})
+	require.NoError(t, err)
+
+	display := "Alice"
+	require.NoError(t, svc.UpdateProfile(ctx, out.ID, "", "", out.ID, nil, &display, nil))
+
+	var u models.User
+	require.NoError(t, svc.Repo().DB().First(&u, out.ID).Error)
+	require.Equal(t, "Alice", u.DisplayName)
+}
+
+func TestService_Get_NotFound(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	_, err := svc.Get(context.Background(), 99999)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
+}

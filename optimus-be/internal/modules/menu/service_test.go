@@ -48,6 +48,62 @@ func TestService_DeleteRejectsParentWithChildren(t *testing.T) {
 	require.Equal(t, apperr.CodeConflict, be.Code)
 }
 
+func TestService_Update_RenamesAndReparents(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	ctx := context.Background()
+	parent, err := svc.Create(ctx, 1, "", "", menu.CreateRequest{Code: "p", Name: "p"})
+	require.NoError(t, err)
+	child, err := svc.Create(ctx, 1, "", "", menu.CreateRequest{Code: "c", Name: "c"})
+	require.NoError(t, err)
+
+	newName := "child"
+	hidden := true
+	updated, err := svc.Update(ctx, 1, "", "", child.ID, menu.UpdateRequest{
+		Name: &newName, Hidden: &hidden, ParentID: &parent.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "child", updated.Name)
+	require.True(t, updated.Hidden)
+	require.NotNil(t, updated.ParentID)
+	require.Equal(t, parent.ID, *updated.ParentID)
+}
+
+func TestService_Update_SelfParentRejected(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	ctx := context.Background()
+	a, err := svc.Create(ctx, 1, "", "", menu.CreateRequest{Code: "a", Name: "a"})
+	require.NoError(t, err)
+	_, err = svc.Update(ctx, 1, "", "", a.ID, menu.UpdateRequest{ParentID: &a.ID})
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeBadRequest, be.Code)
+}
+
+func TestService_Update_MissingParentRejected(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	ctx := context.Background()
+	a, err := svc.Create(ctx, 1, "", "", menu.CreateRequest{Code: "a", Name: "a"})
+	require.NoError(t, err)
+	missing := uint64(99999)
+	_, err = svc.Update(ctx, 1, "", "", a.ID, menu.UpdateRequest{ParentID: &missing})
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
+}
+
+func TestService_Update_NotFound(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	name := "x"
+	_, err := svc.Update(context.Background(), 1, "", "", 99999, menu.UpdateRequest{Name: &name})
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
+}
+
 func TestService_UpdateRejectsCycle(t *testing.T) {
 	svc, td := newSvc(t)
 	defer td()

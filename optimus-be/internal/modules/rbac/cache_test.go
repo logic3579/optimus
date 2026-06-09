@@ -84,6 +84,34 @@ func TestCache_RespectsTTL(t *testing.T) {
 	require.Contains(t, fresh, "system:user:write")
 }
 
+func TestCache_InvalidateAll(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
+	defer teardown()
+	setupSeed(t, gdb)
+	uidA := seedUserWithRole(t, gdb, "alice", "viewer")
+	uidB := seedUserWithRole(t, gdb, "bob", "viewer")
+
+	cache := rbac.NewPermissionCache(gdb, time.Hour)
+	_, err := cache.Get(context.Background(), uidA)
+	require.NoError(t, err)
+	_, err = cache.Get(context.Background(), uidB)
+	require.NoError(t, err)
+
+	// Grant viewer a new permission after both users are cached, then nuke the whole cache.
+	var role models.Role
+	gdb.Where("code = ?", "viewer").First(&role)
+	var newPerm models.Permission
+	gdb.Where("code = ?", "system:user:write").First(&newPerm)
+	gdb.Create(&models.RolePermission{RoleID: role.ID, PermissionID: newPerm.ID})
+
+	cache.InvalidateAll()
+
+	freshA, _ := cache.Get(context.Background(), uidA)
+	freshB, _ := cache.Get(context.Background(), uidB)
+	require.Contains(t, freshA, "system:user:write")
+	require.Contains(t, freshB, "system:user:write")
+}
+
 func TestCache_InvalidateForUser(t *testing.T) {
 	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
 	defer teardown()
