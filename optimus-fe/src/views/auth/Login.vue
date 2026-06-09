@@ -21,10 +21,12 @@
 import { reactive, ref, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
+import { useI18n } from '@/hooks/useI18n'
 import { useAuthStore } from '@/stores/auth'
 import { isBizError } from '@/utils/http-error'
 import type { AuthApi } from '@/api/auth'
 
+const { t } = useI18n()
 const form = reactive({ username: '', password: '' })
 const loading = ref(false)
 const route = useRoute()
@@ -41,9 +43,9 @@ async function onSubmit() {
     router.push(redirect)
   } catch (e) {
     if (isBizError(e)) {
-      message.error(e.messageKey ? `auth.${e.messageKey}` : e.message)
+      message.error(e.messageKey ? t(e.messageKey) : e.message)
     } else {
-      message.error('network.error')
+      message.error(t('network.error'))
     }
   } finally {
     loading.value = false
