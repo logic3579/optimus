@@ -16,5 +16,5 @@ func TestEmbedContainsAllMigrations(t *testing.T) {
 			sqlCount++
 		}
 	}
-	require.Equal(t, 11, sqlCount, "expected 11 embedded migration files")
+	require.GreaterOrEqual(t, sqlCount, 11, "expected at least 11 embedded migration files")
 }

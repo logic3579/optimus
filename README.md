@@ -63,8 +63,9 @@ bun run dev   # http://localhost:5173, proxies /api/v1 to backend on :8080
 2. `cp .env.example .env` and fill in the **REQUIRED** section.
    Generate a JWT secret: `openssl rand -base64 48`
 3. `docker compose -f docker-compose.prod.yml up -d --build`
-4. Wait for all 5 services to be healthy (~30s on warm cache):
+4. Wait until the 3 long-running services are `healthy` and the 2 init containers have `Exited (0)` (~30s on warm cache):
    `docker compose -f docker-compose.prod.yml ps`
+   Expected: `optimus-pg` healthy, `optimus-migrate` exited (0), `optimus-seed` exited (0), `optimus-be` healthy, `optimus-fe` healthy.
 5. Verify: `curl -s http://localhost/api/v1/health` should return
    `{"code":0, "data":{"db":"ok","version":"<sha>"}, ...}`.
 6. Retrieve the **initial admin password** from the seed logs:

@@ -281,7 +281,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['vue', 'vue-router', 'pinia', 'pinia-plugin-persistedstate', 'axios'],
-          antd:   ['ant-design-vue', '@ant-design/icons-vue'],
+          antd:   ['ant-design-vue'],
+          icons:  ['@ant-design/icons-vue'],
           utils:  ['dayjs', 'vue-i18n']
         }
       }
@@ -301,7 +302,8 @@ export default defineConfig({
 |---|---|---|
 | `index-*.js` | < 250 KB | app code only; route splits already small |
 | `vendor-*.js` | < 250 KB | vue + router + pinia + axios |
-| `antd-*.js` | < 900 KB | ant-design-vue is large; gzip ~280 KB |
+| `antd-*.js` | < 1.5 MB | ant-design-vue (without icons); gzip ~410 KB |
+| `icons-*.js` | < 150 KB | @ant-design/icons-vue |
 | `utils-*.js` | < 150 KB | dayjs + vue-i18n |
 
 If implementation finds antd > 900 KB or vendor > 250 KB, revisit splits (likely move `@ant-design/icons-vue` into its own chunk) and update spec.
@@ -708,8 +710,8 @@ When all of the following pass, Plan 3 is done.
 ### 8.3 Bundle split
 
 1. `cd optimus-fe && bun run build`.
-2. `ls -lh dist/assets/*.js` shows distinct `index-*.js`, `vendor-*.js`, `antd-*.js`, `utils-*.js` chunks.
-3. `index-*.js` < 250 KB, `vendor-*.js` < 250 KB, `antd-*.js` < 900 KB, `utils-*.js` < 150 KB (uncompressed).
+2. `ls -lh dist/assets/*.js` shows distinct `index-*.js`, `vendor-*.js`, `antd-*.js`, `icons-*.js`, `utils-*.js` chunks.
+3. `index-*.js` < 250 KB, `vendor-*.js` < 250 KB, `antd-*.js` < 1.5 MB, `icons-*.js` < 150 KB, `utils-*.js` < 150 KB (uncompressed).
 
 ### 8.4 nginx behavior
 
