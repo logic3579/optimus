@@ -38,3 +38,15 @@ func TestValidate_RequiresJWTSecretWhenStrict(t *testing.T) {
 	cfg := &config.Config{}
 	require.Error(t, cfg.ValidateStrict())
 }
+
+func TestValidateForMigrate_RequiresDSN(t *testing.T) {
+	cfg := &config.Config{}
+	require.Error(t, cfg.ValidateForMigrate())
+}
+
+func TestValidateForMigrate_AcceptsDSNOnly(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Database.DSN = "host=localhost port=5432 user=u password=p dbname=d sslmode=disable"
+	// Deliberately no JWT secret — migrations don't need it.
+	require.NoError(t, cfg.ValidateForMigrate())
+}
