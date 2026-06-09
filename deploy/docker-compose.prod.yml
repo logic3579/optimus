@@ -72,7 +72,7 @@ services:
     environment:
       OPTIMUS_DATABASE_DSN: ${OPTIMUS_DATABASE_DSN:?OPTIMUS_DATABASE_DSN is required}
       OPTIMUS_JWT_SECRET: ${OPTIMUS_JWT_SECRET:?OPTIMUS_JWT_SECRET is required (>= 32 bytes)}
-      OPTIMUS_CORS_ALLOWED_ORIGINS: ${OPTIMUS_CORS_ALLOWED_ORIGINS:-["http://localhost"]}
+      OPTIMUS_CORS_ALLOWED_ORIGINS: ${OPTIMUS_CORS_ALLOWED_ORIGINS:-http://localhost}
       OPTIMUS_LOG_LEVEL: ${OPTIMUS_LOG_LEVEL:-info}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
