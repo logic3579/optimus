@@ -1,4 +1,10 @@
-import type { RouteRecordRaw } from 'vue-router'
+import { h } from 'vue'
+import { RouterView, type RouteRecordRaw } from 'vue-router'
+
+// Passthrough component used as the `root` parent so dynamic routes can be
+// registered as its children while App.vue picks the actual layout based on
+// `route.meta.layout`.
+const RouterViewPassthrough = { render: () => h(RouterView) }
 
 export const staticRoutes: RouteRecordRaw[] = [
   {
@@ -28,7 +34,7 @@ export const staticRoutes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'root',
-    component: () => import('@/layouts/DefaultLayout.vue'),
+    component: RouterViewPassthrough,
     redirect: '/dashboard',
     children: [
       {
