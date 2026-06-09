@@ -73,7 +73,7 @@ bun run dev   # http://localhost:5173, proxies /api/v1 to backend on :8080
    `admin user already exists; no password generated`.)
 7. Open http://localhost — log in as `admin` with the password from step 6.
 
-**Useful commands:**
+**Useful commands** (run from the repo root):
 
 - Logs:  `docker compose -f deploy/docker-compose.prod.yml logs -f optimus-be`
 - Stop:  `docker compose -f deploy/docker-compose.prod.yml down`

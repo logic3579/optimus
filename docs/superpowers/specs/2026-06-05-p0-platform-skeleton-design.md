@@ -731,7 +731,7 @@ P0 假设单机 docker-compose：postgres + optimus-be + optimus-fe (nginx)。
 
 K8s 部署留到 P2（dogfood）。
 
-> **Implemented by**: `docs/superpowers/specs/2026-06-09-p0-plan3-deployment-design.md` and `docs/superpowers/plans/2026-06-09-p0-plan3-deployment.md`. The simplified Dockerfile sketches above were superseded by the production-grade multi-stage Dockerfiles defined there.
+> **Implemented by**: `docs/superpowers/specs/2026-06-09-p0-plan3-deployment-design.md` and `docs/superpowers/plans/2026-06-09-p0-plan3-deployment.md`. The simplified compose sketch above was superseded by the production-grade multi-stage Dockerfiles + 5-service compose stack defined there.
 
 ### 9.8 CI（GitHub Actions）
 
