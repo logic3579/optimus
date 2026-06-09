@@ -18,6 +18,21 @@ export default defineConfig({
       }
     }
   },
+  build: {
+    target: 'es2020',
+    sourcemap: false,
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['vue', 'vue-router', 'pinia', 'pinia-plugin-persistedstate', 'axios'],
+          antd:   ['ant-design-vue'],
+          icons:  ['@ant-design/icons-vue'],
+          utils:  ['dayjs', 'vue-i18n']
+        }
+      }
+    }
+  },
   test: {
     environment: 'jsdom',
     globals: true,
