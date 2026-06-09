@@ -19,6 +19,7 @@ import (
 	"optimus-be/internal/infra/db"
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/infra/permissions"
+	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/rbac"
 	"optimus-be/internal/modules/user"
@@ -130,4 +131,58 @@ func TestHandler_ChangeMyPassword_WrongOld(t *testing.T) {
 	w := h.do(t, http.MethodPut, "/api/v1/me/password", `{"old_password":"wrong","new_password":"newpass5678"}`, token)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestHandler_GetMe_OK(t *testing.T) {
+	h := buildMeHandlerHarness(t)
+	defer h.cleanup()
+
+	_, token := h.loginUser(t, "alice", "alice@example.com", "Pass1234")
+	w := h.do(t, http.MethodGet, "/api/v1/me", "", token)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"username":"alice"`)
+	require.Contains(t, w.Body.String(), `"email":"alice@example.com"`)
+}
+
+func TestHandler_GetMe_Unauthenticated(t *testing.T) {
+	h := buildMeHandlerHarness(t)
+	defer h.cleanup()
+
+	w := h.do(t, http.MethodGet, "/api/v1/me", "", "")
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestHandler_GetMyMenus_FiltersByPermission(t *testing.T) {
+	h := buildMeHandlerHarness(t)
+	defer h.cleanup()
+
+	uid, token := h.loginUser(t, "alice", "alice@example.com", "Pass1234")
+	// Bind alice to viewer (carries every :read perm from seed).
+	var viewer models.Role
+	require.NoError(t, h.gdb.Where("code = ?", "viewer").First(&viewer).Error)
+	require.NoError(t, h.gdb.Create(&models.UserRole{UserID: uid, RoleID: viewer.ID}).Error)
+	// Two menus: one tied to a permission the user holds, one tied to a code they don't.
+	holds := "system:user:read"
+	nope := "credentials:vault:read"
+	require.NoError(t, h.gdb.Create(&models.Menu{Code: "vis", Name: "menu.vis", Path: "/vis", PermissionCode: &holds}).Error)
+	require.NoError(t, h.gdb.Create(&models.Menu{Code: "hid", Name: "menu.hid", Path: "/hid", PermissionCode: &nope}).Error)
+
+	w := h.do(t, http.MethodGet, "/api/v1/me/menus", "", token)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"code":"vis"`)
+	require.NotContains(t, w.Body.String(), `"code":"hid"`)
+}
+
+func TestHandler_GetMyPermissions_ReturnsCodes(t *testing.T) {
+	h := buildMeHandlerHarness(t)
+	defer h.cleanup()
+
+	uid, token := h.loginUser(t, "alice", "alice@example.com", "Pass1234")
+	var viewer models.Role
+	require.NoError(t, h.gdb.Where("code = ?", "viewer").First(&viewer).Error)
+	require.NoError(t, h.gdb.Create(&models.UserRole{UserID: uid, RoleID: viewer.ID}).Error)
+
+	w := h.do(t, http.MethodGet, "/api/v1/me/permissions", "", token)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"system:user:read"`)
 }

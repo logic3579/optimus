@@ -57,6 +57,36 @@ func TestService_Delete_BuiltinRejected(t *testing.T) {
 	require.Equal(t, apperr.CodeBuiltinRoleImmutable, be.Code)
 }
 
+func TestService_Update_HappyAndNotFound(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	out, err := svc.Create(ctx, 1, "", "", role.CreateRequest{Code: "ops", Name: "Ops"})
+	require.NoError(t, err)
+
+	newName := "Operations"
+	newDesc := "Ops crew"
+	updated, err := svc.Update(ctx, 1, "1.1.1.1", "ua", out.ID, role.UpdateRequest{Name: &newName, Description: &newDesc})
+	require.NoError(t, err)
+	require.Equal(t, "Operations", updated.Name)
+	require.Equal(t, "Ops crew", updated.Description)
+
+	_, err = svc.Update(ctx, 1, "", "", 99999, role.UpdateRequest{Name: &newName})
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
+}
+
+func TestService_Get_NotFound(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	_, err := svc.Get(context.Background(), 99999)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
+}
+
 func TestService_SetPermissions_InvalidatesAllBoundUsers(t *testing.T) {
 	svc, td, cache := newSvc(t)
 	defer td()

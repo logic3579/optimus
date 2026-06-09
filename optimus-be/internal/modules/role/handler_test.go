@@ -67,6 +67,47 @@ func TestHandler_CreateAndSetPermissions(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "system:user:read")
 }
 
+func TestHandler_UpdateAndGet(t *testing.T) {
+	r := newHandlerRouter(t)
+
+	body, _ := json.Marshal(role.CreateRequest{Code: "ops", Name: "Ops"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/roles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	id := uint64(resp["data"].(map[string]any)["id"].(float64))
+
+	// PUT /api/v1/roles/:id — rename + describe
+	newName := "Operations"
+	newDesc := "Ops crew"
+	body, _ = json.Marshal(role.UpdateRequest{Name: &newName, Description: &newDesc})
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/roles/"+strconv.FormatUint(id, 10), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"name":"Operations"`)
+	require.Contains(t, rec.Body.String(), `"description":"Ops crew"`)
+
+	// GET /api/v1/roles/:id — reads detail
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/roles/"+strconv.FormatUint(id, 10), nil)
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"code":"ops"`)
+}
+
+func TestHandler_BadID(t *testing.T) {
+	r := newHandlerRouter(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/roles/abc", nil)
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 func TestHandler_BuiltinDeleteRejected(t *testing.T) {
 	r := newHandlerRouter(t)
 
