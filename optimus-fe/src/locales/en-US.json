@@ -1,0 +1,66 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "submit": "Submit",
+    "reset": "Reset",
+    "loading": "Loading…",
+    "logout": "Log out",
+    "profile": "Profile",
+    "language": "Language",
+    "theme": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark"
+  },
+  "placeholder": {
+    "coming_soon": "Coming soon"
+  },
+  "auth": {
+    "login_title": "Sign in to Optimus",
+    "username": "Username",
+    "password": "Password",
+    "login": "Sign in",
+    "invalid_credentials": "Invalid username or password"
+  },
+  "profile": {
+    "title": "Profile",
+    "display_name": "Display name",
+    "email": "Email",
+    "avatar_url": "Avatar URL",
+    "old_password": "Current password",
+    "new_password": "New password",
+    "confirm_password": "Confirm new password",
+    "password_mismatch": "Passwords do not match",
+    "update_ok": "Profile updated",
+    "password_changed": "Password changed",
+    "change_password": "Change password"
+  },
+  "errors": {
+    "403_title": "Forbidden",
+    "404_title": "Not found",
+    "500_title": "Server error",
+    "back_home": "Back to home"
+  },
+  "network": {
+    "error": "Network error, please try again later"
+  },
+  "menu": {
+    "dashboard": "Dashboard",
+    "system": "System",
+    "system.users": "Users",
+    "system.roles": "Roles",
+    "system.permissions": "Permissions",
+    "system.menus": "Menus",
+    "system.audit_logs": "Audit logs"
+  },
+  "perm": {
+    "system": {
+      "user": { "read": "Read users", "write": "Create/update users", "delete": "Delete users", "reset_pass": "Reset user password" },
+      "role": { "read": "Read roles", "write": "Create/update roles + bind perms", "delete": "Delete roles" },
+      "permission": { "read": "Read permission registry" },
+      "menu": { "read": "Read menus", "write": "Create/update menus", "delete": "Delete menus" },
+      "audit": { "read": "Read audit logs" }
+    }
+  }
+}
