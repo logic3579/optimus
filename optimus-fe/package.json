@@ -30,6 +30,7 @@
     "@typescript-eslint/parser": "^8.8.0",
     "@vitejs/plugin-vue": "^5.1.4",
     "@vue/test-utils": "^2.4.6",
+    "axios-mock-adapter": "^2.1.0",
     "eslint": "^9.11.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-vue": "^9.28.0",
