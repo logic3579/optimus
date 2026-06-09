@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,7 +12,7 @@ func TestEmbedContainsAllMigrations(t *testing.T) {
 	require.NoError(t, err)
 	var sqlCount int
 	for _, e := range entries {
-		if !e.IsDir() && len(e.Name()) > 4 && e.Name()[len(e.Name())-4:] == ".sql" {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
 			sqlCount++
 		}
 	}
