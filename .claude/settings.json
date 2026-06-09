@@ -5,6 +5,7 @@
     "context7@claude-plugins-official": true,
     "serena@claude-plugins-official": true
   },
+  "enabledMcpjsonServers": ["mem0"],
   "statusLine": {
     "type": "command",
     "command": "i=$(cat); m=$(echo \"$i\" | jq -r '.model.display_name // \"Claude\"'); c=$(echo \"$i\" | jq -r '.workspace.current_dir // .cwd // \".\"'); d=$(basename \"$c\"); b=$(git -C \"$c\" symbolic-ref --short HEAD 2>/dev/null || echo '-'); t=$(echo \"$i\" | jq -r '.transcript_path // empty'); n=$(tail -n 200 \"$t\" 2>/dev/null | jq -rs 'map(.message.usage? // empty | (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)) | last // 0' 2>/dev/null); p=$(( ${n:-0} * 100 / 1000000 )); printf '\\033[36m%s\\033[0m | \\033[32m%s\\033[0m | \\033[33m%d%%\\033[0m | \\033[35m%s\\033[0m' \"$m\" \"$b\" \"$p\" \"$d\"",

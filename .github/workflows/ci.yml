@@ -62,3 +62,28 @@ jobs:
       - name: gosec
         working-directory: optimus-be
         run: gosec -severity medium -confidence medium -quiet ./...
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: optimus-fe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.1.x
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Lint
+        run: bun run lint
+      - name: Typecheck
+        run: bun run typecheck
+      - name: i18n keys
+        run: bun run i18n:check
+      - name: Unit tests
+        run: bun run test
+      - name: Build
+        run: bun run build

@@ -8,13 +8,26 @@ import (
 	"optimus-be/internal/models"
 )
 
+// UserWriter is the seam MeService uses to mutate user records on behalf of
+// the authenticated principal. It exists as an interface (rather than a
+// direct *user.Service dependency) because user.Service already imports
+// rbac.PermissionCache — a direct import would create a cycle.
+//
+// user.Service satisfies this interface implicitly via the adapter methods
+// UpdateProfile and ChangePassword (see internal/modules/user).
+type UserWriter interface {
+	UpdateProfile(ctx context.Context, actorID uint64, ip, ua string, id uint64, email, displayName, avatarURL *string) error
+	ChangePassword(ctx context.Context, userID uint64, ip, ua, oldPassword, newPassword string) error
+}
+
 type MeService struct {
 	db    *gorm.DB
 	cache *PermissionCache
+	users UserWriter
 }
 
-func NewMeService(db *gorm.DB, cache *PermissionCache) *MeService {
-	return &MeService{db: db, cache: cache}
+func NewMeService(db *gorm.DB, cache *PermissionCache, users UserWriter) *MeService {
+	return &MeService{db: db, cache: cache, users: users}
 }
 
 func (s *MeService) GetUser(ctx context.Context, userID uint64) (*MeUserDTO, error) {
@@ -95,4 +108,22 @@ func (s *MeService) ListMenus(ctx context.Context, userID uint64) ([]MeMenuNode,
 		return out
 	}
 	return build(rootKey), nil
+}
+
+// UpdateMe applies partial profile edits on behalf of the authenticated user
+// and returns the refreshed Me DTO. The actual mutation + audit + uniqueness
+// checks are delegated to user.Service via the UserWriter seam so the /me
+// write path reuses the same rules as admin /users edits.
+func (s *MeService) UpdateMe(ctx context.Context, userID uint64, ip, ua string, req UpdateMeRequest) (*MeUserDTO, error) {
+	if err := s.users.UpdateProfile(ctx, userID, ip, ua, userID, req.Email, req.DisplayName, req.AvatarURL); err != nil {
+		return nil, err
+	}
+	return s.GetUser(ctx, userID)
+}
+
+// ChangeMyPassword verifies the user's old password and rotates the hash.
+// Forwards directly to user.Service.ChangePassword so the bcrypt cost +
+// audit semantics stay centralised there.
+func (s *MeService) ChangeMyPassword(ctx context.Context, userID uint64, ip, ua, oldPassword, newPassword string) error {
+	return s.users.ChangePassword(ctx, userID, ip, ua, oldPassword, newPassword)
 }

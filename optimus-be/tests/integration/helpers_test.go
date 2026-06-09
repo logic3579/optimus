@@ -91,7 +91,9 @@ func setupServer(t *testing.T) (*gin.Engine, *gorm.DB) {
 	)
 	authHandler := auth.NewHandler(authSvc)
 	cache := rbac.NewPermissionCache(gdb, time.Minute)
-	meHandler := rbac.NewHandler(rbac.NewMeService(gdb, cache))
+	auditRec := audit.NewRecorder(gdb)
+	userSvc := user.NewService(user.NewRepo(gdb), cache, auditRec, user.ServiceOptions{BcryptCost: 4, AdminUsername: "admin"})
+	meHandler := rbac.NewHandler(rbac.NewMeService(gdb, cache, userSvc))
 
 	logger := log.New(log.Options{Level: "warn", Format: "json"})
 	gin.SetMode(gin.TestMode)
@@ -109,9 +111,6 @@ func setupServer(t *testing.T) (*gin.Engine, *gorm.DB) {
 	protected.Use(middleware.JWTAuth(signer))
 	meHandler.RegisterMe(protected)
 
-	auditRec := audit.NewRecorder(gdb)
-
-	userSvc := user.NewService(user.NewRepo(gdb), cache, auditRec, user.ServiceOptions{BcryptCost: 4, AdminUsername: "admin"})
 	mountUser(protected, user.NewHandler(userSvc), cache)
 
 	roleSvc := role.NewService(role.NewRepo(gdb), cache, auditRec)

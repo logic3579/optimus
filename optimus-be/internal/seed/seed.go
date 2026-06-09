@@ -122,7 +122,7 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 	sp := func(s string) *string { return &s }
 	tree := []spec{
 		{Code: "dashboard", Name: "menu.dashboard", Path: "/dashboard", Component: "dashboard/Index", Icon: "dashboard"},
-		{Code: "system", Name: "menu.system", Path: "/system", Component: "", Icon: "setting", Children: []spec{
+		{Code: "system", Name: "menu.system_group", Path: "/system", Component: "", Icon: "setting", Children: []spec{
 			{Code: "system.users", Name: "menu.system.users", Path: "/system/users", Component: "system/users/List", PermissionCode: sp("system:user:read")},
 			{Code: "system.roles", Name: "menu.system.roles", Path: "/system/roles", Component: "system/roles/List", PermissionCode: sp("system:role:read")},
 			{Code: "system.permissions", Name: "menu.system.permissions", Path: "/system/permissions", Component: "system/permissions/List", PermissionCode: sp("system:permission:read")},

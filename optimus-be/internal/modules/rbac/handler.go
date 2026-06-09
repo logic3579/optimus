@@ -21,6 +21,8 @@ func NewHandler(svc *MeService) *Handler { return &Handler{svc: svc} }
 // The supplied group should already have JWTAuth middleware applied.
 func (h *Handler) RegisterMe(g *gin.RouterGroup) {
 	g.GET("/me", h.getMe)
+	g.PUT("/me", h.updateMe)
+	g.PUT("/me/password", h.changeMyPassword)
 	g.GET("/me/menus", h.getMyMenus)
 	g.GET("/me/permissions", h.getMyPermissions)
 }
@@ -46,6 +48,65 @@ func (h *Handler) getMe(c *gin.Context) {
 		return
 	}
 	response.Success(c, dto)
+}
+
+// updateMe applies the authenticated user's profile edits.
+// @Summary  Update current user profile
+// @Tags     me
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    body body UpdateMeRequest true "profile patch"
+// @Success  200 {object} response.Envelope
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Router   /me [put]
+func (h *Handler) updateMe(c *gin.Context) {
+	uid := c.GetUint64(ctxUserID)
+	if uid == 0 {
+		response.Error(c, apperr.New(apperr.CodeTokenInvalid, "auth.unauthenticated", "authentication required"))
+		return
+	}
+	var req UpdateMeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperr.New(apperr.CodeValidation, "common.validation", err.Error()))
+		return
+	}
+	dto, err := h.svc.UpdateMe(c.Request.Context(), uid, c.ClientIP(), c.Request.UserAgent(), req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, dto)
+}
+
+// changeMyPassword changes the authenticated user's password (requires old).
+// @Summary  Change current user password
+// @Tags     me
+// @Security BearerAuth
+// @Accept   json
+// @Produce  json
+// @Param    body body ChangePasswordRequest true "old/new password"
+// @Success  200 {object} response.Envelope
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Router   /me/password [put]
+func (h *Handler) changeMyPassword(c *gin.Context) {
+	uid := c.GetUint64(ctxUserID)
+	if uid == 0 {
+		response.Error(c, apperr.New(apperr.CodeTokenInvalid, "auth.unauthenticated", "authentication required"))
+		return
+	}
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperr.New(apperr.CodeValidation, "common.validation", err.Error()))
+		return
+	}
+	if err := h.svc.ChangeMyPassword(c.Request.Context(), uid, c.ClientIP(), c.Request.UserAgent(), req.OldPassword, req.NewPassword); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
 }
 
 // getMyMenus returns the menu tree visible to the authenticated user.

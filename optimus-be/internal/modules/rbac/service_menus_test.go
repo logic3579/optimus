@@ -31,7 +31,7 @@ func TestMeService_ListMenus_ViewerSeesOnlyPermittedNodes(t *testing.T) {
 	gdb.Where("code = ?", "viewer").First(&viewer)
 	gdb.Create(&models.UserRole{UserID: u.ID, RoleID: viewer.ID})
 
-	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, time.Minute))
+	svc := rbac.NewMeService(gdb, rbac.NewPermissionCache(gdb, time.Minute), nopUserWriter{})
 	tree, err := svc.ListMenus(context.Background(), u.ID)
 	require.NoError(t, err)
 

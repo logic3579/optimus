@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"optimus-be/internal/infra/crypto"
 	"optimus-be/internal/infra/db"
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/pagination"
@@ -122,4 +123,42 @@ func TestService_List_ReturnsPage(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, page.Items, 3)
 	require.EqualValues(t, 6, page.Total) // 5 created + 1 admin seeded
+}
+
+func TestService_ChangePassword_OK(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	out, err := svc.Create(ctx, 1, "1.1.1.1", "ua", user.CreateRequest{
+		Username: "alice", Email: "alice@example.com", Password: "oldpass1234",
+		DisplayName: "Alice",
+	})
+	require.NoError(t, err)
+	require.NotZero(t, out.ID)
+
+	require.NoError(t, svc.ChangePassword(ctx, out.ID, "1.1.1.1", "ua", "oldpass1234", "newpass5678"))
+
+	// old password no longer works; new one does
+	var u models.User
+	require.NoError(t, svc.Repo().DB().First(&u, out.ID).Error)
+	require.Error(t, crypto.ComparePassword(u.PasswordHash, "oldpass1234"))
+	require.NoError(t, crypto.ComparePassword(u.PasswordHash, "newpass5678"))
+}
+
+func TestService_ChangePassword_WrongOld(t *testing.T) {
+	svc, td, _ := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	out, err := svc.Create(ctx, 1, "1.1.1.1", "ua", user.CreateRequest{
+		Username: "bob", Email: "bob@example.com", Password: "rightpass00",
+	})
+	require.NoError(t, err)
+
+	err = svc.ChangePassword(ctx, out.ID, "1.1.1.1", "ua", "wrongpass", "newpass5678")
+	require.Error(t, err)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeInvalidCredentials, be.Code)
 }

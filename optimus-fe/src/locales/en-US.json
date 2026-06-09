@@ -1,0 +1,195 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "submit": "Submit",
+    "reset": "Reset",
+    "loading": "Loading…",
+    "logout": "Log out",
+    "profile": "Profile",
+    "language": "Language",
+    "theme": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark"
+  },
+  "placeholder": {
+    "coming_soon": "Coming soon"
+  },
+  "auth": {
+    "login_title": "Sign in to Optimus",
+    "username": "Username",
+    "password": "Password",
+    "login": "Sign in",
+    "invalid_credentials": "Invalid username or password"
+  },
+  "profile": {
+    "title": "Profile",
+    "display_name": "Display name",
+    "email": "Email",
+    "avatar_url": "Avatar URL",
+    "old_password": "Current password",
+    "new_password": "New password",
+    "confirm_password": "Confirm new password",
+    "password_mismatch": "Passwords do not match",
+    "update_ok": "Profile updated",
+    "password_changed": "Password changed",
+    "change_password": "Change password"
+  },
+  "errors": {
+    "403_title": "Forbidden",
+    "404_title": "Not found",
+    "500_title": "Server error",
+    "back_home": "Back to home"
+  },
+  "network": {
+    "error": "Network error, please try again later"
+  },
+  "menu": {
+    "dashboard": "Dashboard",
+    "system_group": "System",
+    "system": {
+      "users": "Users",
+      "roles": "Roles",
+      "permissions": "Permissions",
+      "menus": "Menus",
+      "audit_logs": "Audit logs"
+    }
+  },
+  "perm": {
+    "system": {
+      "user": { "read": "Read users", "write": "Create/update users", "delete": "Delete users", "reset_pass": "Reset user password" },
+      "role": { "read": "Read roles", "write": "Create/update roles + bind perms", "delete": "Delete roles" },
+      "permission": { "read": "Read permission registry" },
+      "menu": { "read": "Read menus", "write": "Create/update menus", "delete": "Delete menus" },
+      "audit": { "read": "Read audit logs" }
+    },
+    "category": {
+      "system": "System",
+      "k8s": "Kubernetes",
+      "assets": "Assets",
+      "observability": "Observability",
+      "cicd": "CI/CD",
+      "applications": "Applications"
+    }
+  },
+  "form": {
+    "required": "Required",
+    "invalid_email": "Invalid email format",
+    "min_length": "At least {n} characters",
+    "max_length": "At most {n} characters"
+  },
+  "confirm": {
+    "delete_title": "Delete?",
+    "delete_desc": "This action cannot be undone.",
+    "disable_user": "Disable this user?",
+    "enable_user": "Enable this user?"
+  },
+  "system": {
+    "users": {
+      "title": "Users",
+      "create": "New user",
+      "edit": "Edit user",
+      "search_placeholder": "Search username or email",
+      "filter_status": "Status",
+      "filter_status_all": "All",
+      "col_username": "Username",
+      "col_email": "Email",
+      "col_display_name": "Display name",
+      "col_status": "Status",
+      "col_last_login": "Last login",
+      "col_created_at": "Created",
+      "col_actions": "Actions",
+      "action_edit": "Edit",
+      "action_roles": "Roles",
+      "action_reset_password": "Reset password",
+      "action_disable": "Disable",
+      "action_enable": "Enable",
+      "action_delete": "Delete",
+      "status_enabled": "Enabled",
+      "status_disabled": "Disabled",
+      "form_username": "Username",
+      "form_email": "Email",
+      "form_password": "Password",
+      "form_display_name": "Display name",
+      "form_avatar_url": "Avatar URL",
+      "form_roles": "Roles",
+      "roles_modal_title": "Assign roles",
+      "reset_password_title": "Reset password",
+      "reset_password_new": "New password",
+      "create_ok": "Created",
+      "update_ok": "Saved",
+      "delete_ok": "Deleted",
+      "status_ok": "Status updated",
+      "roles_ok": "Roles updated",
+      "password_ok": "Password reset"
+    },
+    "roles": {
+      "title": "Roles",
+      "create": "New role",
+      "edit": "Edit role",
+      "col_code": "Code",
+      "col_name": "Name",
+      "col_description": "Description",
+      "col_is_builtin": "Built-in",
+      "col_created_at": "Created",
+      "col_actions": "Actions",
+      "action_edit": "Edit",
+      "action_permissions": "Permissions",
+      "action_delete": "Delete",
+      "builtin_yes": "Yes",
+      "builtin_no": "No",
+      "form_code": "Code",
+      "form_name": "Name",
+      "form_description": "Description",
+      "permissions_modal_title": "Bind permissions",
+      "create_ok": "Created",
+      "update_ok": "Saved",
+      "delete_ok": "Deleted",
+      "permissions_ok": "Permissions updated"
+    },
+    "menus": {
+      "title": "Menus",
+      "create_root": "New root",
+      "create_child": "New child",
+      "edit": "Edit menu",
+      "action_edit": "Edit",
+      "action_add_child": "Add child",
+      "action_delete": "Delete",
+      "form_parent": "Parent",
+      "form_parent_root": "(root)",
+      "form_code": "Code",
+      "form_name": "Name (i18n key)",
+      "form_path": "Path",
+      "form_component": "Component",
+      "form_icon": "Icon",
+      "form_permission_code": "Permission code",
+      "form_sort_order": "Sort order",
+      "form_hidden": "Hidden",
+      "create_ok": "Created",
+      "update_ok": "Saved",
+      "delete_ok": "Deleted",
+      "drop_ok": "Moved",
+      "drop_invalid": "Cannot drop a node onto its own descendant"
+    },
+    "permissions": {
+      "title": "Permissions",
+      "filter_placeholder": "Search code or name"
+    },
+    "audit_logs": {
+      "title": "Audit logs",
+      "filter_action": "Action",
+      "filter_user_id": "User ID",
+      "filter_range": "Time range",
+      "filter_search": "Search",
+      "filter_reset": "Reset",
+      "col_created_at": "Time",
+      "col_action": "Action",
+      "col_user_id": "User ID",
+      "col_target_type": "Target type",
+      "col_target_id": "Target ID",
+      "col_ip": "IP",
+      "payload_title": "Payload"
+    }
+  }
+}

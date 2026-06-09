@@ -99,7 +99,17 @@ func main() {
 
 	// Permission cache TTL: 60s per spec §7.4.
 	permCache := rbac.NewPermissionCache(gdb, 60*time.Second)
-	meSvc := rbac.NewMeService(gdb, permCache)
+
+	// userSvc is constructed before MeService because MeService depends on it
+	// for /me writes (UpdateProfile / ChangePassword). The audit recorder is
+	// shared so /me writes and /users writes audit through the same sink.
+	auditRec := audit.NewRecorder(gdb)
+	userSvc := user.NewService(user.NewRepo(gdb), permCache, auditRec, user.ServiceOptions{
+		BcryptCost:    cfg.Auth.BcryptCost,
+		AdminUsername: cfg.Boot.AdminUsername,
+	})
+
+	meSvc := rbac.NewMeService(gdb, permCache, userSvc)
 	meHandler := rbac.NewHandler(meSvc)
 
 	gin.SetMode(gin.ReleaseMode)
@@ -129,12 +139,6 @@ func main() {
 	// middleware runs BEFORE the handler (gin only chains middlewares supplied
 	// at Group/Use; passing them as variadic args to GET/POST/... does not
 	// guarantee they run first when handlers are registered separately).
-	auditRec := audit.NewRecorder(gdb)
-
-	userSvc := user.NewService(user.NewRepo(gdb), permCache, auditRec, user.ServiceOptions{
-		BcryptCost:    cfg.Auth.BcryptCost,
-		AdminUsername: cfg.Boot.AdminUsername,
-	})
 	userHandler := user.NewHandler(userSvc)
 	mountUserRoutes(protected, userHandler, permCache)
 

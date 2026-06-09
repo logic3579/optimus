@@ -33,3 +33,7 @@ optimus-be/server
 
 # Docker
 postgres-data/
+
+# Frontend
+optimus-fe/node_modules/
+optimus-fe/dist/
