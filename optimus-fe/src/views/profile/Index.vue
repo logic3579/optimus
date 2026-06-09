@@ -44,6 +44,7 @@ import { message } from 'ant-design-vue'
 import { useI18n } from '@/hooks/useI18n'
 import { useAuthStore } from '@/stores/auth'
 import { isBizError } from '@/utils/http-error'
+import { formDiff } from '@/utils/form-diff'
 import PageHeader from '@/components/PageHeader.vue'
 import type { MeApi } from '@/api/me'
 
@@ -52,6 +53,12 @@ const meApi = inject<MeApi>('meApi')!
 const auth = useAuthStore()
 
 const profile = reactive({
+  display_name: auth.user?.display_name ?? '',
+  email: auth.user?.email ?? '',
+  avatar_url: auth.user?.avatar_url ?? ''
+})
+
+const initialProfile = ref({
   display_name: auth.user?.display_name ?? '',
   email: auth.user?.email ?? '',
   avatar_url: auth.user?.avatar_url ?? ''
@@ -69,19 +76,34 @@ onMounted(async () => {
       profile.display_name = me.display_name
       profile.email = me.email
       profile.avatar_url = me.avatar_url
+      initialProfile.value = {
+        display_name: me.display_name,
+        email: me.email,
+        avatar_url: me.avatar_url
+      }
     } catch { /* guard already redirects on 401 */ }
   }
 })
 
 async function onSaveProfile() {
+  const patch = formDiff(initialProfile.value, {
+    display_name: profile.display_name,
+    email: profile.email,
+    avatar_url: profile.avatar_url
+  })
+  if (Object.keys(patch).length === 0) {
+    message.info(t('profile.update_ok'))
+    return
+  }
   profileSaving.value = true
   try {
-    const updated = await meApi.update({
-      display_name: profile.display_name,
-      email: profile.email,
-      avatar_url: profile.avatar_url
-    })
+    const updated = await meApi.update(patch)
     auth.setUser(updated)
+    initialProfile.value = {
+      display_name: updated.display_name,
+      email: updated.email,
+      avatar_url: updated.avatar_url
+    }
     message.success(t('profile.update_ok'))
   } catch (e) {
     message.error(isBizError(e) ? e.message : t('network.error'))
