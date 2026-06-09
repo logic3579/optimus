@@ -56,3 +56,30 @@ bun run dev   # http://localhost:5173, proxies /api/v1 to backend on :8080
 - Spec: [`docs/superpowers/specs/2026-06-05-p0-platform-skeleton-design.md`](docs/superpowers/specs/2026-06-05-p0-platform-skeleton-design.md)
 - Permissions: [`docs/permissions.md`](docs/permissions.md)
 - API: [`docs/api/swagger.json`](docs/api/swagger.json) (also browsable at http://localhost:8080/swagger/ when running)
+
+## Production deploy (single-machine, docker-compose)
+
+1. `cd deploy`
+2. `cp .env.example .env` and fill in the **REQUIRED** section.
+   Generate a JWT secret: `openssl rand -base64 48`
+3. `docker compose -f docker-compose.prod.yml up -d --build`
+4. Wait until the 3 long-running services are `healthy` and the 2 init containers have `Exited (0)` (~30s on warm cache):
+   `docker compose -f docker-compose.prod.yml ps`
+   Expected: `optimus-pg` healthy, `optimus-migrate` exited (0), `optimus-seed` exited (0), `optimus-be` healthy, `optimus-fe` healthy.
+5. Verify: `curl -s http://localhost/api/v1/health` should return
+   `{"code":0, "data":{"db":"ok","version":"<sha>"}, ...}`.
+6. Retrieve the **initial admin password** from the seed logs:
+   `docker logs optimus-seed | grep INITIAL`
+   (Logged only on the first run; subsequent runs say
+   `admin user already exists; no password generated`.)
+7. Open http://localhost — log in as `admin` with the password from step 6.
+
+**Useful commands** (run from the repo root):
+
+- Logs:  `docker compose -f deploy/docker-compose.prod.yml logs -f optimus-be`
+- Stop:  `docker compose -f deploy/docker-compose.prod.yml down`
+- Reset DB (destructive): add `-v` to `down`.
+
+**Local docker note:** this workstation typically uses Colima. Set
+`DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` if `docker compose`
+can't find a daemon, or run `colima start`.

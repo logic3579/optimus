@@ -109,3 +109,13 @@ func (c *Config) ValidateStrict() error {
 	}
 	return nil
 }
+
+// ValidateForMigrate enforces only DB connectivity. JWT secret is irrelevant
+// to schema migrations and forcing it would require operators to set a dummy
+// value in the migrate service env.
+func (c *Config) ValidateForMigrate() error {
+	if c.Database.DSN == "" {
+		return errors.New("database.dsn is required")
+	}
+	return nil
+}
