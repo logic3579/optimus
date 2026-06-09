@@ -1,0 +1,103 @@
+name: optimus-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: optimus-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-optimus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-optimus}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-optimus} -d ${POSTGRES_DB:-optimus}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/be.Dockerfile
+      target: migrate
+      args:
+        VERSION: ${VERSION:-dev}
+    image: optimus-migrate:${VERSION:-dev}
+    container_name: optimus-migrate
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OPTIMUS_DATABASE_DSN: ${OPTIMUS_DATABASE_DSN:?OPTIMUS_DATABASE_DSN is required}
+
+  seed:
+    build:
+      context: ..
+      dockerfile: deploy/be.Dockerfile
+      target: seed
+      args:
+        VERSION: ${VERSION:-dev}
+    image: optimus-seed:${VERSION:-dev}
+    container_name: optimus-seed
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      OPTIMUS_DATABASE_DSN: ${OPTIMUS_DATABASE_DSN:?OPTIMUS_DATABASE_DSN is required}
+      OPTIMUS_JWT_SECRET: ${OPTIMUS_JWT_SECRET:?OPTIMUS_JWT_SECRET is required (>= 32 bytes)}
+
+  optimus-be:
+    build:
+      context: ..
+      dockerfile: deploy/be.Dockerfile
+      target: server
+      args:
+        VERSION: ${VERSION:-dev}
+    image: optimus-be:${VERSION:-dev}
+    container_name: optimus-be
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+    environment:
+      OPTIMUS_DATABASE_DSN: ${OPTIMUS_DATABASE_DSN:?OPTIMUS_DATABASE_DSN is required}
+      OPTIMUS_JWT_SECRET: ${OPTIMUS_JWT_SECRET:?OPTIMUS_JWT_SECRET is required (>= 32 bytes)}
+      OPTIMUS_CORS_ALLOWED_ORIGINS: ${OPTIMUS_CORS_ALLOWED_ORIGINS:-["http://localhost"]}
+      OPTIMUS_LOG_LEVEL: ${OPTIMUS_LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  optimus-fe:
+    build:
+      context: ..
+      dockerfile: deploy/fe.Dockerfile
+    image: optimus-fe:${VERSION:-dev}
+    container_name: optimus-fe
+    restart: unless-stopped
+    depends_on:
+      optimus-be:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
