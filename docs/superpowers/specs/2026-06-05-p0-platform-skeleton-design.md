@@ -685,7 +685,7 @@ optimus-be/migrations/
 **optimus-be Dockerfile**：
 
 ```dockerfile
-FROM golang:1.22-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -706,7 +706,7 @@ CMD ["-config", "/etc/optimus/config.yaml"]
 ```dockerfile
 FROM oven/bun:1 AS build
 WORKDIR /src
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY . .
 RUN bun run build
@@ -721,6 +721,8 @@ EXPOSE 80
 - `/api/v1/` `proxy_pass` 到 optimus-be:8080
 - 其他路径 `try_files $uri $uri/ /index.html`（SPA history mode）
 
+> **Implemented by**: `docs/superpowers/specs/2026-06-09-p0-plan3-deployment-design.md` and `docs/superpowers/plans/2026-06-09-p0-plan3-deployment.md`. The simplified Dockerfile sketches above were superseded by the production-grade multi-stage Dockerfiles defined there.
+
 ### 9.7 生产部署
 
 P0 假设单机 docker-compose：postgres + optimus-be + optimus-fe (nginx)。
@@ -728,6 +730,8 @@ P0 假设单机 docker-compose：postgres + optimus-be + optimus-fe (nginx)。
 `deploy/docker-compose.prod.yml` + `deploy/.env.example`。
 
 K8s 部署留到 P2（dogfood）。
+
+> **Implemented by**: `docs/superpowers/specs/2026-06-09-p0-plan3-deployment-design.md` and `docs/superpowers/plans/2026-06-09-p0-plan3-deployment.md`. The simplified Dockerfile sketches above were superseded by the production-grade multi-stage Dockerfiles defined there.
 
 ### 9.8 CI（GitHub Actions）
 
