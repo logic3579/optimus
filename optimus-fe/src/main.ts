@@ -12,6 +12,11 @@ import { installDirectives } from '@/directives'
 import { createApiClient } from '@/api/client'
 import { makeAuthApi } from '@/api/auth'
 import { makeMeApi } from '@/api/me'
+import { makeUserApi } from '@/api/user'
+import { makeRoleApi } from '@/api/role'
+import { makeMenuApi } from '@/api/menu'
+import { makePermissionApi } from '@/api/permission'
+import { makeAuditApi } from '@/api/audit'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useAppStore } from '@/stores/app'
@@ -38,6 +43,11 @@ const authApi = makeAuthApi(client)
 const meApi = makeMeApi(client)
 app.provide('authApi', authApi)
 app.provide('meApi', meApi)
+app.provide('userApi', makeUserApi(client))
+app.provide('roleApi', makeRoleApi(client))
+app.provide('menuApi', makeMenuApi(client))
+app.provide('permissionApi', makePermissionApi(client))
+app.provide('auditApi', makeAuditApi(client))
 
 installGuards(router, meApi)
 app.use(router)
