@@ -95,3 +95,33 @@ func TestRun_ViewerRoleHasOnlyReadPermissions(t *testing.T) {
 		require.Contains(t, p.Code, ":read")
 	}
 }
+
+func TestRun_SeedsInitialMenuTree(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	_, err = seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.NoError(t, err)
+
+	wantCodes := []string{
+		"dashboard",
+		"system", "system.users", "system.roles", "system.permissions", "system.menus", "system.audit_logs",
+		"credentials", "credentials.ssh_keys", "credentials.kubeconfigs", "credentials.cloud_keys",
+	}
+	for _, code := range wantCodes {
+		var m models.Menu
+		err := gdb.Where("code = ?", code).First(&m).Error
+		require.NoError(t, err, "missing menu code %q", code)
+	}
+
+	// Parent linkage: credentials.* children must have parent_id = credentials.id.
+	var parent models.Menu
+	require.NoError(t, gdb.Where("code = ?", "credentials").First(&parent).Error)
+	var childrenCount int64
+	gdb.Model(&models.Menu{}).Where("parent_id = ?", parent.ID).Count(&childrenCount)
+	require.Equal(t, int64(3), childrenCount)
+}
