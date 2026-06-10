@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Monorepo with two deployable apps plus shared deployment assets:
 
-- `optimus-be/` — Go 1.25 / Gin / GORM / Postgres backend. P0 scope: auth, RBAC, users, roles, permissions, menus, audit, /me, /health.
-- `optimus-fe/` — Vue 3 + Ant Design Vue + Pinia + vue-router SPA. Talks only to `/api/v1/*`.
+- `optimus-be/` — Go 1.25 / Gin / GORM / Postgres backend. Modules under `internal/modules/`: `auth`, `user`, `role`, `rbac`, `menu`, `permission`, `audit`, `me` (P0); `credentials/{vault,sshkey,kubeconfig,cloudkey}` (P1); `k8s/{cluster,client,clusterscoped,workload,network,config,secret,log,yaml,apierr}` (P2, read-only).
+- `optimus-fe/` — Vue 3 + Ant Design Vue + Pinia + vue-router SPA. Talks only to `/api/v1/*`. P2 adds `vue-codemirror` + `@codemirror/lang-yaml` + `@codemirror/theme-one-dark` for the YAML viewer.
 - `deploy/` — production `docker-compose.prod.yml` + multi-stage Dockerfiles (`be.Dockerfile` builds `server` / `migrate` / `seed` targets; `fe.Dockerfile` builds the nginx-served SPA).
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` — the authoritative P0 design spec and execution plans. Permission/API contracts come from here.
 - `docs/api/swagger.json` and `docs/permissions.md` — **generated artifacts**, checked in. CI (`make swagger-diff` / `make perm-check`) fails if they drift from source.
@@ -100,11 +100,19 @@ Expected steady state: `optimus-pg` healthy, `optimus-migrate` Exited(0), `optim
 - DOM gate: `v-permission` directive (`src/directives/`).
 Both read the permission list from `useAuthStore().permissions` — never re-fetch in components.
 
-**API envelope handling** (`src/api/client.ts`): every response is checked against the envelope shape; non-zero `code` → throws a `BizError` so callers `.catch`. On HTTP 401 (not for `/auth/refresh` itself), a **single-flight** refresh kicks off (`refreshing: Promise<TokenPair> | null`) — concurrent 401s share one refresh call, then replay their original request once via `__retried`. If the refresh call itself 401s, `onLogout()` fires there and the retry path skips it to avoid double-logout.
+**API envelope handling** (`src/api/client.ts`): every response is checked against the envelope shape; non-zero `code` → throws a `BizError` so callers `.catch`. On HTTP 401 (not for `/auth/refresh` itself), the axios interceptor calls `useAuthStore().refreshAccessToken()` which holds the **single-flight** promise (`refreshing: Promise<TokenPair> | null` as Pinia state) so concurrent axios 401s AND the P2 `useLogStream` SSE consumer share one `/auth/refresh` call. Original request replays once via `__retried`. If the refresh itself 401s, `onLogout()` fires inside the store action and the retry path skips it.
 
 **i18n**: keys in `src/locales/{zh-CN,en-US}.json`. `bun run i18n:check` enforces missing-key + cross-locale parity and is wired into CI; adding a key to one locale without the other breaks the build.
 
 **Vite alias**: `@/*` → `src/*`. dev proxy: `/api/v1` → `http://localhost:8080` (set in `vite.config.ts`).
+
+## Architecture — credentials (P1) and k8s (P2)
+
+**Credentials vault** (`internal/modules/credentials/`): AES-256-GCM application-layer encryption. Master key loaded from `OPTIMUS_VAULT_MASTER_KEY` or `_FILE` **before** `db.Open` so missing key fails fast. **`credentials.Consumer` (`consume.go`) is the SOLE public Go API** for downstream modules — never re-fetch credentials via HTTP, never new-up another cipher. Set non-HTTP actor with `credentials.WithActor(ctx, id)` (private `ctxKey` typed key — `context.WithValue` with raw string would trip staticcheck SA1029; gin's `c.Set/c.Get` with string is fine because it uses `map[string]any`). Kubeconfig validation rejects `exec` and `auth-provider` auth plugins (RCE attack surface). Kubeconfig `Delete` refuses while `k8s.clusters` references it via `k8s/cluster/inuse.CountByKubeconfigID`.
+
+**k8s module** (`internal/modules/k8s/`): read-only console — NO `exec`, `apply`, write verbs, or `watch`. Per-request `kubernetes.Interface` built fresh in `client/factory.go` from `credentials.Consumer.GetKubeconfig(clusterID)` and **discarded after the handler returns** — no clientset caching. Apiserver errors normalized via `apierr/apierr.go.MapError` into 5 numeric codes (`41101` ClusterUnreachable, `41103` APIServerForbidden, `41104` APIServerUnauthorized, `41105` APIServerOther, `41202` LogUnavailable). Generic kind dispatcher in `workload/` handles 7 kinds (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod, ReplicaSet) via a `kind` path param. Pod logs stream over **SSE via Gin's `http.ResponseController` to bypass the response buffer** (`internal/modules/k8s/log/handler.go`). FE consumes SSE via `fetch()` + `ReadableStream` (NOT `EventSource`) so the JWT stays in `Authorization` (see `optimus-fe/src/api/k8s/log.ts` + `useLogStream` in `stores/k8s.ts`). YAML viewer/editor backed by `vue-codemirror`.
+
+**Cluster picker** (`components/layout/ClusterPicker.vue` mounted in `AppHeader.vue`): selected cluster ID lives in the `k8s` Pinia store; every k8s page reads from it. Pages that need it but find it unset should show a "select a cluster" hint, not auto-redirect.
 
 ## Conventions worth knowing
 
@@ -114,6 +122,8 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 - **CORS env var is comma-separated, not JSON**: `OPTIMUS_CORS_ALLOWED_ORIGINS=https://a.example.com,https://b.example.com` (no brackets/quotes). The YAML config takes a list, but env override is comma-split. This bit Plan 3.
 - **No raw error text to clients** — wrap in `apperr.BizError(code, ...)`. `response.Error` logs unhandled errors with `slog.Error` and returns generic `CodeInternal`.
 - **Audit logging**: every mutating service path calls `audit.Recorder.Record(...)`. The recorder is shared so `/me` writes and admin `/users` writes hit the same sink — don't construct a second recorder.
+- **k8s.io/client-go is pinned to v0.30.14** (and apimachinery to v0.30.14) to keep `go.mod`'s go directive at 1.25. `go get k8s.io/client-go@latest` (v0.36+) transitively bumps go to 1.26+. If you ever do bump, also update `deploy/be.Dockerfile` (golang:1.26-alpine) and CI `go-version`.
+- **k8s endpoints are read-only by design** — never add write/apply/exec/watch handlers without re-opening the P2 spec. The /data secret reveal endpoint is the only path that returns plaintext secret values; it is RBAC-gated by `k8s:secret:reveal`.
 - **CLAUDE Code skills/superpowers** are configured at `~/.claude/` and `.claude/`; the `.claude/settings.json` here only adjusts permissions/hooks for this repo.
 
 ## Gotchas (local-only)
@@ -121,6 +131,9 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 - **Docker daemon is Colima on this workstation.** If `docker compose` / dockertest can't find a daemon, export `DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` or `colima start`. The `make test-int` and `tests/integration/` paths both depend on this.
 - **HEAD vs GET on healthcheck**: the container healthchecks use `wget` which issues GET. Gin only registers GET handlers by default — keep `/api/v1/health` on GET, not HEAD-aliased.
 - **Initial admin password is logged exactly once**, on the first run of `cmd/seed` (or first `make run` against an empty DB). Capture it from stdout / `docker logs optimus-seed | grep INITIAL`. Subsequent runs print "admin user already exists; no password generated." If you lose it, you must reset via DB.
+- **Vault master key must be set before BE starts.** `OPTIMUS_VAULT_MASTER_KEY` (base64'd 32 bytes) or `OPTIMUS_VAULT_MASTER_KEY_FILE`. Generate with `cd optimus-be && go run ./cmd/vault-keygen` (or the `vault-keygen` Dockerfile target). Loaded BEFORE `db.Open` so a missing/wrong key fails fast.
+- **SSE responses bypass Gin's response buffer via `http.ResponseController(c.Writer).Flush()`** — using `c.Writer.Flush()` alone won't actually push bytes through gin's writer wrapper for streaming, and bypassing gin's writer breaks middleware. The pattern in `internal/modules/k8s/log/handler.go` is canonical.
+- **`sigs.k8s.io/yaml` quirk**: a single-character namespace name like `"a"` round-trips through YAML decoding as the int `97` (ASCII byte). Use multi-character names (e.g., `"default"`, `"app"`) in tests to avoid this trap.
 
 ## First-session checklist (new machine)
 
