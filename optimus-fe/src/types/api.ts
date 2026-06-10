@@ -202,3 +202,99 @@ export interface AuditListQuery {
   start?: string  // RFC3339
   end?: string    // RFC3339
 }
+
+// ─── Credentials (P1) ───────────────────────────────────────────────────────
+export interface CredentialActor {
+  id: number
+  username?: string
+  display_name?: string
+}
+
+// SSH keys
+export interface SshKeySummary {
+  id: number
+  name: string
+  description: string
+  username: string
+  created_by?: CredentialActor
+  created_at: string
+  updated_at: string
+}
+export interface SshKeyCreateRequest {
+  name: string
+  description?: string
+  username: string
+  private_key: string
+  passphrase?: string
+}
+export interface SshKeyUpdateRequest {
+  name?: string
+  description?: string
+  username?: string
+  private_key?: string
+  passphrase?: string
+}
+export interface SshKeyListQuery {
+  q?: string
+  username?: string
+}
+
+// Kubeconfigs
+export interface KubeconfigSummary {
+  id: number
+  name: string
+  description: string
+  default_namespace: string
+  created_by?: CredentialActor
+  created_at: string
+  updated_at: string
+}
+export interface KubeconfigCreateRequest {
+  name: string
+  description?: string
+  default_namespace?: string
+  kubeconfig: string
+}
+export interface KubeconfigUpdateRequest {
+  name?: string
+  description?: string
+  default_namespace?: string
+  kubeconfig?: string
+}
+export interface KubeconfigListQuery {
+  q?: string
+  default_namespace?: string
+}
+
+// Cloud keys
+export type CloudProvider = 'aws' | 'gcp' | 'azure'
+export interface CloudKeySummary {
+  id: number
+  name: string
+  description: string
+  provider: CloudProvider
+  region: string
+  created_by?: CredentialActor
+  created_at: string
+  updated_at: string
+}
+export interface CloudKeyCreateRequest {
+  name: string
+  description?: string
+  provider: CloudProvider
+  region?: string
+  access_key_id: string
+  secret_access_key: string
+}
+export interface CloudKeyUpdateRequest {
+  name?: string
+  description?: string
+  provider?: CloudProvider
+  region?: string
+  access_key_id?: string
+  secret_access_key?: string
+}
+export interface CloudKeyListQuery {
+  q?: string
+  provider?: CloudProvider
+}
