@@ -49,6 +49,17 @@ var All = []Permission{
 	{Code: "credentials:cloud_key:write", Name: "perm.credentials.cloud_key.write", Category: "credentials", Description: "Create/update cloud keys"},
 	{Code: "credentials:cloud_key:delete", Name: "perm.credentials.cloud_key.delete", Category: "credentials", Description: "Delete cloud keys"},
 	{Code: "credentials:cloud_key:use", Name: "perm.credentials.cloud_key.use", Category: "credentials", Description: "Use cloud keys"},
+
+	// P2 k8s management
+	{Code: "k8s:cluster:read", Name: "perm.k8s.cluster.read", Category: "k8s", Description: "Read clusters"},
+	{Code: "k8s:cluster:write", Name: "perm.k8s.cluster.write", Category: "k8s", Description: "Create/update/delete clusters"},
+	{Code: "k8s:workload:read", Name: "perm.k8s.workload.read", Category: "k8s", Description: "Read workload resources"},
+	{Code: "k8s:network:read", Name: "perm.k8s.network.read", Category: "k8s", Description: "Read services and ingresses"},
+	{Code: "k8s:config:read", Name: "perm.k8s.config.read", Category: "k8s", Description: "Read configmaps"},
+	{Code: "k8s:secret:read", Name: "perm.k8s.secret.read", Category: "k8s", Description: "Read secret metadata and keys"},
+	{Code: "k8s:secret:reveal", Name: "perm.k8s.secret.reveal", Category: "k8s", Description: "Decode secret data values"},
+	{Code: "k8s:cluster_resource:read", Name: "perm.k8s.cluster_resource.read", Category: "k8s", Description: "Read namespaces, nodes, and events"},
+	{Code: "k8s:log:read", Name: "perm.k8s.log.read", Category: "k8s", Description: "Stream pod logs"},
 }
 
 // CodeSet returns a set for O(1) membership testing.

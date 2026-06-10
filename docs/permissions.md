@@ -19,6 +19,20 @@ Auto-generated from `optimus-be/internal/infra/permissions/codes.go`. Run `make 
 | `credentials:ssh_key:use` | `perm.credentials.ssh_key.use` | Use SSH credentials |
 | `credentials:ssh_key:write` | `perm.credentials.ssh_key.write` | Create/update SSH credentials |
 
+## k8s
+
+| Code | Name (i18n) | Description |
+|---|---|---|
+| `k8s:cluster:read` | `perm.k8s.cluster.read` | Read clusters |
+| `k8s:cluster:write` | `perm.k8s.cluster.write` | Create/update/delete clusters |
+| `k8s:cluster_resource:read` | `perm.k8s.cluster_resource.read` | Read namespaces, nodes, and events |
+| `k8s:config:read` | `perm.k8s.config.read` | Read configmaps |
+| `k8s:log:read` | `perm.k8s.log.read` | Stream pod logs |
+| `k8s:network:read` | `perm.k8s.network.read` | Read services and ingresses |
+| `k8s:secret:read` | `perm.k8s.secret.read` | Read secret metadata and keys |
+| `k8s:secret:reveal` | `perm.k8s.secret.reveal` | Decode secret data values |
+| `k8s:workload:read` | `perm.k8s.workload.read` | Read workload resources |
+
 ## system
 
 | Code | Name (i18n) | Description |
