@@ -48,12 +48,18 @@
   "menu": {
     "dashboard": "仪表盘",
     "system_group": "系统管理",
+    "credentials_group": "凭证管理",
     "system": {
       "users": "用户管理",
       "roles": "角色管理",
       "permissions": "权限列表",
       "menus": "菜单管理",
       "audit_logs": "操作审计"
+    },
+    "credentials": {
+      "ssh_keys": "SSH 密钥",
+      "kubeconfigs": "Kubeconfig",
+      "cloud_keys": "云密钥"
     }
   },
   "perm": {
@@ -64,8 +70,14 @@
       "menu": { "read": "查看菜单", "write": "新建/修改菜单", "delete": "删除菜单" },
       "audit": { "read": "查看操作审计" }
     },
+    "credentials": {
+      "ssh_key":    { "read": "查看 SSH 凭证", "write": "新建/修改 SSH 凭证", "delete": "删除 SSH 凭证", "use": "使用 SSH 凭证" },
+      "kubeconfig": { "read": "查看 Kubeconfig", "write": "新建/修改 Kubeconfig", "delete": "删除 Kubeconfig", "use": "使用 Kubeconfig" },
+      "cloud_key":  { "read": "查看云密钥", "write": "新建/修改云密钥", "delete": "删除云密钥", "use": "使用云密钥" }
+    },
     "category": {
       "system": "系统管理",
+      "credentials": "凭证管理",
       "k8s": "Kubernetes",
       "assets": "资产管理",
       "observability": "可观测性",
@@ -191,5 +203,60 @@
       "col_ip": "IP",
       "payload_title": "操作上下文"
     }
+  },
+  "credentials": {
+    "search_placeholder": "搜索名称或描述",
+    "filter_username": "用户名",
+    "filter_namespace": "默认命名空间",
+    "filter_provider": "云厂商",
+    "filter_provider_all": "全部",
+    "field": {
+      "name": "名称",
+      "description": "描述",
+      "username": "用户名",
+      "private_key": "私钥",
+      "passphrase": "口令",
+      "default_namespace": "默认命名空间",
+      "kubeconfig": "Kubeconfig YAML",
+      "provider": "云厂商",
+      "region": "区域",
+      "access_key_id": "Access Key ID",
+      "secret_access_key": "Secret Access Key"
+    },
+    "placeholder": {
+      "unchanged": "•••••（保持不变）"
+    },
+    "action": {
+      "create": "新建",
+      "edit": "编辑",
+      "delete": "删除",
+      "confirm_delete": "确认删除该凭证？该操作不可撤销。"
+    },
+    "toast": {
+      "created": "凭证已创建",
+      "updated": "凭证已更新",
+      "deleted": "凭证已删除"
+    },
+    "ssh_keys": {
+      "title": "SSH 密钥",
+      "col_username": "用户名"
+    },
+    "kubeconfigs": {
+      "title": "Kubeconfig",
+      "col_default_namespace": "默认命名空间"
+    },
+    "cloud_keys": {
+      "title": "云密钥",
+      "col_provider": "云厂商",
+      "col_region": "区域"
+    },
+    "not_found": "凭证不存在",
+    "name_taken": "凭证名称已被占用",
+    "invalid_key_format": "凭证内容格式错误",
+    "invalid_provider": "云厂商必须是 aws / gcp / azure 之一",
+    "invalid_purpose": "consume 调用必须提供 purpose",
+    "system_purpose_required": "系统调用的 purpose 必须以 system: 开头",
+    "crypto_seal_failed": "加密失败，请联系管理员",
+    "crypto_open_failed": "解密失败或数据已损坏"
   }
 }
