@@ -34,4 +34,13 @@ const (
 	// 5xxxx server business errors
 	CodeSeedFailed      Code = 50001
 	CodePermRegistryErr Code = 50002
+
+	// 41xxx k8s runtime — runtime failures reaching or talking to apiserver.
+	// Distinct from 40xxx client errors because they encode upstream-dependency
+	// state, not malformed/unauthorized client requests. See P2 spec §9.
+	CodeClusterUnreachable    Code = 41101 // network/timeout reaching apiserver
+	CodeAPIServerForbidden    Code = 41103 // kubeconfig user's RBAC denies the call
+	CodeAPIServerUnauthorized Code = 41104 // kubeconfig credentials expired/invalid
+	CodeAPIServerOther        Code = 41105 // generic apiserver StatusError
+	CodeLogUnavailable        Code = 41202 // pod log unavailable (pending/init/no previous)
 )
