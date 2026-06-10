@@ -59,6 +59,34 @@ func TestListNodes_RolesExtraction(t *testing.T) {
 	require.Contains(t, out.Items[0].Roles, "control-plane")
 }
 
+// TestGetNode covers the Get-by-name path that List tests don't reach.
+func TestGetNode(t *testing.T) {
+	cs := fake.NewSimpleClientset(&corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "n1",
+			Labels: map[string]string{"node-role.kubernetes.io/worker": ""},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+			NodeInfo:   corev1.NodeSystemInfo{KubeletVersion: "v1.30.5"},
+		},
+	})
+	svc := clusterscoped.NewService(&fakeCS{cs: cs})
+	out, err := svc.GetNode(context.Background(), 1, "n1")
+	require.NoError(t, err)
+	require.Equal(t, "n1", out.Name)
+	require.True(t, out.Ready)
+	require.Contains(t, out.Roles, "worker")
+}
+
+// TestGetNode_NotFound exercises the MapAPIError NotFound branch on Get.
+func TestGetNode_NotFound(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	svc := clusterscoped.NewService(&fakeCS{cs: cs})
+	_, err := svc.GetNode(context.Background(), 1, "missing")
+	require.Error(t, err)
+}
+
 func TestListEvents(t *testing.T) {
 	cs := fake.NewSimpleClientset(&corev1.Event{
 		ObjectMeta:     metav1.ObjectMeta{Namespace: "default", Name: "e1"},

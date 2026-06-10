@@ -49,6 +49,41 @@ func TestData_BinaryWrappedAsBase64(t *testing.T) {
 	require.Equal(t, "//79", m["value"])
 }
 
+// TestData_NotFound exercises the MapAPIError NotFound branch on the
+// reveal path so audit-distinct "reveal" gets coverage too.
+func TestData_NotFound(t *testing.T) {
+	svc := secret.NewService(&fakeCS{cs: fake.NewSimpleClientset()})
+	_, err := svc.Data(context.Background(), 1, "n", "missing")
+	require.Error(t, err)
+}
+
+// TestGet_NotFound exercises the MapAPIError NotFound branch on Get.
+func TestGet_NotFound(t *testing.T) {
+	svc := secret.NewService(&fakeCS{cs: fake.NewSimpleClientset()})
+	_, err := svc.Get(context.Background(), 1, "n", "missing")
+	require.Error(t, err)
+}
+
+// TestData_Mixed exercises both branches of toData's utf8-vs-binary scan in a
+// single pass: one UTF-8 value emits a plain string, one binary value emits
+// the {value, base64:true} envelope.
+func TestData_Mixed(t *testing.T) {
+	cs := fake.NewSimpleClientset(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "s", Namespace: "n"},
+		Data: map[string][]byte{
+			"text": []byte("plain"),
+			"bin":  {0xff, 0xfe, 0xfd},
+		},
+	})
+	svc := secret.NewService(&fakeCS{cs: cs})
+	d, err := svc.Data(context.Background(), 1, "n", "s")
+	require.NoError(t, err)
+	require.Equal(t, "plain", d.Data["text"])
+	m, ok := d.Data["bin"].(map[string]any)
+	require.True(t, ok, "binary value must be wrapped in a map")
+	require.True(t, m["base64"].(bool))
+}
+
 // TestList_NoValuesLeaked is a critical guardrail — it serialises the List
 // response and asserts the raw secret value never appears in it. Any future
 // refactor that accidentally surfaces values will fail this test.

@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -76,6 +77,106 @@ func TestList_UnsupportedKind(t *testing.T) {
 	require.True(t, ok, "expected *apperr.BizError, got %T", err)
 	require.Equal(t, apperr.CodeBadRequest, be.Code)
 	require.Equal(t, "k8s.workload.unsupported_kind", be.MessageKey)
+}
+
+// allWorkloadFixtures returns a fake clientset preloaded with one object of
+// each of the 7 supported workload kinds in namespace "n". Shared by both
+// TestList_AllKinds and TestGet_AllKinds to keep the table-driven coverage
+// pass short.
+func allWorkloadFixtures() *fake.Clientset {
+	rep := int32(1)
+	return fake.NewSimpleClientset(
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "d", Namespace: "n"},
+			Spec:       appsv1.DeploymentSpec{Replicas: &rep},
+		},
+		&appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "sts", Namespace: "n"},
+			Spec:       appsv1.StatefulSetSpec{Replicas: &rep, ServiceName: "svc"},
+		},
+		&appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "ds", Namespace: "n"},
+		},
+		&batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{Name: "j", Namespace: "n"},
+			Spec:       batchv1.JobSpec{Completions: &rep},
+			Status: batchv1.JobStatus{
+				StartTime:      &metav1.Time{Time: metav1.Now().Time},
+				CompletionTime: &metav1.Time{Time: metav1.Now().Time},
+			},
+		},
+		&batchv1.CronJob{
+			ObjectMeta: metav1.ObjectMeta{Name: "cj", Namespace: "n"},
+			Spec:       batchv1.CronJobSpec{Schedule: "* * * * *"},
+			Status:     batchv1.CronJobStatus{LastScheduleTime: &metav1.Time{Time: metav1.Now().Time}},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "rs",
+				Namespace:       "n",
+				OwnerReferences: []metav1.OwnerReference{{Kind: "Deployment", Name: "d"}},
+			},
+			Spec: appsv1.ReplicaSetSpec{Replicas: &rep},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "n"},
+		},
+	)
+}
+
+// TestList_AllKinds walks the List dispatcher for every supported kind and
+// confirms each branch returns a non-nil envelope without error. Existence
+// of one item per kind is enough to cover the projection loop too.
+func TestList_AllKinds(t *testing.T) {
+	svc := workload.NewService(&fakeCS{cs: allWorkloadFixtures()})
+	for _, kind := range []string{
+		"deployments", "statefulsets", "daemonsets",
+		"jobs", "cronjobs", "replicasets", "pods",
+	} {
+		t.Run(kind, func(t *testing.T) {
+			out, err := svc.List(context.Background(), 1, kind, workload.ListQuery{Namespace: "n"})
+			require.NoError(t, err)
+			require.NotNil(t, out)
+		})
+	}
+}
+
+// TestGet_AllKinds walks the Get dispatcher for every supported kind.
+func TestGet_AllKinds(t *testing.T) {
+	svc := workload.NewService(&fakeCS{cs: allWorkloadFixtures()})
+	cases := []struct{ kind, name string }{
+		{"deployments", "d"}, {"statefulsets", "sts"}, {"daemonsets", "ds"},
+		{"jobs", "j"}, {"cronjobs", "cj"}, {"replicasets", "rs"}, {"pods", "p"},
+	}
+	for _, c := range cases {
+		t.Run(c.kind, func(t *testing.T) {
+			out, err := svc.Get(context.Background(), 1, c.kind, "n", c.name)
+			require.NoError(t, err)
+			require.NotNil(t, out)
+		})
+	}
+}
+
+// TestGet_UnsupportedKind hits the default branch of Get's switch.
+func TestGet_UnsupportedKind(t *testing.T) {
+	svc := workload.NewService(&fakeCS{cs: fake.NewSimpleClientset()})
+	_, err := svc.Get(context.Background(), 1, "bogus", "n", "x")
+	require.Error(t, err)
+	be, ok := err.(*apperr.BizError)
+	require.True(t, ok, "expected *apperr.BizError, got %T", err)
+	require.Equal(t, apperr.CodeBadRequest, be.Code)
+	require.Equal(t, "k8s.workload.unsupported_kind", be.MessageKey)
+}
+
+// TestGet_NotFound exercises the apierr.MapAPIError NotFound branch on the
+// Get path so the error-translation chain is covered for at least one kind.
+func TestGet_NotFound(t *testing.T) {
+	svc := workload.NewService(&fakeCS{cs: fake.NewSimpleClientset()})
+	_, err := svc.Get(context.Background(), 1, "deployments", "n", "missing")
+	require.Error(t, err)
+	be, ok := err.(*apperr.BizError)
+	require.True(t, ok, "expected *apperr.BizError, got %T", err)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
 }
 
 // TestGet_Pod exercises the Get dispatcher and confirms the same toPod

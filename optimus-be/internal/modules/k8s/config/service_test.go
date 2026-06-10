@@ -36,6 +36,25 @@ func TestList_ConfigMaps(t *testing.T) {
 	require.Equal(t, 1, out.Items[0].DataCount)
 }
 
+// TestGet_NotFound exercises the MapAPIError NotFound branch on Get.
+func TestGet_NotFound(t *testing.T) {
+	svc := config.NewService(&fakeCS{cs: fake.NewSimpleClientset()})
+	_, err := svc.Get(context.Background(), 1, "n", "missing")
+	require.Error(t, err)
+}
+
+// TestList_Empty covers the no-data, no-binary-data path in toSummary.
+func TestList_Empty(t *testing.T) {
+	cs := fake.NewSimpleClientset(&corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "empty", Namespace: "n"},
+	})
+	svc := config.NewService(&fakeCS{cs: cs})
+	out, err := svc.List(context.Background(), 1, config.ListQuery{Namespace: "n"})
+	require.NoError(t, err)
+	require.Len(t, out.Items, 1)
+	require.Equal(t, 0, out.Items[0].DataCount)
+}
+
 func TestGet_ConfigMap_IncludesData(t *testing.T) {
 	cs := fake.NewSimpleClientset(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "n"},

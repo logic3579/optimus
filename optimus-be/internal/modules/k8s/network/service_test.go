@@ -68,6 +68,52 @@ func TestList_Ingresses(t *testing.T) {
 	require.Equal(t, "192.0.2.1", lr.Items[0].LoadBalancerIPs[0])
 }
 
+// TestGet_Service hits the Service-kind branch of the Get dispatcher.
+func TestGet_Service(t *testing.T) {
+	cs := fake.NewSimpleClientset(&corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "s", Namespace: "n"},
+		Spec:       corev1.ServiceSpec{Type: corev1.ServiceTypeClusterIP, ClusterIP: "10.0.0.1"},
+	})
+	svc := network.NewService(&fakeCS{cs: cs})
+	out, err := svc.Get(context.Background(), 1, "services", "n", "s")
+	require.NoError(t, err)
+	got := out.(*network.ServiceSummary)
+	require.Equal(t, "10.0.0.1", got.ClusterIP)
+}
+
+// TestGet_Ingress hits the Ingress-kind branch of the Get dispatcher.
+func TestGet_Ingress(t *testing.T) {
+	cs := fake.NewSimpleClientset(&netv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{Name: "i", Namespace: "n"},
+	})
+	svc := network.NewService(&fakeCS{cs: cs})
+	out, err := svc.Get(context.Background(), 1, "ingresses", "n", "i")
+	require.NoError(t, err)
+	got := out.(*network.IngressSummary)
+	require.Equal(t, "i", got.Name)
+}
+
+// TestGet_UnsupportedKind exercises the default branch of Get's switch.
+func TestGet_UnsupportedKind(t *testing.T) {
+	svc := network.NewService(&fakeCS{cs: fake.NewSimpleClientset()})
+	_, err := svc.Get(context.Background(), 1, "bogus", "n", "x")
+	require.Error(t, err)
+	be, ok := err.(*apperr.BizError)
+	require.True(t, ok, "expected *apperr.BizError, got %T", err)
+	require.Equal(t, apperr.CodeBadRequest, be.Code)
+	require.Equal(t, "k8s.network.unsupported_kind", be.MessageKey)
+}
+
+// TestGet_NotFound exercises the MapAPIError NotFound branch on Get.
+func TestGet_NotFound(t *testing.T) {
+	svc := network.NewService(&fakeCS{cs: fake.NewSimpleClientset()})
+	_, err := svc.Get(context.Background(), 1, "services", "n", "missing")
+	require.Error(t, err)
+	be, ok := err.(*apperr.BizError)
+	require.True(t, ok, "expected *apperr.BizError, got %T", err)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
+}
+
 func TestList_UnsupportedKind(t *testing.T) {
 	svc := network.NewService(&fakeCS{cs: fake.NewSimpleClientset()})
 	_, err := svc.List(context.Background(), 1, "bogus", network.ListQuery{})
