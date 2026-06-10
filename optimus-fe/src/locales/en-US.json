@@ -348,6 +348,7 @@
       "previous": "Previous",
       "tail_lines": "Tail lines",
       "container": "Container",
+      "idle": "Idle",
       "connecting": "Connecting…",
       "open": "Live",
       "closed": "Disconnected",

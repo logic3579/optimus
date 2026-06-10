@@ -348,6 +348,7 @@
       "previous": "上一个容器",
       "tail_lines": "尾部行数",
       "container": "容器",
+      "idle": "未连接",
       "connecting": "连接中…",
       "open": "实时",
       "closed": "已断开",
