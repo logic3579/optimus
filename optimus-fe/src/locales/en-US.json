@@ -260,7 +260,8 @@
     "crypto_open_failed": "Decryption or integrity check failed",
     "kubeconfig": {
       "exec_forbidden": "Kubeconfig user uses an exec auth plugin, which is not supported.",
-      "authprovider_forbidden": "Kubeconfig user uses an auth-provider plugin, which is not supported."
+      "authprovider_forbidden": "Kubeconfig user uses an auth-provider plugin, which is not supported.",
+      "in_use": "Kubeconfig is referenced by clusters; remove the clusters first."
     }
   }
 }

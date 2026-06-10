@@ -12,6 +12,7 @@ import (
 
 	"optimus-be/internal/infra/db"
 	apperr "optimus-be/internal/infra/errors"
+	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/credentials/kubeconfig"
 )
@@ -215,6 +216,31 @@ current-context: ctx
 	require.True(t, ok)
 	require.Equal(t, apperr.CodeBadRequest, be.Code)
 	require.Equal(t, "credentials.kubeconfig.authprovider_forbidden", be.MessageKey)
+}
+
+func TestService_Delete_RefusedWhileClusterReferences(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	ctx := context.Background()
+
+	det, err := svc.Create(ctx, 0, "", "", kubeconfig.CreateRequest{
+		Name:       "kc-refused",
+		Kubeconfig: validKubeconfigYAML,
+	})
+	require.NoError(t, err)
+
+	// Insert a cluster row referencing the kubeconfig directly via the DB.
+	db := svc.Repo().DB()
+	require.NoError(t, db.Create(&models.Cluster{
+		Name: "c-ref", KubeconfigID: det.ID, Context: "ctx",
+	}).Error)
+
+	err = svc.Delete(ctx, 0, "", "", det.ID)
+	require.Error(t, err)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeConflict, be.Code)
+	require.Equal(t, "credentials.kubeconfig.in_use", be.MessageKey)
 }
 
 func TestService_Consume_RejectsSystemWithoutPrefix(t *testing.T) {

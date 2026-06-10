@@ -260,7 +260,8 @@
     "crypto_open_failed": "解密失败或数据已损坏",
     "kubeconfig": {
       "exec_forbidden": "Kubeconfig 中的用户使用了 exec 认证插件，禁止上传。",
-      "authprovider_forbidden": "Kubeconfig 中的用户使用了 auth-provider 认证插件，禁止上传。"
+      "authprovider_forbidden": "Kubeconfig 中的用户使用了 auth-provider 认证插件，禁止上传。",
+      "in_use": "Kubeconfig 仍被集群引用，请先删除引用集群。"
     }
   }
 }

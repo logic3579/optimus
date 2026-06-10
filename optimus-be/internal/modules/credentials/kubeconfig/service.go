@@ -13,6 +13,7 @@ import (
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
+	"optimus-be/internal/modules/k8s/cluster/inuse"
 )
 
 // Cipher is the subset of vault.Cipher the service depends on.
@@ -177,6 +178,15 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 			return apperr.New(apperr.CodeNotFound, "credentials.not_found", "credential not found")
 		}
 		return err
+	}
+	// P2 gate: refuse if any live clusters reference this kubeconfig.
+	n, err := inuse.CountByKubeconfigID(ctx, s.repo.DB(), id)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return apperr.New(apperr.CodeConflict, "credentials.kubeconfig.in_use",
+			fmt.Sprintf("kubeconfig is referenced by %d cluster(s)", n))
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
