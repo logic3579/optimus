@@ -3,6 +3,7 @@ package kubeconfig
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -67,8 +68,11 @@ func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 // --- mutations -------------------------------------------------------------
 
 func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*Detail, error) {
-	if err := validateKubeconfig([]byte(req.Kubeconfig)); err != nil {
-		return nil, apperr.New(apperr.CodeBadRequest, "credentials.invalid_key_format", err.Error())
+	if msgKey, err := validateKubeconfig([]byte(req.Kubeconfig)); err != nil {
+		if msgKey == "" {
+			msgKey = "credentials.invalid_key_format"
+		}
+		return nil, apperr.New(apperr.CodeBadRequest, msgKey, err.Error())
 	}
 	if _, err := s.repo.FindByName(ctx, strings.TrimSpace(req.Name)); err == nil {
 		return nil, apperr.New(apperr.CodeConflict, "credentials.name_taken", "credential name already exists")
@@ -136,8 +140,11 @@ func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id 
 		changed = append(changed, "default_namespace")
 	}
 	if req.Kubeconfig != nil && *req.Kubeconfig != "" {
-		if err := validateKubeconfig([]byte(*req.Kubeconfig)); err != nil {
-			return nil, apperr.New(apperr.CodeBadRequest, "credentials.invalid_key_format", err.Error())
+		if msgKey, err := validateKubeconfig([]byte(*req.Kubeconfig)); err != nil {
+			if msgKey == "" {
+				msgKey = "credentials.invalid_key_format"
+			}
+			return nil, apperr.New(apperr.CodeBadRequest, msgKey, err.Error())
 		}
 		enc, err := s.cipher.Seal([]byte(*req.Kubeconfig))
 		if err != nil {
@@ -266,13 +273,23 @@ func toSummary(m models.CredentialKubeconfig) Summary {
 	return out
 }
 
-func validateKubeconfig(raw []byte) error {
+func validateKubeconfig(raw []byte) (string, error) {
 	cfg, err := clientcmd.Load(raw)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if len(cfg.Contexts) == 0 {
-		return errors.New("kubeconfig has no contexts")
+		return "", errors.New("kubeconfig has no contexts")
 	}
-	return nil
+	for name, u := range cfg.AuthInfos {
+		if u.Exec != nil {
+			return "credentials.kubeconfig.exec_forbidden",
+				fmt.Errorf("user %q uses exec auth plugin, which is not supported", name)
+		}
+		if u.AuthProvider != nil {
+			return "credentials.kubeconfig.authprovider_forbidden",
+				fmt.Errorf("user %q uses auth-provider plugin, which is not supported", name)
+		}
+	}
+	return "", nil
 }

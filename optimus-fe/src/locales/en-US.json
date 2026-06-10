@@ -257,6 +257,10 @@
     "invalid_purpose": "A purpose must be supplied for consume",
     "system_purpose_required": "System consume requires purpose prefix system:",
     "crypto_seal_failed": "Encryption failed",
-    "crypto_open_failed": "Decryption or integrity check failed"
+    "crypto_open_failed": "Decryption or integrity check failed",
+    "kubeconfig": {
+      "exec_forbidden": "Kubeconfig user uses an exec auth plugin, which is not supported.",
+      "authprovider_forbidden": "Kubeconfig user uses an auth-provider plugin, which is not supported."
+    }
   }
 }

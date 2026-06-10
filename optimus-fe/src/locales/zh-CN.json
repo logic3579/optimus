@@ -257,6 +257,10 @@
     "invalid_purpose": "consume 调用必须提供 purpose",
     "system_purpose_required": "系统调用的 purpose 必须以 system: 开头",
     "crypto_seal_failed": "加密失败，请联系管理员",
-    "crypto_open_failed": "解密失败或数据已损坏"
+    "crypto_open_failed": "解密失败或数据已损坏",
+    "kubeconfig": {
+      "exec_forbidden": "Kubeconfig 中的用户使用了 exec 认证插件，禁止上传。",
+      "authprovider_forbidden": "Kubeconfig 中的用户使用了 auth-provider 认证插件，禁止上传。"
+    }
   }
 }
