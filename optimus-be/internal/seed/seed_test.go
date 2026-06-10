@@ -111,6 +111,7 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 		"dashboard",
 		"system", "system.users", "system.roles", "system.permissions", "system.menus", "system.audit_logs",
 		"credentials", "credentials.ssh_keys", "credentials.kubeconfigs", "credentials.cloud_keys",
+		"k8s", "k8s.clusters", "k8s.workloads", "k8s.network", "k8s.config", "k8s.cluster_resources",
 	}
 	for _, code := range wantCodes {
 		var m models.Menu
@@ -124,4 +125,11 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 	var childrenCount int64
 	gdb.Model(&models.Menu{}).Where("parent_id = ?", parent.ID).Count(&childrenCount)
 	require.Equal(t, int64(3), childrenCount)
+
+	// Parent linkage: k8s.* children must have parent_id = k8s.id.
+	var k8sParent models.Menu
+	require.NoError(t, gdb.Where("code = ?", "k8s").First(&k8sParent).Error)
+	var k8sChildren int64
+	gdb.Model(&models.Menu{}).Where("parent_id = ?", k8sParent.ID).Count(&k8sChildren)
+	require.Equal(t, int64(5), k8sChildren)
 }
