@@ -18,6 +18,7 @@ require (
 	gorm.io/datatypes v1.2.1
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
+	k8s.io/api v0.30.14
 	k8s.io/apimachinery v0.30.14
 	k8s.io/client-go v0.30.14
 )
@@ -41,6 +42,7 @@ require (
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
+	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
@@ -124,7 +126,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
-	k8s.io/api v0.30.14 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2 // indirect
