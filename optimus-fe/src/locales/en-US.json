@@ -12,7 +12,8 @@
     "language": "Language",
     "theme": "Theme",
     "theme_light": "Light",
-    "theme_dark": "Dark"
+    "theme_dark": "Dark",
+    "actions": "Actions"
   },
   "placeholder": {
     "coming_soon": "Coming soon"
@@ -366,6 +367,19 @@
       "replicaset": "ReplicaSet",
       "pod": "Pod"
     },
+    "network": {
+      "service": "Service",
+      "ingress": "Ingress"
+    },
+    "config": {
+      "configmap": "ConfigMap",
+      "secret": "Secret"
+    },
+    "cluster_resource": {
+      "namespace": "Namespace",
+      "node": "Node",
+      "event": "Event"
+    },
     "tab": {
       "overview": "Overview",
       "yaml": "YAML",
@@ -375,7 +389,8 @@
     "secret": {
       "reveal": "Reveal",
       "hide": "Hide",
-      "yaml_warning": "Secret YAML shows base64-encoded data. Use Reveal to decode."
+      "yaml_warning": "Secret YAML shows base64-encoded data. Use Reveal to decode.",
+      "binary_b64": "Binary base64"
     },
     "list": {
       "truncated": "Showing first {limit}; narrow by namespace or search to see more."

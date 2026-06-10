@@ -12,7 +12,8 @@
     "language": "语言",
     "theme": "主题",
     "theme_light": "浅色",
-    "theme_dark": "深色"
+    "theme_dark": "深色",
+    "actions": "操作"
   },
   "placeholder": {
     "coming_soon": "敬请期待"
@@ -366,6 +367,19 @@
       "replicaset": "ReplicaSet",
       "pod": "Pod"
     },
+    "network": {
+      "service": "Service",
+      "ingress": "Ingress"
+    },
+    "config": {
+      "configmap": "ConfigMap",
+      "secret": "Secret"
+    },
+    "cluster_resource": {
+      "namespace": "Namespace",
+      "node": "Node",
+      "event": "Event"
+    },
     "tab": {
       "overview": "概览",
       "yaml": "YAML",
@@ -375,7 +389,8 @@
     "secret": {
       "reveal": "查看明文",
       "hide": "隐藏",
-      "yaml_warning": "Secret YAML 中的 data 字段为 base64 编码；点击「查看明文」解码。"
+      "yaml_warning": "Secret YAML 中的 data 字段为 base64 编码；点击「查看明文」解码。",
+      "binary_b64": "二进制 (base64)"
     },
     "list": {
       "truncated": "只展示前 {limit} 条；请用命名空间或搜索缩小范围。"
