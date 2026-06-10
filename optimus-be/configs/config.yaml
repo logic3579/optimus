@@ -42,3 +42,7 @@ i18n:
 bootstrap:
   admin_username: admin
   admin_email: admin@example.com
+
+vault:
+  master_key: ""
+  master_key_file: ""

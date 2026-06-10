@@ -48,12 +48,18 @@
   "menu": {
     "dashboard": "Dashboard",
     "system_group": "System",
+    "credentials_group": "Credentials",
     "system": {
       "users": "Users",
       "roles": "Roles",
       "permissions": "Permissions",
       "menus": "Menus",
       "audit_logs": "Audit logs"
+    },
+    "credentials": {
+      "ssh_keys": "SSH keys",
+      "kubeconfigs": "Kubeconfigs",
+      "cloud_keys": "Cloud keys"
     }
   },
   "perm": {
@@ -64,8 +70,14 @@
       "menu": { "read": "Read menus", "write": "Create/update menus", "delete": "Delete menus" },
       "audit": { "read": "Read audit logs" }
     },
+    "credentials": {
+      "ssh_key":    { "read": "View SSH credentials", "write": "Create/update SSH credentials", "delete": "Delete SSH credentials", "use": "Use SSH credentials" },
+      "kubeconfig": { "read": "View kubeconfigs", "write": "Create/update kubeconfigs", "delete": "Delete kubeconfigs", "use": "Use kubeconfigs" },
+      "cloud_key":  { "read": "View cloud keys", "write": "Create/update cloud keys", "delete": "Delete cloud keys", "use": "Use cloud keys" }
+    },
     "category": {
       "system": "System",
+      "credentials": "Credentials",
       "k8s": "Kubernetes",
       "assets": "Assets",
       "observability": "Observability",
@@ -191,5 +203,60 @@
       "col_ip": "IP",
       "payload_title": "Payload"
     }
+  },
+  "credentials": {
+    "search_placeholder": "Search by name or description",
+    "filter_username": "Username",
+    "filter_namespace": "Default namespace",
+    "filter_provider": "Provider",
+    "filter_provider_all": "All",
+    "field": {
+      "name": "Name",
+      "description": "Description",
+      "username": "Username",
+      "private_key": "Private key",
+      "passphrase": "Passphrase",
+      "default_namespace": "Default namespace",
+      "kubeconfig": "Kubeconfig YAML",
+      "provider": "Provider",
+      "region": "Region",
+      "access_key_id": "Access Key ID",
+      "secret_access_key": "Secret Access Key"
+    },
+    "placeholder": {
+      "unchanged": "••••• (unchanged)"
+    },
+    "action": {
+      "create": "Create",
+      "edit": "Edit",
+      "delete": "Delete",
+      "confirm_delete": "Delete this credential? This cannot be undone."
+    },
+    "toast": {
+      "created": "Credential created",
+      "updated": "Credential updated",
+      "deleted": "Credential deleted"
+    },
+    "ssh_keys": {
+      "title": "SSH keys",
+      "col_username": "Username"
+    },
+    "kubeconfigs": {
+      "title": "Kubeconfigs",
+      "col_default_namespace": "Default namespace"
+    },
+    "cloud_keys": {
+      "title": "Cloud keys",
+      "col_provider": "Provider",
+      "col_region": "Region"
+    },
+    "not_found": "Credential not found",
+    "name_taken": "Credential name already exists",
+    "invalid_key_format": "Invalid credential format",
+    "invalid_provider": "Provider must be aws / gcp / azure",
+    "invalid_purpose": "A purpose must be supplied for consume",
+    "system_purpose_required": "System consume requires purpose prefix system:",
+    "crypto_seal_failed": "Encryption failed",
+    "crypto_open_failed": "Decryption or integrity check failed"
   }
 }

@@ -17,6 +17,9 @@ import { makeRoleApi } from '@/api/role'
 import { makeMenuApi } from '@/api/menu'
 import { makePermissionApi } from '@/api/permission'
 import { makeAuditApi } from '@/api/audit'
+import { makeSshKeyApi } from '@/api/credentials/ssh-key'
+import { makeKubeconfigApi } from '@/api/credentials/kubeconfig'
+import { makeCloudKeyApi } from '@/api/credentials/cloud-key'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useAppStore } from '@/stores/app'
@@ -48,6 +51,9 @@ app.provide('roleApi', makeRoleApi(client))
 app.provide('menuApi', makeMenuApi(client))
 app.provide('permissionApi', makePermissionApi(client))
 app.provide('auditApi', makeAuditApi(client))
+app.provide('sshKeyApi', makeSshKeyApi(client))
+app.provide('kubeconfigApi', makeKubeconfigApi(client))
+app.provide('cloudKeyApi', makeCloudKeyApi(client))
 
 installGuards(router, meApi)
 app.use(router)

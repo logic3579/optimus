@@ -28,6 +28,8 @@ import (
 	"optimus-be/internal/infra/ratelimit"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/auth"
+	"optimus-be/internal/modules/credentials"
+	"optimus-be/internal/modules/credentials/vault"
 	"optimus-be/internal/modules/health"
 	"optimus-be/internal/modules/menu"
 	"optimus-be/internal/modules/permission"
@@ -65,6 +67,20 @@ func main() {
 	}
 	if err := cfg.ValidateStrict(); err != nil {
 		fail("validate config", err)
+	}
+
+	// Vault master key: refuse to start without one (parallels the JWT secret
+	// gate above). Done BEFORE opening the DB so misconfiguration fails fast.
+	masterKey, err := vault.LoadKey(vault.Source{
+		Env:  cfg.Vault.MasterKey,
+		File: cfg.Vault.MasterKeyFile,
+	})
+	if err != nil {
+		fail("load vault master key", err)
+	}
+	cipher, err := vault.NewCipher(masterKey)
+	if err != nil {
+		fail("build vault cipher", err)
 	}
 
 	logger := log.New(log.Options{Level: cfg.Log.Level, Format: cfg.Log.Format})
@@ -156,6 +172,13 @@ func main() {
 	auditSvc := audit.NewService(audit.NewRepo(gdb))
 	auditHandler := audit.NewHandler(auditSvc)
 	mountAuditRoutes(protected, auditHandler, permCache)
+
+	// P1 credentials vault: 3 CRUD surfaces under /credentials, gated by the
+	// 12 credentials:* permission codes. The exposed credsModule.Consumer is
+	// the Go-only seam for downstream sub-projects (P2+).
+	credsModule := credentials.New(gdb, cipher, auditRec)
+	credsModule.MountRoutes(protected, permCache)
+	_ = credsModule.Consumer // referenced once so vet/staticcheck see it as live API
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),

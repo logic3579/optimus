@@ -129,6 +129,11 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			{Code: "system.menus", Name: "menu.system.menus", Path: "/system/menus", Component: "system/menus/List", PermissionCode: sp("system:menu:read")},
 			{Code: "system.audit_logs", Name: "menu.system.audit_logs", Path: "/system/audit-logs", Component: "system/audit-logs/List", PermissionCode: sp("system:audit:read")},
 		}},
+		{Code: "credentials", Name: "menu.credentials_group", Path: "/credentials", Component: "", Icon: "key", Children: []spec{
+			{Code: "credentials.ssh_keys", Name: "menu.credentials.ssh_keys", Path: "/credentials/ssh-keys", Component: "credentials/ssh-keys/List", PermissionCode: sp("credentials:ssh_key:read")},
+			{Code: "credentials.kubeconfigs", Name: "menu.credentials.kubeconfigs", Path: "/credentials/kubeconfigs", Component: "credentials/kubeconfigs/List", PermissionCode: sp("credentials:kubeconfig:read")},
+			{Code: "credentials.cloud_keys", Name: "menu.credentials.cloud_keys", Path: "/credentials/cloud-keys", Component: "credentials/cloud-keys/List", PermissionCode: sp("credentials:cloud_key:read")},
+		}},
 	}
 	var insert func(parentID *uint64, nodes []spec) error
 	insert = func(parentID *uint64, nodes []spec) error {

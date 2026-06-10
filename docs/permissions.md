@@ -2,6 +2,23 @@
 
 Auto-generated from `optimus-be/internal/infra/permissions/codes.go`. Run `make dump-perms` to refresh. CI fails if this is stale.
 
+## credentials
+
+| Code | Name (i18n) | Description |
+|---|---|---|
+| `credentials:cloud_key:delete` | `perm.credentials.cloud_key.delete` | Delete cloud keys |
+| `credentials:cloud_key:read` | `perm.credentials.cloud_key.read` | Read cloud keys |
+| `credentials:cloud_key:use` | `perm.credentials.cloud_key.use` | Use cloud keys |
+| `credentials:cloud_key:write` | `perm.credentials.cloud_key.write` | Create/update cloud keys |
+| `credentials:kubeconfig:delete` | `perm.credentials.kubeconfig.delete` | Delete kubeconfigs |
+| `credentials:kubeconfig:read` | `perm.credentials.kubeconfig.read` | Read kubeconfigs |
+| `credentials:kubeconfig:use` | `perm.credentials.kubeconfig.use` | Use kubeconfigs |
+| `credentials:kubeconfig:write` | `perm.credentials.kubeconfig.write` | Create/update kubeconfigs |
+| `credentials:ssh_key:delete` | `perm.credentials.ssh_key.delete` | Delete SSH credentials |
+| `credentials:ssh_key:read` | `perm.credentials.ssh_key.read` | Read SSH credentials |
+| `credentials:ssh_key:use` | `perm.credentials.ssh_key.use` | Use SSH credentials |
+| `credentials:ssh_key:write` | `perm.credentials.ssh_key.write` | Create/update SSH credentials |
+
 ## system
 
 | Code | Name (i18n) | Description |

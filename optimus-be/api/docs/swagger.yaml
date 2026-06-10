@@ -22,6 +22,124 @@ definitions:
     required:
     - refresh_token
     type: object
+  internal_modules_credentials_cloudkey.CreateRequest:
+    properties:
+      access_key_id:
+        maxLength: 256
+        type: string
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        type: string
+      provider:
+        enum:
+        - aws
+        - gcp
+        - azure
+        type: string
+      region:
+        maxLength: 32
+        type: string
+      secret_access_key:
+        type: string
+    required:
+    - access_key_id
+    - name
+    - provider
+    - secret_access_key
+    type: object
+  internal_modules_credentials_cloudkey.UpdateRequest:
+    properties:
+      access_key_id:
+        maxLength: 256
+        type: string
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        type: string
+      provider:
+        enum:
+        - aws
+        - gcp
+        - azure
+        type: string
+      region:
+        maxLength: 32
+        type: string
+      secret_access_key:
+        type: string
+    type: object
+  internal_modules_credentials_kubeconfig.CreateRequest:
+    properties:
+      default_namespace:
+        maxLength: 64
+        type: string
+      description:
+        maxLength: 4096
+        type: string
+      kubeconfig:
+        type: string
+      name:
+        maxLength: 128
+        type: string
+    required:
+    - kubeconfig
+    - name
+    type: object
+  internal_modules_credentials_kubeconfig.UpdateRequest:
+    properties:
+      default_namespace:
+        maxLength: 64
+        type: string
+      description:
+        maxLength: 4096
+        type: string
+      kubeconfig:
+        type: string
+      name:
+        maxLength: 128
+        type: string
+    type: object
+  internal_modules_credentials_sshkey.CreateRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        type: string
+      passphrase:
+        type: string
+      private_key:
+        type: string
+      username:
+        maxLength: 64
+        type: string
+    required:
+    - name
+    - private_key
+    - username
+    type: object
+  internal_modules_credentials_sshkey.UpdateRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        type: string
+      passphrase:
+        type: string
+      private_key:
+        type: string
+      username:
+        maxLength: 64
+        type: string
+    type: object
   internal_modules_menu.CreateRequest:
     properties:
       code:
@@ -355,6 +473,431 @@ paths:
       summary: Refresh tokens
       tags:
       - auth
+  /credentials/cloud-keys:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page size (default 20)
+        in: query
+        name: page_size
+        type: integer
+      - description: search by name or description
+        in: query
+        name: q
+        type: string
+      - description: filter by provider (aws|gcp|azure)
+        in: query
+        name: provider
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List cloud keys
+      tags:
+      - credentials
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: credential payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_credentials_cloudkey.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create cloud key
+      tags:
+      - credentials
+  /credentials/cloud-keys/{id}:
+    delete:
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete cloud key
+      tags:
+      - credentials
+    get:
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get cloud key
+      tags:
+      - credentials
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: credential payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_credentials_cloudkey.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update cloud key
+      tags:
+      - credentials
+  /credentials/kubeconfigs:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page size (default 20)
+        in: query
+        name: page_size
+        type: integer
+      - description: search by name or description
+        in: query
+        name: q
+        type: string
+      - description: filter by default namespace (exact)
+        in: query
+        name: default_namespace
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List kubeconfigs
+      tags:
+      - credentials
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: credential payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_credentials_kubeconfig.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create kubeconfig
+      tags:
+      - credentials
+  /credentials/kubeconfigs/{id}:
+    delete:
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete kubeconfig
+      tags:
+      - credentials
+    get:
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get kubeconfig
+      tags:
+      - credentials
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: credential payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_credentials_kubeconfig.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update kubeconfig
+      tags:
+      - credentials
+  /credentials/ssh-keys:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page size (default 20)
+        in: query
+        name: page_size
+        type: integer
+      - description: search by name or description
+        in: query
+        name: q
+        type: string
+      - description: filter by username (exact)
+        in: query
+        name: username
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List SSH credentials
+      tags:
+      - credentials
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: credential payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_credentials_sshkey.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create SSH credential
+      tags:
+      - credentials
+  /credentials/ssh-keys/{id}:
+    delete:
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete SSH credential
+      tags:
+      - credentials
+    get:
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get SSH credential
+      tags:
+      - credentials
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: credential payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_credentials_sshkey.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update SSH credential
+      tags:
+      - credentials
   /health:
     get:
       produces:
