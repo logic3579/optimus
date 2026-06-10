@@ -12,10 +12,17 @@ package credentials
 import (
 	"context"
 
-	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/modules/credentials/cloudkey"
 	"optimus-be/internal/modules/credentials/kubeconfig"
 	"optimus-be/internal/modules/credentials/sshkey"
+)
+
+// ctxKey is a private type used as a context.Context key so the value cannot
+// collide with values stored under string keys elsewhere (e.g., gin.Context).
+type ctxKey int
+
+const (
+	ctxKeyActor ctxKey = iota
 )
 
 // SSHKey is the decrypted shape returned by Consumer.GetSSHKey.
@@ -107,12 +114,12 @@ func (c *consumer) GetCloudKey(ctx context.Context, id uint64, purpose string) (
 //
 // Note: gin's c.Request.Context() does NOT carry the values set via gin's
 // c.Set(). HTTP entry points that use the Consumer seam must propagate the
-// user_id explicitly via context.WithValue before calling — see WithActor.
+// user_id explicitly via WithActor below.
 func actorFromCtx(ctx context.Context) *uint64 {
 	if ctx == nil {
 		return nil
 	}
-	v := ctx.Value(middleware.CtxKeyUserID)
+	v := ctx.Value(ctxKeyActor)
 	if v == nil {
 		return nil
 	}
@@ -126,5 +133,5 @@ func actorFromCtx(ctx context.Context) *uint64 {
 // downstream service that obtains its ctx from non-HTTP code (cron, queue
 // worker) can still drive audit attribution through the Consumer seam.
 func WithActor(ctx context.Context, actor uint64) context.Context {
-	return context.WithValue(ctx, middleware.CtxKeyUserID, actor)
+	return context.WithValue(ctx, ctxKeyActor, actor)
 }
