@@ -5,6 +5,7 @@
       <MenuUnfoldOutlined v-else />
     </a-button>
     <div class="u-flex-1" />
+    <ClusterPicker />
     <LangSwitch />
     <ThemeToggle />
     <a-dropdown>
@@ -30,6 +31,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import LangSwitch from './LangSwitch.vue'
 import ThemeToggle from './ThemeToggle.vue'
+import ClusterPicker from './layout/ClusterPicker.vue'
 
 defineProps<{ collapsed: boolean }>()
 defineEmits<{ toggle: [] }>()

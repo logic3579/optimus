@@ -5,13 +5,15 @@
     "save": "Save",
     "submit": "Submit",
     "reset": "Reset",
+    "refresh": "Refresh",
     "loading": "Loading…",
     "logout": "Log out",
     "profile": "Profile",
     "language": "Language",
     "theme": "Theme",
     "theme_light": "Light",
-    "theme_dark": "Dark"
+    "theme_dark": "Dark",
+    "actions": "Actions"
   },
   "placeholder": {
     "coming_soon": "Coming soon"
@@ -49,6 +51,7 @@
     "dashboard": "Dashboard",
     "system_group": "System",
     "credentials_group": "Credentials",
+    "k8s_group": "Kubernetes",
     "system": {
       "users": "Users",
       "roles": "Roles",
@@ -60,6 +63,13 @@
       "ssh_keys": "SSH keys",
       "kubeconfigs": "Kubeconfigs",
       "cloud_keys": "Cloud keys"
+    },
+    "k8s": {
+      "clusters": "Clusters",
+      "workloads": "Workloads",
+      "network": "Network",
+      "config": "Config & Secrets",
+      "cluster_resources": "Cluster Resources"
     }
   },
   "perm": {
@@ -74,6 +84,15 @@
       "ssh_key":    { "read": "View SSH credentials", "write": "Create/update SSH credentials", "delete": "Delete SSH credentials", "use": "Use SSH credentials" },
       "kubeconfig": { "read": "View kubeconfigs", "write": "Create/update kubeconfigs", "delete": "Delete kubeconfigs", "use": "Use kubeconfigs" },
       "cloud_key":  { "read": "View cloud keys", "write": "Create/update cloud keys", "delete": "Delete cloud keys", "use": "Use cloud keys" }
+    },
+    "k8s": {
+      "cluster":          { "read": "Read clusters", "write": "Manage clusters" },
+      "workload":         { "read": "Read workloads" },
+      "network":          { "read": "Read network resources" },
+      "config":           { "read": "Read config maps" },
+      "secret":           { "read": "Read secrets (metadata only)", "reveal": "Reveal secret values" },
+      "cluster_resource": { "read": "Read cluster-scoped resources" },
+      "log":              { "read": "Stream pod logs" }
     },
     "category": {
       "system": "System",
@@ -257,6 +276,124 @@
     "invalid_purpose": "A purpose must be supplied for consume",
     "system_purpose_required": "System consume requires purpose prefix system:",
     "crypto_seal_failed": "Encryption failed",
-    "crypto_open_failed": "Decryption or integrity check failed"
+    "crypto_open_failed": "Decryption or integrity check failed",
+    "kubeconfig": {
+      "exec_forbidden": "Kubeconfig user uses an exec auth plugin, which is not supported.",
+      "authprovider_forbidden": "Kubeconfig user uses an auth-provider plugin, which is not supported.",
+      "in_use": "Kubeconfig is referenced by clusters; remove the clusters first."
+    }
+  },
+  "k8s": {
+    "cluster": {
+      "title": "Clusters",
+      "name": "Name",
+      "kubeconfig": "Kubeconfig",
+      "context": "Context",
+      "description": "Description",
+      "tags": "Tags",
+      "tags_placeholder": "Press Enter to add a tag",
+      "context_hint": "As defined in your kubeconfig.",
+      "ping": "Test connection",
+      "refresh_all_health": "Refresh all health",
+      "no_cluster_selected": "Select a cluster to continue.",
+      "no_clusters": "No clusters available.",
+      "referenced_by_n": "Referenced by {n} cluster(s)",
+      "not_found": "Cluster not found.",
+      "name_taken": "Cluster name is already in use.",
+      "unreachable": "Cluster apiserver is unreachable.",
+      "search_placeholder": "Search by name or description",
+      "filter_tag": "Filter by tag",
+      "col_health": "Health",
+      "col_created_at": "Created at",
+      "namespace": "Namespace",
+      "namespace_all": "All namespaces",
+      "action": {
+        "create": "Create cluster",
+        "edit": "Edit",
+        "view": "View",
+        "delete": "Delete",
+        "confirm_delete": "Delete this cluster? This cannot be undone."
+      },
+      "toast": {
+        "created": "Cluster created",
+        "updated": "Cluster updated",
+        "deleted": "Cluster deleted",
+        "ping_ok": "Cluster reachable ({version})",
+        "ping_fail": "Ping failed",
+        "refresh_all_done": "Refresh complete"
+      },
+      "health": {
+        "ok": "Healthy",
+        "fail": "Unreachable",
+        "unknown": "Unknown"
+      }
+    },
+    "kubeconfig": {
+      "invalid": "Kubeconfig is invalid.",
+      "exec_forbidden": "Kubeconfig uses an exec auth plugin; not supported.",
+      "authprovider_forbidden": "Kubeconfig uses an auth-provider plugin; not supported.",
+      "context_not_found": "Context not found in kubeconfig."
+    },
+    "apiserver": {
+      "not_found": "Resource not found.",
+      "forbidden": "Cluster RBAC denied the request.",
+      "unauthorized": "Kubeconfig credentials expired or invalid.",
+      "other": "Apiserver returned an error."
+    },
+    "yaml": {
+      "unsupported_kind": "Unsupported resource kind."
+    },
+    "log": {
+      "unavailable": "Pod log is unavailable (container not yet running).",
+      "connect": "Connect",
+      "reconnect": "Reconnect",
+      "disconnect": "Disconnect",
+      "follow": "Follow",
+      "previous": "Previous",
+      "tail_lines": "Tail lines",
+      "container": "Container",
+      "idle": "Idle",
+      "connecting": "Connecting…",
+      "open": "Live",
+      "closed": "Disconnected",
+      "error": "Stream error"
+    },
+    "workload": {
+      "deployment": "Deployment",
+      "statefulset": "StatefulSet",
+      "daemonset": "DaemonSet",
+      "job": "Job",
+      "cronjob": "CronJob",
+      "replicaset": "ReplicaSet",
+      "pod": "Pod"
+    },
+    "network": {
+      "service": "Service",
+      "ingress": "Ingress"
+    },
+    "config": {
+      "configmap": "ConfigMap",
+      "secret": "Secret"
+    },
+    "cluster_resource": {
+      "namespace": "Namespace",
+      "node": "Node",
+      "event": "Event"
+    },
+    "tab": {
+      "overview": "Overview",
+      "yaml": "YAML",
+      "events": "Events",
+      "logs": "Logs"
+    },
+    "secret": {
+      "reveal": "Reveal",
+      "hide": "Hide",
+      "yaml_warning": "Secret YAML shows base64-encoded data. Use Reveal to decode.",
+      "binary_b64": "Binary base64"
+    },
+    "list": {
+      "truncated": "Showing first {limit}; narrow by namespace or search to see more."
+    }
   }
 }

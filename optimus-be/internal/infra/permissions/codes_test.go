@@ -57,3 +57,31 @@ func TestAll_IncludesCredentialPermissions(t *testing.T) {
 		}
 	}
 }
+
+func TestRegistry_K8sCodes(t *testing.T) {
+	want := []string{
+		"k8s:cluster:read",
+		"k8s:cluster:write",
+		"k8s:workload:read",
+		"k8s:network:read",
+		"k8s:config:read",
+		"k8s:secret:read",
+		"k8s:secret:reveal",
+		"k8s:cluster_resource:read",
+		"k8s:log:read",
+	}
+	got := map[string]bool{}
+	for _, p := range All {
+		if p.Category == "k8s" {
+			got[p.Code] = true
+		}
+	}
+	for _, c := range want {
+		if !got[c] {
+			t.Errorf("missing k8s code %s", c)
+		}
+	}
+	if len(want) != len(got) {
+		t.Errorf("unexpected extra k8s codes: want %d, got %d", len(want), len(got))
+	}
+}

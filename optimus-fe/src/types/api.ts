@@ -298,3 +298,261 @@ export interface CloudKeyListQuery {
   q?: string
   provider?: CloudProvider
 }
+
+// ─── K8s (P2) ───────────────────────────────────────────────────────────────
+// Cluster CRUD (mirrors optimus-be/internal/modules/k8s/cluster/dto.go).
+export interface Cluster {
+  id: number
+  name: string
+  kubeconfig_id: number
+  kubeconfig_name?: string
+  context: string
+  description: string
+  tags: string[]
+  last_health_at?: string | null
+  last_health_ok?: boolean | null
+  last_health_msg?: string
+  created_at: string
+  updated_at: string
+}
+export interface ClusterCreateRequest {
+  name: string
+  kubeconfig_id: number
+  context: string
+  description?: string
+  tags?: string[]
+}
+export interface ClusterUpdateRequest {
+  name?: string
+  kubeconfig_id?: number
+  context?: string
+  description?: string
+  tags?: string[]
+}
+export interface ClusterListQuery {
+  page?: number
+  page_size?: number
+  search?: string
+  tag?: string
+  kubeconfig_id?: number
+}
+export interface ClusterListResponse {
+  items: Cluster[]
+  total: number
+  page: number
+  page_size: number
+}
+export interface PingResult {
+  ok: boolean
+  server_version?: string
+  message?: string
+}
+
+/**
+ * Generic live-resource list envelope. Source: BE
+ * `clusterscoped.ListResponse[T]` — used by every read-only k8s vertical
+ * (namespace, node, event, workloads, network, configmap, secret).
+ * `continue` is the apiserver opaque pagination token (empty when complete);
+ * `truncated` mirrors `continue !== ""`.
+ */
+export interface K8sListResponse<T> {
+  items: T[]
+  continue?: string
+  truncated: boolean
+}
+
+/** Shared query-string for every live-resource list endpoint. */
+export interface K8sListQuery {
+  namespace?: string
+  limit?: number
+  continue?: string
+}
+
+// Cluster-scoped: namespace / node / event
+export interface NamespaceSummary {
+  name: string
+  phase: string
+  labels?: Record<string, string>
+  age: string
+}
+export interface NodeSummary {
+  name: string
+  ready: boolean
+  schedulable: boolean
+  roles: string[]
+  kubelet_version: string
+  cpu_capacity: string
+  mem_capacity: string
+  labels?: Record<string, string>
+  age: string
+}
+export interface EventSummary {
+  namespace?: string
+  type: string
+  reason: string
+  message: string
+  involved_kind: string
+  involved_name: string
+  count: number
+  first_timestamp: string
+  last_timestamp: string
+}
+
+// Workloads — 7 kinds. Each Summary mirrors a Go struct of the same name.
+export interface DeploymentSummary {
+  name: string
+  namespace: string
+  replicas_desired: number
+  replicas_ready: number
+  replicas_updated: number
+  replicas_available: number
+  strategy: string
+  labels?: Record<string, string>
+  age: string
+}
+export interface StatefulSetSummary {
+  name: string
+  namespace: string
+  replicas: number
+  ready_replicas: number
+  service_name: string
+  labels?: Record<string, string>
+  age: string
+}
+export interface DaemonSetSummary {
+  name: string
+  namespace: string
+  desired_number: number
+  current_number: number
+  ready_number: number
+  available_number: number
+  misscheduled: number
+  labels?: Record<string, string>
+  age: string
+}
+export interface JobSummary {
+  name: string
+  namespace: string
+  completions: number
+  succeeded: number
+  failed: number
+  start_time?: string | null
+  end_time?: string | null
+  labels?: Record<string, string>
+  age: string
+}
+export interface CronJobSummary {
+  name: string
+  namespace: string
+  schedule: string
+  last_schedule_time?: string | null
+  active_jobs: number
+  suspended: boolean
+  labels?: Record<string, string>
+  age: string
+}
+export interface ReplicaSetSummary {
+  name: string
+  namespace: string
+  replicas: number
+  ready_replicas: number
+  owner_kind?: string
+  owner_name?: string
+  labels?: Record<string, string>
+  age: string
+}
+export interface PodSummary {
+  name: string
+  namespace: string
+  phase: string
+  ready_containers: number
+  total_containers: number
+  restart_count: number
+  node_name: string
+  pod_ip: string
+  status_reason?: string
+  labels?: Record<string, string>
+  age: string
+}
+
+/** All workload kinds accepted by `/workloads/:kind`. */
+export type WorkloadKind =
+  | 'deployments'
+  | 'statefulsets'
+  | 'daemonsets'
+  | 'jobs'
+  | 'cronjobs'
+  | 'replicasets'
+  | 'pods'
+
+/** Discriminated union of every workload Summary returned by `/workloads/:kind`. */
+export type WorkloadSummary =
+  | DeploymentSummary
+  | StatefulSetSummary
+  | DaemonSetSummary
+  | JobSummary
+  | CronJobSummary
+  | ReplicaSetSummary
+  | PodSummary
+
+// Network — Service + Ingress
+export interface ServicePort {
+  name?: string
+  port: number
+  target_port: string
+  protocol: string
+  node_port?: number
+}
+export interface ServiceSummary {
+  name: string
+  namespace: string
+  type: string
+  cluster_ip: string
+  external_ips?: string[]
+  ports: ServicePort[]
+  selector?: Record<string, string>
+  labels?: Record<string, string>
+  age: string
+}
+export interface IngressSummary {
+  name: string
+  namespace: string
+  ingress_class?: string
+  hosts: string[]
+  load_balancer_ips?: string[]
+  labels?: Record<string, string>
+  age: string
+}
+export type NetworkKind = 'services' | 'ingresses'
+export type NetworkSummary = ServiceSummary | IngressSummary
+
+// ConfigMap (BE struct named MapSummary/MapDetail to dodge revive stutter).
+export interface ConfigMapSummary {
+  name: string
+  namespace: string
+  data_keys: string[]
+  data_count: number
+  labels?: Record<string, string>
+  age: string
+}
+export interface ConfigMapDetail extends ConfigMapSummary {
+  data: Record<string, string>
+  binary_keys?: string[]
+}
+
+// Secret — list/get returns Summary only; values surface via `/data`.
+export interface SecretSummary {
+  name: string
+  namespace: string
+  type: string
+  data_keys: string[]
+  data_count: number
+  labels?: Record<string, string>
+  age: string
+}
+export type SecretDetail = SecretSummary
+export interface SecretDataResponse {
+  // UTF-8 values come back as plain strings; non-UTF-8 are wrapped as
+  // { value: <base64>, base64: true }.
+  data: Record<string, string | { value: string; base64: true }>
+}

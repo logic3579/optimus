@@ -5,13 +5,15 @@
     "save": "保存",
     "submit": "提交",
     "reset": "重置",
+    "refresh": "刷新",
     "loading": "加载中…",
     "logout": "退出登录",
     "profile": "个人资料",
     "language": "语言",
     "theme": "主题",
     "theme_light": "浅色",
-    "theme_dark": "深色"
+    "theme_dark": "深色",
+    "actions": "操作"
   },
   "placeholder": {
     "coming_soon": "敬请期待"
@@ -49,6 +51,7 @@
     "dashboard": "仪表盘",
     "system_group": "系统管理",
     "credentials_group": "凭证管理",
+    "k8s_group": "Kubernetes",
     "system": {
       "users": "用户管理",
       "roles": "角色管理",
@@ -60,6 +63,13 @@
       "ssh_keys": "SSH 密钥",
       "kubeconfigs": "Kubeconfig",
       "cloud_keys": "云密钥"
+    },
+    "k8s": {
+      "clusters": "集群管理",
+      "workloads": "工作负载",
+      "network": "网络",
+      "config": "配置与 Secret",
+      "cluster_resources": "集群资源"
     }
   },
   "perm": {
@@ -74,6 +84,15 @@
       "ssh_key":    { "read": "查看 SSH 凭证", "write": "新建/修改 SSH 凭证", "delete": "删除 SSH 凭证", "use": "使用 SSH 凭证" },
       "kubeconfig": { "read": "查看 Kubeconfig", "write": "新建/修改 Kubeconfig", "delete": "删除 Kubeconfig", "use": "使用 Kubeconfig" },
       "cloud_key":  { "read": "查看云密钥", "write": "新建/修改云密钥", "delete": "删除云密钥", "use": "使用云密钥" }
+    },
+    "k8s": {
+      "cluster":          { "read": "查看集群", "write": "管理集群" },
+      "workload":         { "read": "查看工作负载" },
+      "network":          { "read": "查看网络资源" },
+      "config":           { "read": "查看 ConfigMap" },
+      "secret":           { "read": "查看 Secret（仅元信息）", "reveal": "查看 Secret 明文" },
+      "cluster_resource": { "read": "查看集群级资源" },
+      "log":              { "read": "查看 Pod 日志流" }
     },
     "category": {
       "system": "系统管理",
@@ -257,6 +276,124 @@
     "invalid_purpose": "consume 调用必须提供 purpose",
     "system_purpose_required": "系统调用的 purpose 必须以 system: 开头",
     "crypto_seal_failed": "加密失败，请联系管理员",
-    "crypto_open_failed": "解密失败或数据已损坏"
+    "crypto_open_failed": "解密失败或数据已损坏",
+    "kubeconfig": {
+      "exec_forbidden": "Kubeconfig 中的用户使用了 exec 认证插件，禁止上传。",
+      "authprovider_forbidden": "Kubeconfig 中的用户使用了 auth-provider 认证插件，禁止上传。",
+      "in_use": "Kubeconfig 仍被集群引用，请先删除引用集群。"
+    }
+  },
+  "k8s": {
+    "cluster": {
+      "title": "集群",
+      "name": "名称",
+      "kubeconfig": "Kubeconfig",
+      "context": "Context",
+      "description": "描述",
+      "tags": "标签",
+      "tags_placeholder": "回车添加标签",
+      "context_hint": "请填写 kubeconfig 中定义的 context 名称。",
+      "ping": "测试连接",
+      "refresh_all_health": "刷新所有健康",
+      "no_cluster_selected": "请先选择集群。",
+      "no_clusters": "暂无集群。",
+      "referenced_by_n": "被 {n} 个集群引用",
+      "not_found": "集群不存在。",
+      "name_taken": "集群名称已被占用。",
+      "unreachable": "集群 apiserver 不可达。",
+      "search_placeholder": "按名称或描述搜索",
+      "filter_tag": "按标签筛选",
+      "col_health": "健康",
+      "col_created_at": "创建时间",
+      "namespace": "命名空间",
+      "namespace_all": "全部命名空间",
+      "action": {
+        "create": "新建集群",
+        "edit": "编辑",
+        "view": "查看",
+        "delete": "删除",
+        "confirm_delete": "确认删除该集群？此操作无法撤销。"
+      },
+      "toast": {
+        "created": "集群已创建",
+        "updated": "集群已更新",
+        "deleted": "集群已删除",
+        "ping_ok": "集群可达 ({version})",
+        "ping_fail": "Ping 失败",
+        "refresh_all_done": "刷新完成"
+      },
+      "health": {
+        "ok": "健康",
+        "fail": "不可达",
+        "unknown": "未知"
+      }
+    },
+    "kubeconfig": {
+      "invalid": "Kubeconfig 无效。",
+      "exec_forbidden": "Kubeconfig 中包含 exec 认证插件，不允许使用。",
+      "authprovider_forbidden": "Kubeconfig 中包含 auth-provider 插件，不允许使用。",
+      "context_not_found": "Kubeconfig 中找不到该 context。"
+    },
+    "apiserver": {
+      "not_found": "资源不存在。",
+      "forbidden": "集群 RBAC 拒绝该请求。",
+      "unauthorized": "Kubeconfig 凭证已过期或无效。",
+      "other": "apiserver 返回错误。"
+    },
+    "yaml": {
+      "unsupported_kind": "不支持的资源类型。"
+    },
+    "log": {
+      "unavailable": "Pod 日志暂不可用（容器尚未启动）。",
+      "connect": "连接",
+      "reconnect": "重连",
+      "disconnect": "断开",
+      "follow": "实时跟随",
+      "previous": "上一个容器",
+      "tail_lines": "尾部行数",
+      "container": "容器",
+      "idle": "未连接",
+      "connecting": "连接中…",
+      "open": "实时",
+      "closed": "已断开",
+      "error": "流错误"
+    },
+    "workload": {
+      "deployment": "Deployment",
+      "statefulset": "StatefulSet",
+      "daemonset": "DaemonSet",
+      "job": "Job",
+      "cronjob": "CronJob",
+      "replicaset": "ReplicaSet",
+      "pod": "Pod"
+    },
+    "network": {
+      "service": "Service",
+      "ingress": "Ingress"
+    },
+    "config": {
+      "configmap": "ConfigMap",
+      "secret": "Secret"
+    },
+    "cluster_resource": {
+      "namespace": "Namespace",
+      "node": "Node",
+      "event": "Event"
+    },
+    "tab": {
+      "overview": "概览",
+      "yaml": "YAML",
+      "events": "事件",
+      "logs": "日志"
+    },
+    "secret": {
+      "reveal": "查看明文",
+      "hide": "隐藏",
+      "yaml_warning": "Secret YAML 中的 data 字段为 base64 编码；点击「查看明文」解码。",
+      "binary_b64": "二进制 (base64)"
+    },
+    "list": {
+      "truncated": "只展示前 {limit} 条；请用命名空间或搜索缩小范围。"
+    }
   }
 }

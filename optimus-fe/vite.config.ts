@@ -28,7 +28,8 @@ export default defineConfig({
           vendor: ['vue', 'vue-router', 'pinia', 'pinia-plugin-persistedstate', 'axios'],
           antd:   ['ant-design-vue'],
           icons:  ['@ant-design/icons-vue'],
-          utils:  ['dayjs', 'vue-i18n']
+          utils:  ['dayjs', 'vue-i18n'],
+          codemirror: ['vue-codemirror', 'codemirror', '@codemirror/lang-yaml', '@codemirror/theme-one-dark', '@codemirror/view', '@codemirror/state']
         }
       }
     }

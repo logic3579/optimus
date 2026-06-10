@@ -3,6 +3,7 @@ package kubeconfig
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
+	"optimus-be/internal/modules/k8s/cluster/inuse"
 )
 
 // Cipher is the subset of vault.Cipher the service depends on.
@@ -67,8 +69,8 @@ func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 // --- mutations -------------------------------------------------------------
 
 func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*Detail, error) {
-	if err := validateKubeconfig([]byte(req.Kubeconfig)); err != nil {
-		return nil, apperr.New(apperr.CodeBadRequest, "credentials.invalid_key_format", err.Error())
+	if be := validateKubeconfig([]byte(req.Kubeconfig)); be != nil {
+		return nil, be
 	}
 	if _, err := s.repo.FindByName(ctx, strings.TrimSpace(req.Name)); err == nil {
 		return nil, apperr.New(apperr.CodeConflict, "credentials.name_taken", "credential name already exists")
@@ -136,8 +138,8 @@ func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id 
 		changed = append(changed, "default_namespace")
 	}
 	if req.Kubeconfig != nil && *req.Kubeconfig != "" {
-		if err := validateKubeconfig([]byte(*req.Kubeconfig)); err != nil {
-			return nil, apperr.New(apperr.CodeBadRequest, "credentials.invalid_key_format", err.Error())
+		if be := validateKubeconfig([]byte(*req.Kubeconfig)); be != nil {
+			return nil, be
 		}
 		enc, err := s.cipher.Seal([]byte(*req.Kubeconfig))
 		if err != nil {
@@ -176,6 +178,15 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 			return apperr.New(apperr.CodeNotFound, "credentials.not_found", "credential not found")
 		}
 		return err
+	}
+	// P2 gate: refuse if any live clusters reference this kubeconfig.
+	n, err := inuse.CountByKubeconfigID(ctx, s.repo.DB(), id)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return apperr.New(apperr.CodeConflict, "credentials.kubeconfig.in_use",
+			fmt.Sprintf("kubeconfig is referenced by %d cluster(s)", n))
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
@@ -266,13 +277,23 @@ func toSummary(m models.CredentialKubeconfig) Summary {
 	return out
 }
 
-func validateKubeconfig(raw []byte) error {
+func validateKubeconfig(raw []byte) *apperr.BizError {
 	cfg, err := clientcmd.Load(raw)
 	if err != nil {
-		return err
+		return apperr.New(apperr.CodeBadRequest, "credentials.invalid_key_format", err.Error())
 	}
 	if len(cfg.Contexts) == 0 {
-		return errors.New("kubeconfig has no contexts")
+		return apperr.New(apperr.CodeBadRequest, "credentials.invalid_key_format", "kubeconfig has no contexts")
+	}
+	for name, u := range cfg.AuthInfos {
+		if u.Exec != nil {
+			return apperr.New(apperr.CodeBadRequest, "credentials.kubeconfig.exec_forbidden",
+				fmt.Sprintf("user %q uses exec auth plugin, which is not supported", name))
+		}
+		if u.AuthProvider != nil {
+			return apperr.New(apperr.CodeBadRequest, "credentials.kubeconfig.authprovider_forbidden",
+				fmt.Sprintf("user %q uses auth-provider plugin, which is not supported", name))
+		}
 	}
 	return nil
 }
