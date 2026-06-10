@@ -1,4 +1,4 @@
-package k8s_test
+package apierr_test
 
 import (
 	"errors"
@@ -9,16 +9,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	apperr "optimus-be/internal/infra/errors"
-	"optimus-be/internal/modules/k8s"
+	"optimus-be/internal/modules/k8s/apierr"
 )
 
 func TestMapAPIError_Nil(t *testing.T) {
-	require.Nil(t, k8s.MapAPIError(nil))
+	require.Nil(t, apierr.MapAPIError(nil))
 }
 
 func TestMapAPIError_NotFound(t *testing.T) {
 	err := apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, "x")
-	got := k8s.MapAPIError(err)
+	got := apierr.MapAPIError(err)
 	be, ok := got.(*apperr.BizError)
 	require.True(t, ok, "want *apperr.BizError, got %T", got)
 	require.Equal(t, apperr.CodeNotFound, be.Code)
@@ -27,7 +27,7 @@ func TestMapAPIError_NotFound(t *testing.T) {
 
 func TestMapAPIError_Forbidden(t *testing.T) {
 	err := apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "x", errors.New("nope"))
-	got := k8s.MapAPIError(err)
+	got := apierr.MapAPIError(err)
 	be, ok := got.(*apperr.BizError)
 	require.True(t, ok, "want *apperr.BizError, got %T", got)
 	require.Equal(t, apperr.CodeAPIServerForbidden, be.Code)
@@ -36,7 +36,7 @@ func TestMapAPIError_Forbidden(t *testing.T) {
 
 func TestMapAPIError_Unauthorized(t *testing.T) {
 	err := apierrors.NewUnauthorized("bad creds")
-	got := k8s.MapAPIError(err)
+	got := apierr.MapAPIError(err)
 	be, ok := got.(*apperr.BizError)
 	require.True(t, ok, "want *apperr.BizError, got %T", got)
 	require.Equal(t, apperr.CodeAPIServerUnauthorized, be.Code)
@@ -45,7 +45,7 @@ func TestMapAPIError_Unauthorized(t *testing.T) {
 
 func TestMapAPIError_ServerTimeout(t *testing.T) {
 	err := apierrors.NewServerTimeout(schema.GroupResource{Resource: "pods"}, "list", 1)
-	got := k8s.MapAPIError(err)
+	got := apierr.MapAPIError(err)
 	be, ok := got.(*apperr.BizError)
 	require.True(t, ok, "want *apperr.BizError, got %T", got)
 	require.Equal(t, apperr.CodeClusterUnreachable, be.Code)
@@ -53,7 +53,7 @@ func TestMapAPIError_ServerTimeout(t *testing.T) {
 }
 
 func TestMapAPIError_NetworkConnRefused(t *testing.T) {
-	got := k8s.MapAPIError(errors.New("dial tcp 127.0.0.1:6443: connection refused"))
+	got := apierr.MapAPIError(errors.New("dial tcp 127.0.0.1:6443: connection refused"))
 	be, ok := got.(*apperr.BizError)
 	require.True(t, ok, "want *apperr.BizError, got %T", got)
 	require.Equal(t, apperr.CodeClusterUnreachable, be.Code)
@@ -61,21 +61,21 @@ func TestMapAPIError_NetworkConnRefused(t *testing.T) {
 }
 
 func TestMapAPIError_NetworkNoSuchHost(t *testing.T) {
-	got := k8s.MapAPIError(errors.New("dial tcp: lookup nowhere.invalid: no such host"))
+	got := apierr.MapAPIError(errors.New("dial tcp: lookup nowhere.invalid: no such host"))
 	be, ok := got.(*apperr.BizError)
 	require.True(t, ok, "want *apperr.BizError, got %T", got)
 	require.Equal(t, apperr.CodeClusterUnreachable, be.Code)
 }
 
 func TestMapAPIError_NetworkIOTimeout(t *testing.T) {
-	got := k8s.MapAPIError(errors.New("dial tcp 10.0.0.1:6443: i/o timeout"))
+	got := apierr.MapAPIError(errors.New("dial tcp 10.0.0.1:6443: i/o timeout"))
 	be, ok := got.(*apperr.BizError)
 	require.True(t, ok, "want *apperr.BizError, got %T", got)
 	require.Equal(t, apperr.CodeClusterUnreachable, be.Code)
 }
 
 func TestMapAPIError_Other(t *testing.T) {
-	got := k8s.MapAPIError(errors.New("anything else"))
+	got := apierr.MapAPIError(errors.New("anything else"))
 	be, ok := got.(*apperr.BizError)
 	require.True(t, ok, "want *apperr.BizError, got %T", got)
 	require.Equal(t, apperr.CodeAPIServerOther, be.Code)

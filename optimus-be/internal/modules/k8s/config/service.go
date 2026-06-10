@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	k8serrs "optimus-be/internal/modules/k8s"
+	k8serrs "optimus-be/internal/modules/k8s/apierr"
 )
 
 // Clientsetter is the seam between this vertical and the k8s client.Factory.

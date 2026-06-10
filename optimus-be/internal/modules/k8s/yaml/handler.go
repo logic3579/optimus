@@ -28,7 +28,7 @@ import (
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/infra/response"
-	k8serrs "optimus-be/internal/modules/k8s"
+	k8serrs "optimus-be/internal/modules/k8s/apierr"
 	"optimus-be/internal/modules/rbac"
 )
 

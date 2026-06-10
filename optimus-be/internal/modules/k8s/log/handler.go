@@ -22,7 +22,7 @@ import (
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/response"
-	k8serrs "optimus-be/internal/modules/k8s"
+	k8serrs "optimus-be/internal/modules/k8s/apierr"
 )
 
 // StreamClientsetter is the narrow surface this handler needs from

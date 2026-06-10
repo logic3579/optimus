@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	apperr "optimus-be/internal/infra/errors"
-	k8serrs "optimus-be/internal/modules/k8s"
+	k8serrs "optimus-be/internal/modules/k8s/apierr"
 )
 
 // Clientsetter returns a fresh kubernetes.Interface for the given cluster.

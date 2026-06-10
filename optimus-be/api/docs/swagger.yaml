@@ -140,6 +140,46 @@ definitions:
         maxLength: 64
         type: string
     type: object
+  internal_modules_k8s_cluster.CreateRequest:
+    properties:
+      context:
+        maxLength: 128
+        type: string
+      description:
+        maxLength: 4096
+        type: string
+      kubeconfig_id:
+        type: integer
+      name:
+        maxLength: 64
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    required:
+    - context
+    - kubeconfig_id
+    - name
+    type: object
+  internal_modules_k8s_cluster.UpdateRequest:
+    properties:
+      context:
+        maxLength: 128
+        type: string
+      description:
+        maxLength: 4096
+        type: string
+      kubeconfig_id:
+        type: integer
+      name:
+        maxLength: 64
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
   internal_modules_menu.CreateRequest:
     properties:
       code:
@@ -918,6 +958,149 @@ paths:
       summary: Health check
       tags:
       - health
+  /k8s/clusters:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page size (default 20)
+        in: query
+        name: page_size
+        type: integer
+      - description: name / description substring
+        in: query
+        name: search
+        type: string
+      - description: tag containment filter (charset [a-zA-Z0-9_.-])
+        in: query
+        name: tag
+        type: string
+      - description: filter by kubeconfig id
+        in: query
+        name: kubeconfig_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List clusters
+      tags:
+      - k8s
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: cluster payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_k8s_cluster.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create cluster
+      tags:
+      - k8s
+  /k8s/clusters/{id}:
+    delete:
+      parameters:
+      - description: cluster ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete cluster
+      tags:
+      - k8s
+    get:
+      parameters:
+      - description: cluster ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get cluster
+      tags:
+      - k8s
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: cluster ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: cluster payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_k8s_cluster.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update cluster
+      tags:
+      - k8s
+  /k8s/clusters/{id}/ping:
+    post:
+      parameters:
+      - description: cluster ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Ping cluster (apiserver health probe)
+      tags:
+      - k8s
   /me:
     get:
       produces:

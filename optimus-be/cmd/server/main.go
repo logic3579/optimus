@@ -31,6 +31,7 @@ import (
 	"optimus-be/internal/modules/credentials"
 	"optimus-be/internal/modules/credentials/vault"
 	"optimus-be/internal/modules/health"
+	"optimus-be/internal/modules/k8s"
 	"optimus-be/internal/modules/menu"
 	"optimus-be/internal/modules/permission"
 	"optimus-be/internal/modules/rbac"
@@ -179,6 +180,13 @@ func main() {
 	credsModule := credentials.New(gdb, cipher, auditRec)
 	credsModule.MountRoutes(protected, permCache)
 	_ = credsModule.Consumer // referenced once so vet/staticcheck see it as live API
+
+	// P2 k8s management: cluster CRUD + 13 read kinds + SSE pod logs.
+	// Reuses credsModule.Consumer for kubeconfig fetch; emits audit via the
+	// shared recorder.
+	k8sModule := k8s.New(gdb, credsModule.Consumer, auditRec, permCache)
+	k8sModule.MountRoutes(protected, permCache)
+	_ = k8sModule.Cluster // referenced once so vet/staticcheck see it as live API
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),

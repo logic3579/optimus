@@ -1,9 +1,9 @@
-// Package k8s hosts the shared error mapper used by every read endpoint in
-// the k8s sub-packages (clusterscoped, workload, network, config, secret,
-// yaml, log). Keeping it at this level — rather than inside `client` —
-// avoids forcing every leaf package to import the heavy client-go transitive
-// chain just to map an error.
-package k8s
+// Package apierr hosts the shared error mapper used by every read endpoint
+// in the k8s sub-packages (clusterscoped, workload, network, config, secret,
+// yaml, log). Lives at this leaf level — rather than at internal/modules/k8s —
+// so the composition root (`modules/k8s/module.go`) can import the verticals
+// without a cycle.
+package apierr
 
 import (
 	"crypto/tls"
