@@ -8,15 +8,14 @@ import (
 	apperr "optimus-be/internal/infra/errors"
 )
 
-// validateContextAndAuth parses a kubeconfig YAML and rejects it if:
+// ValidateContextAndAuth parses a kubeconfig YAML and rejects it if:
 //   - it fails to parse;
 //   - any AuthInfo uses an exec plugin or an auth-provider plugin;
 //   - the requested context name is not present.
 //
-// Task 7 will promote this to an exported helper so the client.Factory can
-// reuse it as defense-in-depth at run time. Keeping it unexported here for
-// now preserves the package boundary.
-func validateContextAndAuth(raw []byte, contextName string) error {
+// Promoted to exported in Task 7 so client.Factory can reuse it as
+// defense-in-depth at run time (same check on every per-request rebuild).
+func ValidateContextAndAuth(raw []byte, contextName string) error {
 	apiCfg, err := clientcmd.Load(raw)
 	if err != nil {
 		return apperr.New(apperr.CodeValidation, "k8s.kubeconfig.invalid", err.Error())
