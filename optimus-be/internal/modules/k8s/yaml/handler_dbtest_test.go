@@ -62,7 +62,7 @@ func TestGet_HappyPath_PodYAML(t *testing.T) {
 	uid, cache := seedUserWith(t, "k8s:workload:read")
 
 	cs := fake.NewSimpleClientset(&corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "n"},
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "default"},
 	})
 	h := yaml.NewHandler(&fakeCS{cs: cs}, cache)
 
@@ -71,12 +71,12 @@ func TestGet_HappyPath_PodYAML(t *testing.T) {
 	r.GET("/c/:id/yaml", h.Get())
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/c/1/yaml?kind=pod&namespace=n&name=demo", nil))
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/c/1/yaml?kind=pod&namespace=default&name=demo", nil))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	require.Equal(t, "text/yaml", w.Header().Get("Content-Type"))
 	body := w.Body.String()
 	require.Contains(t, body, "name: demo")
-	require.Contains(t, body, "namespace: n")
+	require.Contains(t, body, "namespace: default")
 }
 
 // Secret YAML is the spec's documented :read boundary — make sure a user
@@ -85,7 +85,7 @@ func TestGet_SecretYAML_ReadIsEnough(t *testing.T) {
 	uid, cache := seedUserWith(t, "k8s:secret:read")
 
 	cs := fake.NewSimpleClientset(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "n"},
+		ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "default"},
 		Data:       map[string][]byte{"k": []byte("v")},
 	})
 	h := yaml.NewHandler(&fakeCS{cs: cs}, cache)
@@ -95,7 +95,7 @@ func TestGet_SecretYAML_ReadIsEnough(t *testing.T) {
 	r.GET("/c/:id/yaml", h.Get())
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/c/1/yaml?kind=secret&namespace=n&name=creds", nil))
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/c/1/yaml?kind=secret&namespace=default&name=creds", nil))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	require.Contains(t, w.Body.String(), "name: creds")
 }
@@ -105,7 +105,7 @@ func TestGet_PermissionDenied_403(t *testing.T) {
 	uid, cache := seedUserWith(t, "k8s:cluster:read")
 
 	cs := fake.NewSimpleClientset(&corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "n"},
+		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "default"},
 	})
 	h := yaml.NewHandler(&fakeCS{cs: cs}, cache)
 
@@ -114,7 +114,7 @@ func TestGet_PermissionDenied_403(t *testing.T) {
 	r.GET("/c/:id/yaml", h.Get())
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/c/1/yaml?kind=pod&namespace=n&name=demo", nil))
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/c/1/yaml?kind=pod&namespace=default&name=demo", nil))
 	require.Equal(t, http.StatusForbidden, w.Code)
 	require.Contains(t, w.Body.String(), "auth.permission_denied")
 }
