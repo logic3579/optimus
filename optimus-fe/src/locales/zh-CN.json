@@ -5,6 +5,7 @@
     "save": "保存",
     "submit": "提交",
     "reset": "重置",
+    "refresh": "刷新",
     "loading": "加载中…",
     "logout": "退出登录",
     "profile": "个人资料",
@@ -303,6 +304,8 @@
       "filter_tag": "按标签筛选",
       "col_health": "健康",
       "col_created_at": "创建时间",
+      "namespace": "命名空间",
+      "namespace_all": "全部命名空间",
       "action": {
         "create": "新建集群",
         "edit": "编辑",

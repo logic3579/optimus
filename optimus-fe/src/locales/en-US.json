@@ -5,6 +5,7 @@
     "save": "Save",
     "submit": "Submit",
     "reset": "Reset",
+    "refresh": "Refresh",
     "loading": "Loading…",
     "logout": "Log out",
     "profile": "Profile",
@@ -303,6 +304,8 @@
       "filter_tag": "Filter by tag",
       "col_health": "Health",
       "col_created_at": "Created at",
+      "namespace": "Namespace",
+      "namespace_all": "All namespaces",
       "action": {
         "create": "Create cluster",
         "edit": "Edit",
