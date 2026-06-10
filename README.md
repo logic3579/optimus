@@ -61,7 +61,13 @@ bun run dev   # http://localhost:5173, proxies /api/v1 to backend on :8080
 
 1. `cd deploy`
 2. `cp .env.example .env` and fill in the **REQUIRED** section.
-   Generate a JWT secret: `openssl rand -base64 48`
+   - JWT secret: `openssl rand -base64 48`
+   - **P1 credentials-vault master key** (32-byte AES-256, base64): generate
+     ONCE and back it up safely — losing it makes all encrypted credentials
+     unrecoverable. Pick one of:
+     - `cd ../optimus-be && KEY=$(go run ./cmd/vault-keygen) && echo "OPTIMUS_VAULT_MASTER_KEY=$KEY" >> ../deploy/.env`
+     - `docker run --rm $(docker build -q -f deploy/be.Dockerfile --target vault-keygen ..) >> .env` (then prepend `OPTIMUS_VAULT_MASTER_KEY=`)
+     - File mode: write the key to `/etc/optimus/vault.key`, `chmod 0400`, then in `.env` set `OPTIMUS_VAULT_MASTER_KEY_FILE=/etc/optimus/vault.key` and add a bind mount under `optimus-be.volumes` in `docker-compose.prod.yml`.
 3. `docker compose -f docker-compose.prod.yml up -d --build`
 4. Wait until the 3 long-running services are `healthy` and the 2 init containers have `Exited (0)` (~30s on warm cache):
    `docker compose -f docker-compose.prod.yml ps`
