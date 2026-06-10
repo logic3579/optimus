@@ -1,6 +1,5 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig, AxiosHeaders } from 'axios'
 import { useAuthStore } from '@/stores/auth'
-import type { Envelope, TokenPair } from '@/types/api'
 import { parseEnvelopeError } from '@/utils/http-error'
 
 export interface ClientOptions {
@@ -9,10 +8,19 @@ export interface ClientOptions {
   getLocale?: () => string
 }
 
-let refreshing: Promise<TokenPair> | null = null
-
+/**
+ * Test helper: clears the auth store's single-flight refresh slot.
+ * Kept for backwards compatibility with `client.test.ts`; the actual state
+ * now lives in `useAuthStore` so the SSE path can join the same in-flight
+ * promise.
+ */
 export function __resetRefreshState() {
-  refreshing = null
+  // Best-effort: only callable when a pinia instance is active (tests).
+  try {
+    useAuthStore()._resetRefreshState()
+  } catch {
+    /* no active pinia — nothing to reset */
+  }
 }
 
 interface RetriableConfig extends InternalAxiosRequestConfig {
@@ -51,23 +59,30 @@ export function createApiClient(opts: ClientOptions): AxiosInstance {
 
       if (status === 401 && !isRefreshCall && original && !original.__retried) {
         try {
-          const pair = await ensureFreshAccess(client)
+          const auth = useAuthStore()
+          const pair = await auth.refreshAccessTokenShared()
           original.__retried = true
           const headers = AxiosHeaders.from(original.headers as never)
           headers.set('Authorization', `Bearer ${pair.access_token}`)
           original.headers = headers
           return client.request(original)
         } catch (refreshErr) {
-          // If the refresh attempt itself produced a 401, the isRefreshCall
-          // branch below already called onLogout — don't double-fire.
-          const refreshStatus = (refreshErr as { response?: { status?: number } })?.response?.status
-          if (refreshStatus !== 401) {
-            opts.onLogout()
+          // The shared refresh promise rejects with the same error instance
+          // for every awaiter. Tag it so concurrent callers don't double-fire
+          // onLogout when the underlying /auth/refresh itself 401'd.
+          const tag = refreshErr as { status?: number; __logoutFired?: boolean }
+          if (tag?.status === 401) {
+            if (!tag.__logoutFired) {
+              tag.__logoutFired = true
+              opts.onLogout()
+            }
           }
           throw refreshErr
         }
       }
 
+      // Direct call to /auth/refresh (not through the shared single-flight)
+      // that returned 401 — still treat as session-dead.
       if (status === 401 && isRefreshCall) {
         opts.onLogout()
       }
@@ -75,23 +90,6 @@ export function createApiClient(opts: ClientOptions): AxiosInstance {
       throw error
     }
   )
-
-  async function ensureFreshAccess(c: AxiosInstance): Promise<TokenPair> {
-    if (!refreshing) {
-      refreshing = doRefresh(c).finally(() => { refreshing = null })
-    }
-    return refreshing
-  }
-
-  async function doRefresh(c: AxiosInstance): Promise<TokenPair> {
-    const auth = useAuthStore()
-    const rt = auth.refreshToken
-    if (!rt) throw new Error('no refresh token')
-    const resp = await c.post<Envelope<TokenPair>>('/auth/refresh', { refresh_token: rt })
-    const pair = resp.data.data
-    auth.setActiveTokens(pair.access_token, pair.refresh_token)
-    return pair
-  }
 
   return client
 }
