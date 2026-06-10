@@ -134,7 +134,7 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			{Code: "credentials.kubeconfigs", Name: "menu.credentials.kubeconfigs", Path: "/credentials/kubeconfigs", Component: "credentials/kubeconfigs/List", PermissionCode: sp("credentials:kubeconfig:read")},
 			{Code: "credentials.cloud_keys", Name: "menu.credentials.cloud_keys", Path: "/credentials/cloud-keys", Component: "credentials/cloud-keys/List", PermissionCode: sp("credentials:cloud_key:read")},
 		}},
-		{Code: "k8s", Name: "menu.k8s", Path: "/k8s", Component: "", Icon: "cluster", Children: []spec{
+		{Code: "k8s", Name: "menu.k8s_group", Path: "/k8s", Component: "", Icon: "cluster", Children: []spec{
 			{Code: "k8s.clusters", Name: "menu.k8s.clusters", Path: "/k8s/clusters", Component: "k8s/clusters/List", PermissionCode: sp("k8s:cluster:read")},
 			{Code: "k8s.workloads", Name: "menu.k8s.workloads", Path: "/k8s/workloads", Component: "k8s/workloads/List", PermissionCode: sp("k8s:workload:read")},
 			{Code: "k8s.network", Name: "menu.k8s.network", Path: "/k8s/network", Component: "k8s/network/List", PermissionCode: sp("k8s:network:read")},
