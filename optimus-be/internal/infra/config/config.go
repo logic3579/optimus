@@ -18,6 +18,7 @@ type Config struct {
 	CORS     CORSConfig      `mapstructure:"cors"`
 	I18n     I18nConfig      `mapstructure:"i18n"`
 	Boot     BootstrapConfig `mapstructure:"bootstrap"`
+	Vault    VaultConfig     `mapstructure:"vault"`
 }
 
 type ServerConfig struct {
@@ -74,6 +75,11 @@ type I18nConfig struct {
 type BootstrapConfig struct {
 	AdminUsername string `mapstructure:"admin_username"`
 	AdminEmail    string `mapstructure:"admin_email"`
+}
+
+type VaultConfig struct {
+	MasterKey     string `mapstructure:"master_key"`
+	MasterKeyFile string `mapstructure:"master_key_file"`
 }
 
 func Load(path string) (*Config, error) {

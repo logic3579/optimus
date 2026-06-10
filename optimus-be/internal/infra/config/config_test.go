@@ -50,3 +50,19 @@ func TestValidateForMigrate_AcceptsDSNOnly(t *testing.T) {
 	// Deliberately no JWT secret — migrations don't need it.
 	require.NoError(t, cfg.ValidateForMigrate())
 }
+
+func TestLoad_VaultDefaultsEmpty(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "..", "configs", "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, "", cfg.Vault.MasterKey)
+	require.Equal(t, "", cfg.Vault.MasterKeyFile)
+}
+
+func TestLoad_VaultMasterKeyFromEnv(t *testing.T) {
+	t.Setenv("OPTIMUS_VAULT_MASTER_KEY", "from-env")
+	t.Setenv("OPTIMUS_VAULT_MASTER_KEY_FILE", "/etc/optimus/vault.key")
+	cfg, err := config.Load(filepath.Join("..", "..", "..", "configs", "config.yaml"))
+	require.NoError(t, err)
+	require.Equal(t, "from-env", cfg.Vault.MasterKey)
+	require.Equal(t, "/etc/optimus/vault.key", cfg.Vault.MasterKeyFile)
+}
