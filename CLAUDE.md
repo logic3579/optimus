@@ -121,3 +121,15 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 - **Docker daemon is Colima on this workstation.** If `docker compose` / dockertest can't find a daemon, export `DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` or `colima start`. The `make test-int` and `tests/integration/` paths both depend on this.
 - **HEAD vs GET on healthcheck**: the container healthchecks use `wget` which issues GET. Gin only registers GET handlers by default — keep `/api/v1/health` on GET, not HEAD-aliased.
 - **Initial admin password is logged exactly once**, on the first run of `cmd/seed` (or first `make run` against an empty DB). Capture it from stdout / `docker logs optimus-seed | grep INITIAL`. Subsequent runs print "admin user already exists; no password generated." If you lose it, you must reset via DB.
+
+## First-session checklist (new machine)
+
+If this is the first time touching this repo on this Mac:
+
+1. **Tools**: `brew install uv bun colima git` then `colima start`.
+2. **mem0 API key**: `export MEM0_API_KEY="..."` (from password manager). Persist in `~/.zshrc`. The `.mcp.json` in this repo auto-loads the mem0 MCP server in Claude Code.
+3. **First prompt** in Claude Code:
+   > "Read CLAUDE.md, search mem0 for the optimus checkpoint, then `git log dev..main` to confirm what's actually merged. Summarize where the project is and recommend the next step."
+
+   Claude should pull the latest `[CHECKPOINT YYYY-MM-DD]` memory from mem0 (single source of "current status"), cross-check against git, and propose the next plan task. All the durable conventions / gotchas / patterns (FE zero-wrapper, axios single-flight, v-permission, Pinia layering, TDD layering, nullability contract, vue-i18n drill trap, Colima socket path, etc.) live as separate mem0 atoms and surface on semantic search — no need to re-derive.
+4. **Refreshing the checkpoint**: after finishing a plan or hitting a milestone, tell Claude "刷快照 / refresh the checkpoint" — it will delete the old `metadata.kind=checkpoint` atom and write a new one for today.
