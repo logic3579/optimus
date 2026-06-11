@@ -460,13 +460,42 @@
       "list": {
         "title": "Chart 仓库"
       },
+      "search_placeholder": "按名称搜索",
+      "field": {
+        "name": "名称",
+        "description": "描述",
+        "updated_at": "更新时间",
+        "actions": "操作"
+      },
+      "action": {
+        "create": "新建仓库",
+        "edit": "编辑",
+        "delete": "删除",
+        "confirm_delete": "确定删除该 Chart 仓库?引用它的应用将无法继续安装/升级。"
+      },
+      "toast": {
+        "created": "已创建 Chart 仓库",
+        "updated": "已更新 Chart 仓库",
+        "deleted": "已删除 Chart 仓库"
+      },
       "form": {
+        "title": {
+          "create": "新建 Chart 仓库",
+          "edit": "编辑 Chart 仓库"
+        },
         "field": {
           "type": "类型",
           "url": "URL",
           "username": "用户名",
           "password": "密码 / Token",
           "hasPassword": "已设置密码"
+        },
+        "placeholder": {
+          "passwordEdit": "留空则保留原密码"
+        },
+        "btn": {
+          "clearPassword": "清除已存密码",
+          "clearPasswordHint": "保存后将清空已存储的密码。"
         }
       }
     },

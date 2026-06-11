@@ -460,13 +460,42 @@
       "list": {
         "title": "Chart repositories"
       },
+      "search_placeholder": "Search by name",
+      "field": {
+        "name": "Name",
+        "description": "Description",
+        "updated_at": "Updated",
+        "actions": "Actions"
+      },
+      "action": {
+        "create": "Create repository",
+        "edit": "Edit",
+        "delete": "Delete",
+        "confirm_delete": "Delete this chart repository? Applications referencing it will fail to install/upgrade."
+      },
+      "toast": {
+        "created": "Chart repository created",
+        "updated": "Chart repository updated",
+        "deleted": "Chart repository deleted"
+      },
       "form": {
+        "title": {
+          "create": "Create chart repository",
+          "edit": "Edit chart repository"
+        },
         "field": {
           "type": "Type",
           "url": "URL",
           "username": "Username",
           "password": "Password / Token",
           "hasPassword": "Password set"
+        },
+        "placeholder": {
+          "passwordEdit": "Leave blank to keep the existing password"
+        },
+        "btn": {
+          "clearPassword": "Clear stored password",
+          "clearPasswordHint": "Will clear the stored password on save."
         }
       }
     },
