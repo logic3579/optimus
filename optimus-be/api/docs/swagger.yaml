@@ -1,5 +1,133 @@
 basePath: /api/v1
 definitions:
+  internal_modules_apps_application.CreateRequest:
+    properties:
+      chart_name:
+        maxLength: 128
+        type: string
+      chart_repo_id:
+        type: integer
+      cluster_id:
+        type: integer
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 64
+        type: string
+      namespace:
+        maxLength: 63
+        type: string
+      owner_user_id:
+        type: integer
+      release_name:
+        maxLength: 53
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    required:
+    - chart_name
+    - chart_repo_id
+    - cluster_id
+    - name
+    - namespace
+    - release_name
+    type: object
+  internal_modules_apps_application.UpdateRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      owner_user_id:
+        type: integer
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_modules_apps_release.InstallRequest:
+    properties:
+      chart_version:
+        maxLength: 64
+        type: string
+      values_yaml:
+        description: 1 MiB cap
+        maxLength: 1048576
+        type: string
+    required:
+    - chart_version
+    type: object
+  internal_modules_apps_release.RollbackRequest:
+    properties:
+      revision:
+        minimum: 1
+        type: integer
+    required:
+    - revision
+    type: object
+  internal_modules_apps_release.UninstallRequest:
+    properties:
+      keep_history:
+        type: boolean
+    type: object
+  internal_modules_apps_release.UpgradeRequest:
+    properties:
+      chart_repo_id:
+        type: integer
+      chart_version:
+        maxLength: 64
+        type: string
+      values_yaml:
+        maxLength: 1048576
+        type: string
+    required:
+    - chart_version
+    type: object
+  internal_modules_apps_repo.CreateRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 64
+        type: string
+      password:
+        type: string
+      type:
+        enum:
+        - oci
+        - http
+        type: string
+      url:
+        maxLength: 2048
+        type: string
+      username:
+        maxLength: 255
+        type: string
+    required:
+    - name
+    - type
+    - url
+    type: object
+  internal_modules_apps_repo.UpdateRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 64
+        type: string
+      password:
+        type: string
+      url:
+        maxLength: 2048
+        type: string
+      username:
+        maxLength: 255
+        type: string
+    type: object
   internal_modules_auth.LoginRequest:
     properties:
       password:
@@ -379,6 +507,482 @@ info:
   title: Optimus Admin API
   version: "1.0"
 paths:
+  /apps/applications:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page size (default 20)
+        in: query
+        name: page_size
+        type: integer
+      - description: name substring (ILIKE)
+        in: query
+        name: name
+        type: string
+      - description: filter by cluster id
+        in: query
+        name: cluster_id
+        type: integer
+      - description: filter by namespace
+        in: query
+        name: namespace
+        type: string
+      - description: filter by owner user id
+        in: query
+        name: owner_user_id
+        type: integer
+      - description: tag containment filter (charset [a-zA-Z0-9_.-])
+        in: query
+        name: tag
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List applications
+      tags:
+      - apps
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: application payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_apps_application.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create application
+      tags:
+      - apps
+  /apps/applications/{id}:
+    delete:
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete application
+      tags:
+      - apps
+    get:
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get application
+      tags:
+      - apps
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: application payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_apps_application.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update application
+      tags:
+      - apps
+  /apps/applications/{id}/release/history:
+    get:
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get release history
+      tags:
+      - apps
+  /apps/applications/{id}/release/install:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: install payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_apps_release.InstallRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Install release
+      tags:
+      - apps
+  /apps/applications/{id}/release/rollback:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: rollback payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_apps_release.RollbackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Rollback release
+      tags:
+      - apps
+  /apps/applications/{id}/release/status:
+    get:
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get release status
+      tags:
+      - apps
+  /apps/applications/{id}/release/uninstall:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: uninstall payload
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_modules_apps_release.UninstallRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Uninstall release
+      tags:
+      - apps
+  /apps/applications/{id}/release/upgrade:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: application ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: upgrade payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_apps_release.UpgradeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Upgrade release
+      tags:
+      - apps
+  /apps/repos:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page size (default 20)
+        in: query
+        name: page_size
+        type: integer
+      - description: name substring (ILIKE)
+        in: query
+        name: name
+        type: string
+      - description: filter by type (oci|http)
+        in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List chart repos
+      tags:
+      - apps
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: chart repo payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_apps_repo.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create chart repo
+      tags:
+      - apps
+  /apps/repos/{id}:
+    delete:
+      parameters:
+      - description: chart repo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete chart repo
+      tags:
+      - apps
+    get:
+      parameters:
+      - description: chart repo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get chart repo
+      tags:
+      - apps
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: chart repo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: chart repo payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_apps_repo.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update chart repo
+      tags:
+      - apps
+  /apps/repos/{id}/charts:
+    get:
+      parameters:
+      - description: chart repo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List charts in a repo
+      tags:
+      - apps
+  /apps/repos/{id}/charts/{chart}/versions:
+    get:
+      parameters:
+      - description: chart repo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: chart name
+        in: path
+        name: chart
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List versions for a chart
+      tags:
+      - apps
+  /apps/repos/{id}/charts/{chart}/versions/{version}/values:
+    get:
+      parameters:
+      - description: chart repo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: chart name
+        in: path
+        name: chart
+        required: true
+        type: string
+      - description: chart version
+        in: path
+        name: version
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get default values.yaml for a chart version
+      tags:
+      - apps
   /audit-logs:
     get:
       parameters:
