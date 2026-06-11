@@ -13,7 +13,17 @@
     "theme": "Theme",
     "theme_light": "Light",
     "theme_dark": "Dark",
-    "actions": "Actions"
+    "actions": "Actions",
+    "button": {
+      "back": "Back",
+      "next": "Next",
+      "previous": "Previous"
+    },
+    "message": {
+      "done": "Done",
+      "installed": "Install succeeded",
+      "upgraded": "Upgrade succeeded"
+    }
   },
   "placeholder": {
     "coming_soon": "Coming soon"
@@ -429,12 +439,16 @@
     "application": {
       "list": {
         "title": "Applications",
+        "search_placeholder": "Search by name",
+        "showLiveStatus": "Live status",
         "col": {
           "name": "Name",
           "cluster": "Cluster",
           "namespace": "Namespace",
           "release": "Release",
           "chart": "Chart",
+          "chart_version": "Chart version",
+          "app_version": "App version",
           "owner": "Owner",
           "actions": "Actions"
         },
@@ -443,6 +457,9 @@
           "upgrade": "Upgrade",
           "uninstall": "Uninstall",
           "installNew": "Install new"
+        },
+        "confirm": {
+          "uninstall": "Uninstall this release? The application metadata is kept."
         }
       },
       "field": {

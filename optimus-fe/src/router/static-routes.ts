@@ -41,6 +41,15 @@ export const staticRoutes: RouteRecordRaw[] = [
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/profile/Index.vue')
+      },
+      // P3 application sub-routes — Detail/Install/Upgrade are reachable from
+      // the list page but are not menu nodes themselves. Registered here so
+      // their perm meta gates the route guard the same way menu routes do.
+      {
+        path: 'apps/applications/:id(\\d+)',
+        name: 'apps.applications.detail',
+        component: () => import('@/views/apps/Applications/Detail.vue'),
+        meta: { permission: 'apps:application:read' }
       }
     ]
   },
