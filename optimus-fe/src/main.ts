@@ -29,6 +29,9 @@ import { makeK8sNetworkApi } from '@/api/k8s/network'
 import { makeConfigMapApi } from '@/api/k8s/configmap'
 import { makeSecretApi } from '@/api/k8s/secret'
 import { makeYamlApi } from '@/api/k8s/yaml'
+import { makeAppsRepoApi } from '@/api/apps/repo'
+import { makeAppsApplicationApi } from '@/api/apps/application'
+import { makeAppsReleaseApi } from '@/api/apps/release'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useAppStore } from '@/stores/app'
@@ -72,6 +75,9 @@ app.provide('k8sNetworkApi', makeK8sNetworkApi(client))
 app.provide('configMapApi', makeConfigMapApi(client))
 app.provide('secretApi', makeSecretApi(client))
 app.provide('yamlApi', makeYamlApi(client))
+app.provide('appsRepoApi', makeAppsRepoApi(client))
+app.provide('appsApplicationApi', makeAppsApplicationApi(client))
+app.provide('appsReleaseApi', makeAppsReleaseApi(client))
 
 installGuards(router, meApi)
 app.use(router)
