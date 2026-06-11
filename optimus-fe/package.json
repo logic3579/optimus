@@ -21,6 +21,7 @@
     "axios": "^1.7.7",
     "codemirror": "^6.0.2",
     "dayjs": "^1.11.13",
+    "js-yaml": "^4.1.0",
     "pinia": "^2.2.4",
     "pinia-plugin-persistedstate": "^4.1.2",
     "vue": "^3.4.38",
@@ -29,6 +30,7 @@
     "vue-router": "^4.4.5"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.7.4",
     "@typescript-eslint/eslint-plugin": "^8.8.0",
     "@typescript-eslint/parser": "^8.8.0",

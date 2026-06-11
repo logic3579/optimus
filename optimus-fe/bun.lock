@@ -12,6 +12,7 @@
         "axios": "^1.7.7",
         "codemirror": "^6.0.2",
         "dayjs": "^1.11.13",
+        "js-yaml": "^4.1.0",
         "pinia": "^2.2.4",
         "pinia-plugin-persistedstate": "^4.1.2",
         "vue": "^3.4.38",
@@ -20,6 +21,7 @@
         "vue-router": "^4.4.5",
       },
       "devDependencies": {
+        "@types/js-yaml": "^4.0.9",
         "@types/node": "^22.7.4",
         "@typescript-eslint/eslint-plugin": "^8.8.0",
         "@typescript-eslint/parser": "^8.8.0",
@@ -271,6 +273,8 @@
     "@simonwep/pickr": ["@simonwep/pickr@1.8.2", "", { "dependencies": { "core-js": "^3.15.1", "nanopop": "^2.1.0" } }, "sha512-/l5w8BIkrpP6n1xsetx9MWPWlU6OblN5YgZZphxan0Tq4BByTCETL6lyIeY8lagalS2Nbt4F2W034KHLIiunKA=="],
 
     "@types/estree": ["@types/estree@1.0.9", "", {}, "sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg=="],
+
+    "@types/js-yaml": ["@types/js-yaml@4.0.9", "", {}, "sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg=="],
 
     "@types/json-schema": ["@types/json-schema@7.0.15", "", {}, "sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA=="],
 

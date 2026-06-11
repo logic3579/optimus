@@ -123,6 +123,7 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 - **No raw error text to clients** — wrap in `apperr.BizError(code, ...)`. `response.Error` logs unhandled errors with `slog.Error` and returns generic `CodeInternal`.
 - **Audit logging**: every mutating service path calls `audit.Recorder.Record(...)`. The recorder is shared so `/me` writes and admin `/users` writes hit the same sink — don't construct a second recorder.
 - **k8s.io/client-go is pinned to v0.30.14** (and apimachinery to v0.30.14) to keep `go.mod`'s go directive at 1.25. `go get k8s.io/client-go@latest` (v0.36+) transitively bumps go to 1.26+. If you ever do bump, also update `deploy/be.Dockerfile` (golang:1.26-alpine) and CI `go-version`.
+- **`helm.sh/helm/v3` is pinned to v3.15.4** (fell back from v3.16.4 because the 3.16 line transitively upgrades `k8s.io/client-go` to v0.31.x, breaking the P2 v0.30.14 invariant). Bumping helm transitively bumps client-go, so any helm upgrade re-runs the P2 compatibility verification. Pin is checked at startup only by `go build`; no runtime assertion.
 - **k8s endpoints are read-only by design** — never add write/apply/exec/watch handlers without re-opening the P2 spec. The /data secret reveal endpoint is the only path that returns plaintext secret values; it is RBAC-gated by `k8s:secret:reveal`.
 - **CLAUDE Code skills/superpowers** are configured at `~/.claude/` and `.claude/`; the `.claude/settings.json` here only adjusts permissions/hooks for this repo.
 
