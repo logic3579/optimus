@@ -26,3 +26,26 @@ func TestP2_NewCodesAreDistinct(t *testing.T) {
 	require.Equal(t, apperr.Code(41105), apperr.CodeAPIServerOther)
 	require.Equal(t, apperr.Code(41202), apperr.CodeLogUnavailable)
 }
+
+func TestAppsCodes_DistinctAndNonZero(t *testing.T) {
+	codes := []apperr.Code{
+		apperr.CodeAppsApplicationInUse, apperr.CodeAppsChartRepoInUse,
+		apperr.CodeAppsReleaseNameDuplicate, apperr.CodeAppsApplicationOnDeletedCluster,
+		apperr.CodeAppsRepoUnreachable, apperr.CodeAppsRepoUnauthorized,
+		apperr.CodeAppsRepoChartNotFound, apperr.CodeAppsRepoInvalidIndex,
+		apperr.CodeAppsRepoOCIError, apperr.CodeAppsRepoOther,
+		apperr.CodeAppsReleaseAlreadyExists, apperr.CodeAppsReleaseNotFound,
+		apperr.CodeAppsReleaseHistoryTooShort, apperr.CodeAppsReleaseStillPresent,
+		apperr.CodeAppsReleaseInvalidValues, apperr.CodeAppsReleaseOther,
+	}
+	seen := map[apperr.Code]bool{}
+	for _, c := range codes {
+		if c == 0 {
+			t.Errorf("zero-valued code in apps block")
+		}
+		if seen[c] {
+			t.Errorf("duplicate code %d in apps block", c)
+		}
+		seen[c] = true
+	}
+}
