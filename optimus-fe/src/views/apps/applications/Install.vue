@@ -41,6 +41,7 @@
         <a-button v-if="current > 0" @click="onPrev">{{ t('common.button.previous') }}</a-button>
         <a-button
           v-if="current === 0"
+          v-permission="'apps:application:write'"
           type="primary"
           :loading="submitting"
           :disabled="!canProceedToValues"
