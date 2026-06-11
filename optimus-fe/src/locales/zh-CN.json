@@ -88,6 +88,11 @@
       "network": "网络",
       "config": "配置与 Secret",
       "cluster_resources": "集群资源"
+    },
+    "apps_group": "应用",
+    "apps": {
+      "applications": "应用列表",
+      "chart_repos": "Chart 仓库"
     }
   },
   "perm": {
@@ -111,6 +116,11 @@
       "secret":           { "read": "查看 Secret（仅元信息）", "reveal": "查看 Secret 明文" },
       "cluster_resource": { "read": "查看集群级资源" },
       "log":              { "read": "查看 Pod 日志流" }
+    },
+    "apps": {
+      "application": { "read": "查看应用", "write": "管理应用元数据", "delete": "删除应用" },
+      "release":     { "install": "安装 release", "upgrade": "升级 release", "rollback": "回退 release", "uninstall": "卸载 release" },
+      "repo":        { "read": "查看 Chart 仓库", "write": "管理 Chart 仓库", "delete": "删除 Chart 仓库" }
     },
     "category": {
       "system": "系统管理",
@@ -412,6 +422,69 @@
     },
     "list": {
       "truncated": "只展示前 {limit} 条；请用命名空间或搜索缩小范围。"
+    }
+  },
+  "apps": {
+    "title": "应用",
+    "application": {
+      "list": {
+        "title": "应用列表",
+        "col": {
+          "name": "名称",
+          "cluster": "集群",
+          "namespace": "命名空间",
+          "release": "Release 名",
+          "chart": "Chart",
+          "owner": "Owner",
+          "actions": "操作"
+        },
+        "action": {
+          "detail": "详情",
+          "upgrade": "升级",
+          "uninstall": "卸载",
+          "installNew": "新建应用"
+        }
+      },
+      "detail": {
+        "title": "应用详情",
+        "section": {
+          "basic": "基本信息",
+          "history": "Revision 历史"
+        },
+        "btn": {
+          "rollback": "回退到此版本"
+        }
+      }
+    },
+    "repo": {
+      "list": {
+        "title": "Chart 仓库"
+      },
+      "form": {
+        "field": {
+          "type": "类型",
+          "url": "URL",
+          "username": "用户名",
+          "password": "密码 / Token",
+          "hasPassword": "已设置密码"
+        }
+      }
+    },
+    "install": {
+      "step": {
+        "basic": "基本信息",
+        "chart": "选择 Chart",
+        "values": "values 配置"
+      },
+      "btn": {
+        "submit": "安装",
+        "loadDefaults": "加载默认 values"
+      }
+    },
+    "upgrade": {
+      "btn": {
+        "submit": "升级"
+      }
     }
   }
 }

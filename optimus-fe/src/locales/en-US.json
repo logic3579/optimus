@@ -88,6 +88,11 @@
       "network": "Network",
       "config": "Config & Secrets",
       "cluster_resources": "Cluster Resources"
+    },
+    "apps_group": "Applications",
+    "apps": {
+      "applications": "Applications",
+      "chart_repos": "Chart repos"
     }
   },
   "perm": {
@@ -111,6 +116,11 @@
       "secret":           { "read": "Read secrets (metadata only)", "reveal": "Reveal secret values" },
       "cluster_resource": { "read": "Read cluster-scoped resources" },
       "log":              { "read": "Stream pod logs" }
+    },
+    "apps": {
+      "application": { "read": "View applications", "write": "Manage application metadata", "delete": "Delete applications" },
+      "release":     { "install": "Install release", "upgrade": "Upgrade release", "rollback": "Rollback release", "uninstall": "Uninstall release" },
+      "repo":        { "read": "View chart repositories", "write": "Manage chart repositories", "delete": "Delete chart repositories" }
     },
     "category": {
       "system": "System",
@@ -412,6 +422,69 @@
     },
     "list": {
       "truncated": "Showing first {limit}; narrow by namespace or search to see more."
+    }
+  },
+  "apps": {
+    "title": "Applications",
+    "application": {
+      "list": {
+        "title": "Applications",
+        "col": {
+          "name": "Name",
+          "cluster": "Cluster",
+          "namespace": "Namespace",
+          "release": "Release",
+          "chart": "Chart",
+          "owner": "Owner",
+          "actions": "Actions"
+        },
+        "action": {
+          "detail": "Detail",
+          "upgrade": "Upgrade",
+          "uninstall": "Uninstall",
+          "installNew": "Install new"
+        }
+      },
+      "detail": {
+        "title": "Application detail",
+        "section": {
+          "basic": "Basics",
+          "history": "Revision history"
+        },
+        "btn": {
+          "rollback": "Rollback to this revision"
+        }
+      }
+    },
+    "repo": {
+      "list": {
+        "title": "Chart repositories"
+      },
+      "form": {
+        "field": {
+          "type": "Type",
+          "url": "URL",
+          "username": "Username",
+          "password": "Password / Token",
+          "hasPassword": "Password set"
+        }
+      }
+    },
+    "install": {
+      "step": {
+        "basic": "Basics",
+        "chart": "Choose chart",
+        "values": "Values"
+      },
+      "btn": {
+        "submit": "Install",
+        "loadDefaults": "Load default values"
+      }
+    },
+    "upgrade": {
+      "btn": {
+        "submit": "Upgrade"
+      }
     }
   }
 }
