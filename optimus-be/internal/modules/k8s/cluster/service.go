@@ -56,8 +56,8 @@ func (f DiscoveryFunc) Discover(ctx context.Context, id uint64, purpose string) 
 
 type Service struct {
 	repo        *Repo
-	consumer    credentials.Consumer    // used by Create/Update to fetch + validate the kubeconfig YAML
-	prober      Prober                  // nil-safe: Ping returns ok=false with message if nil
+	consumer    credentials.Consumer // used by Create/Update to fetch + validate the kubeconfig YAML
+	prober      Prober               // nil-safe: Ping returns ok=false with message if nil
 	audit       *audit.Recorder
 	appsCounter AppsApplicationCounter // nil-safe: Delete skips the pre-check if unwired
 }

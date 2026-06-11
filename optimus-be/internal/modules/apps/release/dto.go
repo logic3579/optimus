@@ -35,6 +35,11 @@ type UninstallRequest struct {
 }
 
 // ReleaseStatus is the live state of a helm release.
+// Intentionally not renamed to Status to avoid colliding with Service.Status();
+// the package-qualified caller side (apps.release.ReleaseStatus) keeps the
+// type unambiguous when inlined alongside helm.sh/helm/v3/pkg/release.Status.
+//
+//nolint:revive // intentional stutter — see comment above
 type ReleaseStatus struct {
 	Status         string `json:"status"` // deployed|failed|pending|unknown
 	Revision       int    `json:"revision"`

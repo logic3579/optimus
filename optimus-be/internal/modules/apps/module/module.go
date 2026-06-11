@@ -23,8 +23,8 @@ import (
 
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/modules/apps/application"
-	apprepo "optimus-be/internal/modules/apps/repo"
 	"optimus-be/internal/modules/apps/release"
+	apprepo "optimus-be/internal/modules/apps/repo"
 	"optimus-be/internal/modules/rbac"
 )
 
