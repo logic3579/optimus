@@ -567,6 +567,8 @@
       }
     },
     "upgrade": {
+      "title": "升级 — {name}",
+      "currentVersion": "当前 Chart 版本",
       "btn": {
         "submit": "升级"
       }

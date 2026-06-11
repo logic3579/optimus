@@ -567,6 +567,8 @@
       }
     },
     "upgrade": {
+      "title": "Upgrade — {name}",
+      "currentVersion": "Current chart version",
       "btn": {
         "submit": "Upgrade"
       }
