@@ -26,6 +26,11 @@ import (
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/infra/permissions"
 	"optimus-be/internal/infra/ratelimit"
+	"optimus-be/internal/modules/apps/application"
+	"optimus-be/internal/modules/apps/helmclient"
+	appsmodule "optimus-be/internal/modules/apps/module"
+	"optimus-be/internal/modules/apps/release"
+	apprepo "optimus-be/internal/modules/apps/repo"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/auth"
 	"optimus-be/internal/modules/credentials"
@@ -186,7 +191,38 @@ func main() {
 	// shared recorder.
 	k8sModule := k8s.New(gdb, credsModule.Consumer, auditRec, permCache)
 	k8sModule.MountRoutes(protected, permCache)
-	_ = k8sModule.Cluster // referenced once so vet/staticcheck see it as live API
+
+	// P3 applications: chart-repo CRUD + application CRUD + helm-driven
+	// release lifecycle. Wiring order matters because three cross-package
+	// seams are post-construction:
+	//   1. apprepo.Service ← application.Repo as InUseCounter (refuses
+	//      chart-repo delete while applications still reference it).
+	//   2. k8s/cluster.Service ← application.Repo as AppsApplicationCounter
+	//      (refuses cluster delete while applications still reference it).
+	//   3. application.Service ← release.Service as HelmStatusProbe +
+	//      HelmInstalledChecker (decorates Get with live status, refuses
+	//      application delete while the helm release still exists).
+	//
+	// release.Service's ChartLoader seam is wired at construction time via
+	// apps.HelmChartLoader (which delegates to apprepo.Service.LoadChart) —
+	// no cycle since apprepo.Service has no reference back to release.
+	//
+	// The vault cipher is the SAME instance the credentials module owns —
+	// never construct a second AEAD; the apps/repo chart-repo password
+	// re-uses the P1 master key (see CLAUDE.md "Don't bypass Consumer").
+	appsRepoSvc := apprepo.NewService(apprepo.NewRepo(gdb), cipher, auditRec)
+	appsAppRepo := application.NewRepo(gdb)
+	appsAppSvc := application.NewService(appsAppRepo, auditRec)
+	appsRepoSvc.SetInUseCounter(appsAppRepo)
+	k8sModule.SetAppsCounter(appsAppRepo)
+
+	helmFactory := helmclient.NewFactory(credsModule.Consumer, k8sModule.Cluster)
+	appsRelSvc := release.NewService(helmFactory, appsAppSvc, &appsmodule.HelmChartLoader{Repo: appsRepoSvc}, auditRec)
+	appsAppSvc.SetHelmStatusProbe(appsRelSvc)
+	appsAppSvc.SetHelmInstalledChecker(appsRelSvc)
+
+	appsModule := appsmodule.New(appsRepoSvc, appsAppSvc, appsRelSvc)
+	appsModule.MountRoutes(protected, permCache)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),

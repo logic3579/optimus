@@ -2,6 +2,21 @@
 
 Auto-generated from `optimus-be/internal/infra/permissions/codes.go`. Run `make dump-perms` to refresh. CI fails if this is stale.
 
+## apps
+
+| Code | Name (i18n) | Description |
+|---|---|---|
+| `apps:application:delete` | `perm.apps.application.delete` | Delete applications |
+| `apps:application:read` | `perm.apps.application.read` | Read applications |
+| `apps:application:write` | `perm.apps.application.write` | Create/update applications |
+| `apps:release:install` | `perm.apps.release.install` | Install a helm release |
+| `apps:release:rollback` | `perm.apps.release.rollback` | Rollback a helm release |
+| `apps:release:uninstall` | `perm.apps.release.uninstall` | Uninstall a helm release |
+| `apps:release:upgrade` | `perm.apps.release.upgrade` | Upgrade a helm release |
+| `apps:repo:delete` | `perm.apps.repo.delete` | Delete chart repositories |
+| `apps:repo:read` | `perm.apps.repo.read` | Read chart repositories |
+| `apps:repo:write` | `perm.apps.repo.write` | Create/update chart repositories |
+
 ## credentials
 
 | Code | Name (i18n) | Description |

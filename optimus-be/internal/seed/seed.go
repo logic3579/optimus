@@ -141,6 +141,17 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			{Code: "k8s.config", Name: "menu.k8s.config", Path: "/k8s/config", Component: "k8s/config/List", PermissionCode: sp("k8s:config:read")},
 			{Code: "k8s.cluster_resources", Name: "menu.k8s.cluster_resources", Path: "/k8s/cluster-resources", Component: "k8s/cluster-resources/List", PermissionCode: sp("k8s:cluster_resource:read")},
 		}},
+		// P3 apps: chart-repo CRUD + application lifecycle (helm-driven).
+		// Role grants are not edited here — the existing wildcard logic
+		// already covers them: bindAdminPermissions binds every permission,
+		// and bindViewerPermissions binds every "%:read" code (so apps:repo:read
+		// and apps:application:read flow to viewer automatically). Note the
+		// 10 P3 codes have no dedicated apps:release:read — status/history are
+		// gated by apps:application:read in the module router.
+		{Code: "apps", Name: "menu.apps_group", Path: "/apps", Component: "", Icon: "appstore", Children: []spec{
+			{Code: "apps.applications", Name: "menu.apps.applications", Path: "/apps/applications", Component: "apps/applications/List", PermissionCode: sp("apps:application:read")},
+			{Code: "apps.chart_repos", Name: "menu.apps.chart_repos", Path: "/apps/chart-repos", Component: "apps/chart-repos/List", PermissionCode: sp("apps:repo:read")},
+		}},
 	}
 	var insert func(parentID *uint64, nodes []spec) error
 	insert = func(parentID *uint64, nodes []spec) error {

@@ -58,6 +58,32 @@ func TestAll_IncludesCredentialPermissions(t *testing.T) {
 	}
 }
 
+func TestRegistry_AppsCodesPresent(t *testing.T) {
+	want := []string{
+		"apps:application:read", "apps:application:write", "apps:application:delete",
+		"apps:release:install", "apps:release:upgrade",
+		"apps:release:rollback", "apps:release:uninstall",
+		"apps:repo:read", "apps:repo:write", "apps:repo:delete",
+	}
+	byCode := map[string]Permission{}
+	for _, p := range All {
+		byCode[p.Code] = p
+	}
+	for _, w := range want {
+		got, ok := byCode[w]
+		if !ok {
+			t.Errorf("permission %q not registered", w)
+			continue
+		}
+		if got.Category != "apps" {
+			t.Errorf("permission %q has category %q, want %q", w, got.Category, "apps")
+		}
+		if got.Name == "" {
+			t.Errorf("permission %q has empty Name (i18n key)", w)
+		}
+	}
+}
+
 func TestRegistry_K8sCodes(t *testing.T) {
 	want := []string{
 		"k8s:cluster:read",

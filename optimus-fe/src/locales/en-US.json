@@ -13,7 +13,17 @@
     "theme": "Theme",
     "theme_light": "Light",
     "theme_dark": "Dark",
-    "actions": "Actions"
+    "actions": "Actions",
+    "button": {
+      "back": "Back",
+      "next": "Next",
+      "previous": "Previous"
+    },
+    "message": {
+      "done": "Done",
+      "installed": "Install succeeded",
+      "upgraded": "Upgrade succeeded"
+    }
   },
   "placeholder": {
     "coming_soon": "Coming soon"
@@ -44,6 +54,24 @@
     "500_title": "Server error",
     "back_home": "Back to home"
   },
+  "error": {
+    "42001": "Application still has an installed release. Uninstall it before deleting.",
+    "42002": "Chart repository is still referenced by one or more applications.",
+    "42003": "A release with the same name already exists in this namespace.",
+    "42004": "The referenced cluster has been deleted.",
+    "42101": "Cannot reach chart repository.",
+    "42102": "Chart repository authentication failed.",
+    "42103": "Chart or version not found.",
+    "42104": "Failed to parse the chart repository index.",
+    "42105": "OCI registry error.",
+    "42199": "Chart repository error.",
+    "42201": "Release already exists.",
+    "42202": "Release not found.",
+    "42203": "Target rollback revision does not exist.",
+    "42204": "Release is still installed. Uninstall first.",
+    "42205": "Invalid values YAML.",
+    "42299": "Helm error."
+  },
   "network": {
     "error": "Network error, please try again later"
   },
@@ -70,6 +98,11 @@
       "network": "Network",
       "config": "Config & Secrets",
       "cluster_resources": "Cluster Resources"
+    },
+    "apps_group": "Applications",
+    "apps": {
+      "applications": "Applications",
+      "chart_repos": "Chart repos"
     }
   },
   "perm": {
@@ -93,6 +126,11 @@
       "secret":           { "read": "Read secrets (metadata only)", "reveal": "Reveal secret values" },
       "cluster_resource": { "read": "Read cluster-scoped resources" },
       "log":              { "read": "Stream pod logs" }
+    },
+    "apps": {
+      "application": { "read": "View applications", "write": "Manage application metadata", "delete": "Delete applications" },
+      "release":     { "install": "Install release", "upgrade": "Upgrade release", "rollback": "Rollback release", "uninstall": "Uninstall release" },
+      "repo":        { "read": "View chart repositories", "write": "Manage chart repositories", "delete": "Delete chart repositories" }
     },
     "category": {
       "system": "System",
@@ -394,6 +432,146 @@
     },
     "list": {
       "truncated": "Showing first {limit}; narrow by namespace or search to see more."
+    }
+  },
+  "apps": {
+    "title": "Applications",
+    "application": {
+      "list": {
+        "title": "Applications",
+        "search_placeholder": "Search by name",
+        "showLiveStatus": "Live status",
+        "col": {
+          "name": "Name",
+          "cluster": "Cluster",
+          "namespace": "Namespace",
+          "release": "Release",
+          "chart": "Chart",
+          "chart_version": "Chart version",
+          "app_version": "App version",
+          "owner": "Owner",
+          "actions": "Actions"
+        },
+        "action": {
+          "detail": "Detail",
+          "upgrade": "Upgrade",
+          "uninstall": "Uninstall",
+          "installNew": "Install new"
+        },
+        "confirm": {
+          "uninstall": "Uninstall this release? The application metadata is kept."
+        }
+      },
+      "field": {
+        "tags": "Tags",
+        "description": "Description"
+      },
+      "detail": {
+        "title": "Application detail",
+        "section": {
+          "basic": "Basics",
+          "history": "Revision history"
+        },
+        "btn": {
+          "rollback": "Rollback to this revision"
+        },
+        "confirm": {
+          "rollback": "Roll back to this revision?"
+        }
+      },
+      "history": {
+        "col": {
+          "status": "Status",
+          "chart_version": "Chart version",
+          "app_version": "App version",
+          "updated_at": "Updated",
+          "description": "Description",
+          "actions": "Actions"
+        }
+      }
+    },
+    "repo": {
+      "list": {
+        "title": "Chart repositories"
+      },
+      "search_placeholder": "Search by name",
+      "field": {
+        "name": "Name",
+        "description": "Description",
+        "updated_at": "Updated",
+        "actions": "Actions"
+      },
+      "action": {
+        "create": "Create repository",
+        "edit": "Edit",
+        "delete": "Delete",
+        "confirm_delete": "Delete this chart repository? Applications referencing it will fail to install/upgrade."
+      },
+      "toast": {
+        "created": "Chart repository created",
+        "updated": "Chart repository updated",
+        "deleted": "Chart repository deleted"
+      },
+      "form": {
+        "title": {
+          "create": "Create chart repository",
+          "edit": "Edit chart repository"
+        },
+        "field": {
+          "type": "Type",
+          "url": "URL",
+          "username": "Username",
+          "password": "Password / Token",
+          "hasPassword": "Password set"
+        },
+        "placeholder": {
+          "passwordEdit": "Leave blank to keep the existing password"
+        },
+        "btn": {
+          "clearPassword": "Clear stored password",
+          "clearPasswordHint": "Will clear the stored password on save."
+        }
+      }
+    },
+    "install": {
+      "title": "Install new application",
+      "step": {
+        "basic": "Basics",
+        "chart": "Choose chart",
+        "basicChart": "Basics & chart",
+        "values": "Values"
+      },
+      "section": {
+        "basics": "Basics",
+        "chart": "Chart"
+      },
+      "field": {
+        "repo": "Chart repository",
+        "chart": "Chart",
+        "version": "Version"
+      },
+      "btn": {
+        "submit": "Install",
+        "loadDefaults": "Load default values",
+        "format": "Format"
+      },
+      "msg": {
+        "pickChartFirst": "Select a chart and version first.",
+        "valuesNotMap": "Values must be a YAML mapping (object)."
+      },
+      "confirm": {
+        "loadDefaults": {
+          "title": "Load chart default values?",
+          "body": "This will overwrite the values you have edited."
+        }
+      }
+    },
+    "upgrade": {
+      "title": "Upgrade — {name}",
+      "currentVersion": "Current chart version",
+      "btn": {
+        "submit": "Upgrade"
+      }
     }
   }
 }

@@ -112,6 +112,7 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 		"system", "system.users", "system.roles", "system.permissions", "system.menus", "system.audit_logs",
 		"credentials", "credentials.ssh_keys", "credentials.kubeconfigs", "credentials.cloud_keys",
 		"k8s", "k8s.clusters", "k8s.workloads", "k8s.network", "k8s.config", "k8s.cluster_resources",
+		"apps", "apps.applications", "apps.chart_repos",
 	}
 	for _, code := range wantCodes {
 		var m models.Menu
@@ -132,4 +133,72 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 	var k8sChildren int64
 	gdb.Model(&models.Menu{}).Where("parent_id = ?", k8sParent.ID).Count(&k8sChildren)
 	require.Equal(t, int64(5), k8sChildren)
+
+	// Parent linkage: apps.* children must have parent_id = apps.id (P3).
+	var appsParent models.Menu
+	require.NoError(t, gdb.Where("code = ?", "apps").First(&appsParent).Error)
+	var appsChildren int64
+	gdb.Model(&models.Menu{}).Where("parent_id = ?", appsParent.ID).Count(&appsChildren)
+	require.Equal(t, int64(2), appsChildren)
+}
+
+// TestRun_AdminRoleIncludesAppsPermissions covers the implicit P3 grant:
+// bindAdminPermissions binds every permission row, so the 10 apps:* codes
+// flow to admin automatically without explicit per-role wiring in seed.
+func TestRun_AdminRoleIncludesAppsPermissions(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	_, err = seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.NoError(t, err)
+
+	var adminRole models.Role
+	require.NoError(t, gdb.Where("code = ?", "admin").First(&adminRole).Error)
+
+	wantCodes := []string{
+		"apps:repo:read", "apps:repo:write", "apps:repo:delete",
+		"apps:application:read", "apps:application:write", "apps:application:delete",
+		"apps:release:install", "apps:release:upgrade",
+		"apps:release:rollback", "apps:release:uninstall",
+	}
+	for _, code := range wantCodes {
+		var n int64
+		gdb.Table("permissions").
+			Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
+			Where("role_permissions.role_id = ? AND permissions.code = ?", adminRole.ID, code).
+			Count(&n)
+		require.Equal(t, int64(1), n, "admin role missing %q", code)
+	}
+}
+
+// TestRun_ViewerRoleIncludesAppsReadPermissions covers the implicit P3 viewer
+// grant: bindViewerPermissions binds every "%:read" code, so the apps read
+// permissions flow to viewer automatically.
+func TestRun_ViewerRoleIncludesAppsReadPermissions(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	_, err = seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.NoError(t, err)
+
+	var viewer models.Role
+	require.NoError(t, gdb.Where("code = ?", "viewer").First(&viewer).Error)
+
+	wantCodes := []string{"apps:repo:read", "apps:application:read"}
+	for _, code := range wantCodes {
+		var n int64
+		gdb.Table("permissions").
+			Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
+			Where("role_permissions.role_id = ? AND permissions.code = ?", viewer.ID, code).
+			Count(&n)
+		require.Equal(t, int64(1), n, "viewer role missing %q", code)
+	}
 }

@@ -60,6 +60,18 @@ var All = []Permission{
 	{Code: "k8s:secret:reveal", Name: "perm.k8s.secret.reveal", Category: "k8s", Description: "Decode secret data values"},
 	{Code: "k8s:cluster_resource:read", Name: "perm.k8s.cluster_resource.read", Category: "k8s", Description: "Read namespaces, nodes, and events"},
 	{Code: "k8s:log:read", Name: "perm.k8s.log.read", Category: "k8s", Description: "Stream pod logs"},
+
+	// P3 — applications
+	{Code: "apps:application:read", Name: "perm.apps.application.read", Category: "apps", Description: "Read applications"},
+	{Code: "apps:application:write", Name: "perm.apps.application.write", Category: "apps", Description: "Create/update applications"},
+	{Code: "apps:application:delete", Name: "perm.apps.application.delete", Category: "apps", Description: "Delete applications"},
+	{Code: "apps:release:install", Name: "perm.apps.release.install", Category: "apps", Description: "Install a helm release"},
+	{Code: "apps:release:upgrade", Name: "perm.apps.release.upgrade", Category: "apps", Description: "Upgrade a helm release"},
+	{Code: "apps:release:rollback", Name: "perm.apps.release.rollback", Category: "apps", Description: "Rollback a helm release"},
+	{Code: "apps:release:uninstall", Name: "perm.apps.release.uninstall", Category: "apps", Description: "Uninstall a helm release"},
+	{Code: "apps:repo:read", Name: "perm.apps.repo.read", Category: "apps", Description: "Read chart repositories"},
+	{Code: "apps:repo:write", Name: "perm.apps.repo.write", Category: "apps", Description: "Create/update chart repositories"},
+	{Code: "apps:repo:delete", Name: "perm.apps.repo.delete", Category: "apps", Description: "Delete chart repositories"},
 }
 
 // CodeSet returns a set for O(1) membership testing.

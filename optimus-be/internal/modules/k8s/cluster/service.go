@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,17 @@ type Prober interface {
 	Discover(ctx context.Context, clusterID uint64, purpose string) (VersionProbe, error)
 }
 
+// AppsApplicationCounter is the narrow seam k8s/cluster.Delete uses to refuse
+// deletion when applications still reference the cluster. Satisfied by
+// apps/application.Repo (or any Counter that exposes CountByClusterID);
+// wired post-construction by main.go via SetAppsCounter so this package
+// stays free of any apps/* import (which would create an import cycle, as
+// apps/application's Repo Get uses Preload("Cluster") and depends on
+// models.Cluster).
+type AppsApplicationCounter interface {
+	CountByClusterID(ctx context.Context, clusterID uint64) (int, error)
+}
+
 // DiscoveryFunc is a tiny adapter so anonymous closures satisfy Prober.
 type DiscoveryFunc func(ctx context.Context, clusterID uint64, purpose string) (VersionProbe, error)
 
@@ -43,15 +55,21 @@ func (f DiscoveryFunc) Discover(ctx context.Context, id uint64, purpose string) 
 }
 
 type Service struct {
-	repo     *Repo
-	consumer credentials.Consumer // used by Create/Update to fetch + validate the kubeconfig YAML
-	prober   Prober               // nil-safe: Ping returns ok=false with message if nil
-	audit    *audit.Recorder
+	repo        *Repo
+	consumer    credentials.Consumer // used by Create/Update to fetch + validate the kubeconfig YAML
+	prober      Prober               // nil-safe: Ping returns ok=false with message if nil
+	audit       *audit.Recorder
+	appsCounter AppsApplicationCounter // nil-safe: Delete skips the pre-check if unwired
 }
 
 func NewService(repo *Repo, consumer credentials.Consumer, prober Prober, rec *audit.Recorder) *Service {
 	return &Service{repo: repo, consumer: consumer, prober: prober, audit: rec}
 }
+
+// SetAppsCounter wires the application-count seam post-construction. nil is
+// allowed (the Delete pre-check is then skipped) so the k8s module can be
+// brought up before apps/application is constructed in main.go.
+func (s *Service) SetAppsCounter(c AppsApplicationCounter) { s.appsCounter = c }
 
 // Repo lets callers (P1 inuse helper, tests) reach the underlying DB.
 func (s *Service) Repo() *Repo { return s.repo }
@@ -208,6 +226,19 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 			return apperr.New(apperr.CodeNotFound, "k8s.cluster.not_found", "cluster not found")
 		}
 		return err
+	}
+	// P3 pre-check: refuse delete while any application still references this
+	// cluster. Seam is wired by main.go (cluster pkg never imports apps/*).
+	if s.appsCounter != nil {
+		n, cerr := s.appsCounter.CountByClusterID(ctx, id)
+		if cerr != nil {
+			return cerr
+		}
+		if n > 0 {
+			return apperr.New(apperr.CodeAppsApplicationInUse,
+				"k8s.cluster.in_use_by_apps",
+				fmt.Sprintf("%d application(s) still reference this cluster", n))
+		}
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
