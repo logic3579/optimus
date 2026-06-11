@@ -534,10 +534,16 @@
       }
     },
     "install": {
+      "title": "安装新应用",
       "step": {
         "basic": "基本信息",
         "chart": "选择 Chart",
+        "basicChart": "基本信息与 Chart",
         "values": "values 配置"
+      },
+      "section": {
+        "basics": "基本信息",
+        "chart": "选择 Chart"
       },
       "field": {
         "repo": "Chart 仓库",

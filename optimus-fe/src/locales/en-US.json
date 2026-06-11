@@ -534,10 +534,16 @@
       }
     },
     "install": {
+      "title": "Install new application",
       "step": {
         "basic": "Basics",
         "chart": "Choose chart",
+        "basicChart": "Basics & chart",
         "values": "Values"
+      },
+      "section": {
+        "basics": "Basics",
+        "chart": "Chart"
       },
       "field": {
         "repo": "Chart repository",

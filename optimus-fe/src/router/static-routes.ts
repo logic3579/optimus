@@ -46,6 +46,12 @@ export const staticRoutes: RouteRecordRaw[] = [
       // the list page but are not menu nodes themselves. Registered here so
       // their perm meta gates the route guard the same way menu routes do.
       {
+        path: 'apps/applications/new',
+        name: 'apps.applications.new',
+        component: () => import('@/views/apps/Applications/Install.vue'),
+        meta: { permission: 'apps:application:write' }
+      },
+      {
         path: 'apps/applications/:id(\\d+)',
         name: 'apps.applications.detail',
         component: () => import('@/views/apps/Applications/Detail.vue'),
