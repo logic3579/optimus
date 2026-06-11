@@ -21,8 +21,8 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 
 // Public wrappers for main.go's nested permission groups. Each method maps
 // 1:1 to a permission code (see internal/infra/permissions/codes.go):
-//   - HandleStatus    -> apps:release:read
-//   - HandleHistory   -> apps:release:read
+//   - HandleStatus    -> apps:application:read (read live state of an app)
+//   - HandleHistory   -> apps:application:read
 //   - HandleInstall   -> apps:release:install
 //   - HandleUpgrade   -> apps:release:upgrade
 //   - HandleRollback  -> apps:release:rollback

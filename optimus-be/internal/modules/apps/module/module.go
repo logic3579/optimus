@@ -112,7 +112,13 @@ func (m *Module) MountRoutes(protected *gin.RouterGroup, cache *rbac.PermissionC
 	// ---- release lifecycle (hangs off /apps/applications/:id/release) -----
 	rel := apps.Group("/:id/release")
 
-	relrd := rel.Group("", middleware.RequirePermission(cache, "apps:release:read"))
+	// status + history are gated by apps:application:read — they read live
+	// helm state for an application the caller can already see. The 10 P3
+	// permission codes (3 app + 4 release verbs + 3 repo) deliberately have
+	// no dedicated "release:read" code; that would force every viewer to
+	// receive a second grant just to see what /apps/applications/:id already
+	// surfaces via the HelmStatusProbe decorator.
+	relrd := rel.Group("", middleware.RequirePermission(cache, "apps:application:read"))
 	relrd.GET("/status", m.releaseH.HandleStatus())
 	relrd.GET("/history", m.releaseH.HandleHistory())
 
