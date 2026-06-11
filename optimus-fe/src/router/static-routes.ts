@@ -48,19 +48,19 @@ export const staticRoutes: RouteRecordRaw[] = [
       {
         path: 'apps/applications/new',
         name: 'apps.applications.new',
-        component: () => import('@/views/apps/Applications/Install.vue'),
+        component: () => import('@/views/apps/applications/Install.vue'),
         meta: { permission: 'apps:application:write' }
       },
       {
         path: 'apps/applications/:id(\\d+)',
         name: 'apps.applications.detail',
-        component: () => import('@/views/apps/Applications/Detail.vue'),
+        component: () => import('@/views/apps/applications/Detail.vue'),
         meta: { permission: 'apps:application:read' }
       },
       {
         path: 'apps/applications/:id(\\d+)/upgrade',
         name: 'apps.applications.upgrade',
-        component: () => import('@/views/apps/Applications/Upgrade.vue'),
+        component: () => import('@/views/apps/applications/Upgrade.vue'),
         meta: { permission: 'apps:release:upgrade' }
       }
     ]
