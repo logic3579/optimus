@@ -445,6 +445,10 @@
           "installNew": "新建应用"
         }
       },
+      "field": {
+        "tags": "标签",
+        "description": "描述"
+      },
       "detail": {
         "title": "应用详情",
         "section": {
@@ -453,6 +457,19 @@
         },
         "btn": {
           "rollback": "回退到此版本"
+        },
+        "confirm": {
+          "rollback": "确定回退到该版本?"
+        }
+      },
+      "history": {
+        "col": {
+          "status": "状态",
+          "chart_version": "Chart 版本",
+          "app_version": "App 版本",
+          "updated_at": "更新时间",
+          "description": "描述",
+          "actions": "操作"
         }
       }
     },
@@ -505,9 +522,25 @@
         "chart": "选择 Chart",
         "values": "values 配置"
       },
+      "field": {
+        "repo": "Chart 仓库",
+        "chart": "Chart",
+        "version": "版本"
+      },
       "btn": {
         "submit": "安装",
-        "loadDefaults": "加载默认 values"
+        "loadDefaults": "加载默认 values",
+        "format": "格式化"
+      },
+      "msg": {
+        "pickChartFirst": "请先选择 Chart 与版本。",
+        "valuesNotMap": "values 必须是 YAML 对象 (mapping)。"
+      },
+      "confirm": {
+        "loadDefaults": {
+          "title": "加载 Chart 默认 values?",
+          "body": "将覆盖你已编辑的内容。"
+        }
       }
     },
     "upgrade": {

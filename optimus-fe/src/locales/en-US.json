@@ -445,6 +445,10 @@
           "installNew": "Install new"
         }
       },
+      "field": {
+        "tags": "Tags",
+        "description": "Description"
+      },
       "detail": {
         "title": "Application detail",
         "section": {
@@ -453,6 +457,19 @@
         },
         "btn": {
           "rollback": "Rollback to this revision"
+        },
+        "confirm": {
+          "rollback": "Roll back to this revision?"
+        }
+      },
+      "history": {
+        "col": {
+          "status": "Status",
+          "chart_version": "Chart version",
+          "app_version": "App version",
+          "updated_at": "Updated",
+          "description": "Description",
+          "actions": "Actions"
         }
       }
     },
@@ -505,9 +522,25 @@
         "chart": "Choose chart",
         "values": "Values"
       },
+      "field": {
+        "repo": "Chart repository",
+        "chart": "Chart",
+        "version": "Version"
+      },
       "btn": {
         "submit": "Install",
-        "loadDefaults": "Load default values"
+        "loadDefaults": "Load default values",
+        "format": "Format"
+      },
+      "msg": {
+        "pickChartFirst": "Select a chart and version first.",
+        "valuesNotMap": "Values must be a YAML mapping (object)."
+      },
+      "confirm": {
+        "loadDefaults": {
+          "title": "Load chart default values?",
+          "body": "This will overwrite the values you have edited."
+        }
       }
     },
     "upgrade": {
