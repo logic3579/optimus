@@ -242,6 +242,39 @@ func TestService_Ping_NoProber(t *testing.T) {
 	require.Equal(t, "prober not configured", pr.Message)
 }
 
+// fakeAppsCounter satisfies cluster.AppsApplicationCounter for the P3
+// delete-refused test. n is the count returned for any cluster id.
+type fakeAppsCounter struct {
+	n   int
+	err error
+}
+
+func (f *fakeAppsCounter) CountByClusterID(_ context.Context, _ uint64) (int, error) {
+	return f.n, f.err
+}
+
+func TestService_Delete_RefusedWhenAppsReference(t *testing.T) {
+	svc, kcID, td := newSvc(t, []byte(goodYAML), nil)
+	defer td()
+	ctx := context.Background()
+	det, err := svc.Create(ctx, 0, "", "", cluster.CreateRequest{
+		Name: "in-use", KubeconfigID: kcID, Context: "ctx",
+	})
+	require.NoError(t, err)
+
+	svc.SetAppsCounter(&fakeAppsCounter{n: 3})
+	err = svc.Delete(ctx, 0, "", "", det.ID)
+	require.Error(t, err)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeAppsApplicationInUse, be.Code)
+	require.Equal(t, "k8s.cluster.in_use_by_apps", be.MessageKey)
+
+	// Re-checking with n=0 should allow the delete.
+	svc.SetAppsCounter(&fakeAppsCounter{n: 0})
+	require.NoError(t, svc.Delete(ctx, 0, "", "", det.ID))
+}
+
 func TestService_Delete(t *testing.T) {
 	svc, kcID, td := newSvc(t, []byte(goodYAML), nil)
 	defer td()

@@ -73,6 +73,15 @@ func New(db *gorm.DB, consumer credentials.Consumer, rec *audit.Recorder, cache 
 	}
 }
 
+// SetAppsCounter wires the apps/application counter into the cluster
+// service so cluster.Delete refuses while applications still reference
+// the cluster (returns 42001 CodeAppsApplicationInUse). main.go calls
+// this AFTER both the k8s and apps modules are constructed — the seam
+// keeps this package free of any apps/* import.
+func (m *Module) SetAppsCounter(c cluster.AppsApplicationCounter) {
+	m.Cluster.SetAppsCounter(c)
+}
+
 // MountRoutes registers all 21 k8s routes under `protected` (which must
 // already be JWT-gated). Permission gating happens via nested sub-groups
 // with middleware.RequirePermission — see cmd/server/main.go's
