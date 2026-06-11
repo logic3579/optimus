@@ -55,6 +55,13 @@ func MapError(err error) error {
 	// upstream error text. Order matters: more specific categories first.
 	msg := strings.ToLower(err.Error())
 	switch {
+	// helm install with an already-in-use release name returns a bare
+	// errors.New("cannot re-use a name that is still in use") rather than
+	// driver.ErrReleaseExists — match the text so the BE returns 42201
+	// instead of falling through to 42299.
+	case strings.Contains(msg, "cannot re-use a name"),
+		strings.Contains(msg, "name that is still in use"):
+		return apperr.Wrap(err, apperr.CodeAppsReleaseAlreadyExists, "apps.release.already_exists", err.Error())
 	case strings.Contains(msg, "unauthorized"),
 		strings.Contains(msg, "denied"),
 		strings.Contains(msg, "authentication required"):

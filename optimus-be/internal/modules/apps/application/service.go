@@ -71,6 +71,21 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResponse, error) 
 	return &ListResponse{Items: items, Total: total, Page: q.Page, PageSize: q.PageSize}, nil
 }
 
+// GetModel returns the underlying *models.AppsApplication (with Preload-d
+// associations). Used by release.Service which needs the raw row to derive
+// cluster/namespace/release-name for helm SDK calls. Maps gorm.ErrRecordNotFound
+// to the apps.application NotFound BizError so callers don't have to.
+func (s *Service) GetModel(ctx context.Context, id uint64) (*models.AppsApplication, error) {
+	m, err := s.repo.Get(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperr.New(apperr.CodeNotFound, "apps.application.not_found", "application not found")
+		}
+		return nil, err
+	}
+	return m, nil
+}
+
 // Get returns one application as a Detail, decorated with live helm status if
 // the probe seam is wired.
 func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {

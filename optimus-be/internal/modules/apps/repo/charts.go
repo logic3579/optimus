@@ -1,12 +1,15 @@
 package repo
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/url"
 	"strings"
 
 	"gorm.io/gorm"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/registry"
 	helmrepo "helm.sh/helm/v3/pkg/repo"
@@ -80,6 +83,107 @@ func (s *Service) GetDefaultValues(ctx context.Context, repoID uint64, chart, ve
 	default:
 		return "", apperr.New(apperr.CodeAppsRepoOther, "apps.repo.unknown_type", "unsupported repo type: "+m.Type)
 	}
+}
+
+// LoadChart fetches the chart .tgz from the upstream repo and parses it into
+// a *chart.Chart via helm's loader.LoadArchive. Used by apps/release.Service
+// (which holds a release.ChartLoader seam) to materialise charts at install
+// and upgrade time. The .tgz is downloaded once into memory and discarded —
+// there is no on-disk cache (matches GetDefaultValues semantics).
+//
+// Errors from the upstream fetch path are normalised via apps.MapError before
+// returning, so handler-layer callers never see raw helm/registry text.
+func (s *Service) LoadChart(ctx context.Context, repoID uint64, chartName, version string) (*chart.Chart, error) {
+	m, err := s.repo.Get(ctx, repoID)
+	if err != nil {
+		return nil, mapNotFound(err)
+	}
+	pwd, err := s.decryptPassword(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	var tgz []byte
+	switch m.Type {
+	case "http":
+		tgz, err = chartTgzHTTP(m, pwd, chartName, version)
+	case "oci":
+		tgz, err = chartTgzOCI(m, pwd, chartName, version)
+	default:
+		return nil, apperr.New(apperr.CodeAppsRepoOther, "apps.repo.unknown_type", "unsupported repo type: "+m.Type)
+	}
+	if err != nil {
+		return nil, err
+	}
+	ch, lerr := loader.LoadArchive(bytes.NewReader(tgz))
+	if lerr != nil {
+		return nil, apperr.New(apperr.CodeAppsRepoInvalidIndex, "apps.repo.bad_chart", lerr.Error())
+	}
+	return ch, nil
+}
+
+// chartTgzHTTP downloads the raw .tgz for (chartName, version) from an HTTP
+// chart repo. Mirrors defaultValuesHTTP's lookup path but returns bytes rather
+// than reading values.yaml out.
+func chartTgzHTTP(m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+	idx, err := fetchHTTPIndex(m, pwd)
+	if err != nil {
+		return nil, err
+	}
+	entries, ok := idx.Entries[chartName]
+	if !ok {
+		return nil, apperr.New(apperr.CodeAppsRepoChartNotFound, "apps.repo.chart_not_found", chartName)
+	}
+	var picked *helmrepo.ChartVersion
+	for _, e := range entries {
+		if e.Version == version {
+			picked = e
+			break
+		}
+	}
+	if picked == nil {
+		return nil, apperr.New(apperr.CodeAppsRepoChartNotFound, "apps.repo.version_not_found", version)
+	}
+	if len(picked.URLs) == 0 {
+		return nil, apperr.New(apperr.CodeAppsRepoInvalidIndex, "apps.repo.bad_index", chartName)
+	}
+	tgzURL := absoluteURL(m.URL, picked.URLs[0])
+	opts := []getter.Option{}
+	if m.Username != "" || pwd != "" {
+		opts = append(opts, getter.WithBasicAuth(m.Username, pwd))
+	}
+	g, err := getter.NewHTTPGetter(opts...)
+	if err != nil {
+		return nil, apps.MapError(err)
+	}
+	buf, err := g.Get(tgzURL)
+	if err != nil {
+		return nil, apps.MapError(err)
+	}
+	return buf.Bytes(), nil
+}
+
+// chartTgzOCI pulls the chart .tgz from an OCI registry. Mirrors
+// defaultValuesOCI's auth + Pull flow but returns the raw chart bytes.
+func chartTgzOCI(m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+	rc, err := registry.NewClient()
+	if err != nil {
+		return nil, apps.MapError(err)
+	}
+	if m.Username != "" || pwd != "" {
+		host := ociHost(m.URL)
+		if err := rc.Login(host, registry.LoginOptBasicAuth(m.Username, pwd)); err != nil {
+			return nil, apps.MapError(err)
+		}
+	}
+	ref := ociRef(m.URL, chartName) + ":" + version
+	pull, err := rc.Pull(ref, registry.PullOptWithChart(true))
+	if err != nil {
+		return nil, apps.MapError(err)
+	}
+	if pull == nil || pull.Chart == nil {
+		return nil, apperr.New(apperr.CodeAppsRepoOCIError, "apps.repo.oci_empty_chart", "empty chart pull result")
+	}
+	return pull.Chart.Data, nil
 }
 
 // mapNotFound translates gorm.ErrRecordNotFound into the apps domain's 40401.
