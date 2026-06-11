@@ -22,11 +22,14 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 
 // Public wrappers used by main.go to register handlers under nested groups
 // gated by middleware.RequirePermission.
-func (h *Handler) HandleList() gin.HandlerFunc   { return h.list }
-func (h *Handler) HandleGet() gin.HandlerFunc    { return h.get }
-func (h *Handler) HandleCreate() gin.HandlerFunc { return h.create }
-func (h *Handler) HandleUpdate() gin.HandlerFunc { return h.update }
-func (h *Handler) HandleDelete() gin.HandlerFunc { return h.delete }
+func (h *Handler) HandleList() gin.HandlerFunc             { return h.list }
+func (h *Handler) HandleGet() gin.HandlerFunc              { return h.get }
+func (h *Handler) HandleCreate() gin.HandlerFunc           { return h.create }
+func (h *Handler) HandleUpdate() gin.HandlerFunc           { return h.update }
+func (h *Handler) HandleDelete() gin.HandlerFunc           { return h.delete }
+func (h *Handler) HandleListCharts() gin.HandlerFunc       { return h.listCharts }
+func (h *Handler) HandleListVersions() gin.HandlerFunc     { return h.listVersions }
+func (h *Handler) HandleGetDefaultValues() gin.HandlerFunc { return h.getDefaultValues }
 
 func (h *Handler) actor(c *gin.Context) uint64 { return c.GetUint64(middleware.CtxKeyUserID) }
 
@@ -169,6 +172,83 @@ func (h *Handler) delete(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"ok": true})
+}
+
+// listCharts returns the chart names available in the upstream repo.
+// @Summary  List charts in a repo
+// @Tags     apps
+// @Security BearerAuth
+// @Produce  json
+// @Param    id path int true "chart repo ID"
+// @Success  200 {object} response.Envelope
+// @Router   /apps/repos/{id}/charts [get]
+func (h *Handler) listCharts(c *gin.Context) {
+	id, ok := h.parseID(c)
+	if !ok {
+		return
+	}
+	out, err := h.svc.ListCharts(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, gin.H{"items": out})
+}
+
+// listVersions returns versions for one chart in a repo.
+// @Summary  List versions for a chart
+// @Tags     apps
+// @Security BearerAuth
+// @Produce  json
+// @Param    id    path int    true "chart repo ID"
+// @Param    chart path string true "chart name"
+// @Success  200 {object} response.Envelope
+// @Router   /apps/repos/{id}/charts/{chart}/versions [get]
+func (h *Handler) listVersions(c *gin.Context) {
+	id, ok := h.parseID(c)
+	if !ok {
+		return
+	}
+	chart := c.Param("chart")
+	if chart == "" {
+		response.Error(c, apperr.New(apperr.CodeBadRequest, "common.bad_request", "chart name required"))
+		return
+	}
+	out, err := h.svc.ListVersions(c.Request.Context(), id, chart)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, gin.H{"items": out})
+}
+
+// getDefaultValues fetches the chart's bundled values.yaml as plain text.
+// @Summary  Get default values.yaml for a chart version
+// @Tags     apps
+// @Security BearerAuth
+// @Produce  json
+// @Param    id      path int    true "chart repo ID"
+// @Param    chart   path string true "chart name"
+// @Param    version path string true "chart version"
+// @Success  200 {object} response.Envelope
+// @Router   /apps/repos/{id}/charts/{chart}/versions/{version}/values [get]
+func (h *Handler) getDefaultValues(c *gin.Context) {
+	id, ok := h.parseID(c)
+	if !ok {
+		return
+	}
+	chart := c.Param("chart")
+	version := c.Param("version")
+	if chart == "" || version == "" {
+		response.Error(c, apperr.New(apperr.CodeBadRequest, "common.bad_request", "chart and version required"))
+		return
+	}
+	out, err := h.svc.GetDefaultValues(c.Request.Context(), id, chart, version)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, gin.H{"values_yaml": out})
 }
 
 // hasExplicitNull reports whether the JSON object has the field set to

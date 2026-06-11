@@ -56,3 +56,17 @@ type ListResponse struct {
 	Page     int       `json:"page"`
 	PageSize int       `json:"page_size"`
 }
+
+// ChartSummary is one chart's name + the count of versions in the upstream index.
+type ChartSummary struct {
+	Name         string `json:"name"`
+	VersionCount int    `json:"version_count"`
+	Description  string `json:"description"` // best-available description from index
+}
+
+// VersionSummary is a single chart version row.
+type VersionSummary struct {
+	Version    string `json:"version"`
+	AppVersion string `json:"app_version"`
+	Created    string `json:"created"`
+}
