@@ -1,0 +1,7 @@
+[mcp_servers.mem0]
+command = "uvx"
+args = ["mem0-mcp-server"]
+
+[mcp_servers.mem0.env]
+MEM0_API_KEY = "${MEM0_API_KEY}"
+MEM0_DEFAULT_USER_ID = "${MEM0_DEFAULT_USER_ID:-logic}"
