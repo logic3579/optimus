@@ -12,8 +12,9 @@ Start every substantial task by reading:
 2. `docs/superpowers/plans/2026-06-11-p4-assets.md`
 3. `docs/superpowers/specs/2026-06-11-p4-assets-design.md`
 
-If mem0 is available, search for the latest `[CHECKPOINT YYYY-MM-DD]` memory for
-`optimus` and cross-check it against `git status --short --branch` and recent
+If mem0 is available, search with `user_id = "logic"` for the latest
+`[CHECKPOINT YYYY-MM-DD]` memory for `optimus` and cross-check it against
+`git status --short --branch` and recent
 `git log --oneline --decorate --max-count=20 --all`.
 
 Current expected project state: P0-P3 are implemented; `dev` contains the P4
@@ -89,17 +90,23 @@ The most important rules are:
 ## Codex Environment Notes
 
 Project-local Codex configuration lives in `.codex/config.toml` and contains the
-mem0 MCP server configuration:
+hosted mem0 Streamable HTTP MCP server configuration:
 
 ```toml
 [mcp_servers.mem0]
-command = "uvx"
-args = ["mem0-mcp-server"]
-
-[mcp_servers.mem0.env]
-MEM0_API_KEY = "${MEM0_API_KEY}"
-MEM0_DEFAULT_USER_ID = "${MEM0_DEFAULT_USER_ID:-logic}"
+url = "https://mcp.mem0.ai/mcp"
+bearer_token_env_var = "MEM0_API_KEY"
+startup_timeout_sec = 15
+tool_timeout_sec = 60
+default_tools_approval_mode = "auto"
 ```
+
+Export `MEM0_API_KEY` before starting Codex. The hosted MCP connection does not
+have a Codex configuration field for a default memory user. Unless the user
+explicitly requests another scope, pass `user_id = "logic"` to mem0 tools; for
+tools that accept structured filters, include `{"user_id": "logic"}` in the
+filter. This convention applies to reads and writes so project memories remain
+in the same scope.
 
 Long-term project guidance also lives in the private Codex skill
 `optimus-project` under `~/.codex/skills/optimus-project`.

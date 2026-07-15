@@ -125,6 +125,7 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 - **k8s.io/client-go is pinned to v0.30.14** (and apimachinery to v0.30.14) to keep `go.mod`'s go directive at 1.25. `go get k8s.io/client-go@latest` (v0.36+) transitively bumps go to 1.26+. If you ever do bump, also update `deploy/be.Dockerfile` (golang:1.26-alpine) and CI `go-version`.
 - **`helm.sh/helm/v3` is pinned to v3.15.4** (fell back from v3.16.4 because the 3.16 line transitively upgrades `k8s.io/client-go` to v0.31.x, breaking the P2 v0.30.14 invariant). Bumping helm transitively bumps client-go, so any helm upgrade re-runs the P2 compatibility verification. Pin is checked at startup only by `go build`; no runtime assertion.
 - **k8s endpoints are read-only by design** — never add write/apply/exec/watch handlers without re-opening the P2 spec. The /data secret reveal endpoint is the only path that returns plaintext secret values; it is RBAC-gated by `k8s:secret:reveal`.
+- **Codex uses the hosted mem0 MCP over Streamable HTTP** — `.codex/config.toml` points to `https://mcp.mem0.ai/mcp` and authenticates with `MEM0_API_KEY`; it does not launch the local `uvx mem0-mcp-server`. The hosted MCP connection has no Codex setting for a default memory user, so every mem0 read or write uses `user_id = "logic"` unless the user explicitly requests another scope. Tools with structured filters include `{"user_id": "logic"}` in the filter. Claude Code continues to use the repository's `.mcp.json` configuration independently.
 - **CLAUDE Code skills/superpowers** are configured at `~/.claude/` and `.claude/`; the `.claude/settings.json` here only adjusts permissions/hooks for this repo.
 
 ## Gotchas (local-only)
@@ -141,7 +142,7 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 If this is the first time touching this repo on this Mac:
 
 1. **Tools**: `brew install uv bun colima git` then `colima start`.
-2. **mem0 API key**: `export MEM0_API_KEY="..."` (from password manager). Persist in `~/.zshrc`. The `.mcp.json` in this repo auto-loads the mem0 MCP server in Claude Code.
+2. **mem0 API key**: `export MEM0_API_KEY="..."` (from password manager). Persist in `~/.zshrc`. Codex connects to the hosted HTTP MCP through `.codex/config.toml`; Claude Code independently auto-loads the repository's `.mcp.json`. In Codex, scope mem0 calls to `user_id = "logic"` unless another user is explicitly requested.
 3. **First prompt** in Claude Code:
    > "Read CLAUDE.md, search mem0 for the optimus checkpoint, then `git log dev..main` to confirm what's actually merged. Summarize where the project is and recommend the next step."
 
