@@ -8,6 +8,15 @@ type Permission struct {
 	Description string
 }
 
+const (
+	// P4 assets domain
+	PermAssetsAccountRead   = "assets:account:read"
+	PermAssetsAccountWrite  = "assets:account:write" // create / update / manual-sync trigger
+	PermAssetsAccountDelete = "assets:account:delete"
+	PermAssetsResourceRead  = "assets:resource:read" // covers instance, vpc, subnet, database
+	PermAssetsSyncRead      = "assets:sync:read"
+)
+
 // All P0 permission codes. Future modules append to this list.
 var All = []Permission{
 	// system: user
@@ -72,6 +81,13 @@ var All = []Permission{
 	{Code: "apps:repo:read", Name: "perm.apps.repo.read", Category: "apps", Description: "Read chart repositories"},
 	{Code: "apps:repo:write", Name: "perm.apps.repo.write", Category: "apps", Description: "Create/update chart repositories"},
 	{Code: "apps:repo:delete", Name: "perm.apps.repo.delete", Category: "apps", Description: "Delete chart repositories"},
+
+	// P4 assets domain
+	{Code: PermAssetsAccountRead, Name: "perm.assets.account.read", Category: "assets", Description: "Read cloud accounts"},
+	{Code: PermAssetsAccountWrite, Name: "perm.assets.account.write", Category: "assets", Description: "Create/update cloud accounts and trigger manual syncs"},
+	{Code: PermAssetsAccountDelete, Name: "perm.assets.account.delete", Category: "assets", Description: "Delete cloud accounts"},
+	{Code: PermAssetsResourceRead, Name: "perm.assets.resource.read", Category: "assets", Description: "Read cloud resources"},
+	{Code: PermAssetsSyncRead, Name: "perm.assets.sync.read", Category: "assets", Description: "Read asset sync runs"},
 }
 
 // CodeSet returns a set for O(1) membership testing.
