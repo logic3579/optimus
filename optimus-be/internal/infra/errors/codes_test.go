@@ -49,3 +49,39 @@ func TestAppsCodes_DistinctAndNonZero(t *testing.T) {
 		seen[c] = true
 	}
 }
+
+func TestAssets43xxxCodesDistinct(t *testing.T) {
+	codes := []apperr.Code{
+		apperr.CodeAssetsCloudAccountInUse,
+		apperr.CodeAssetsCloudAccountNotFound,
+		apperr.CodeAssetsCloudAccountNameConflict,
+		apperr.CodeAssetsRegionInvalid,
+		apperr.CodeAssetsProviderUnsupported,
+		apperr.CodeAssetsCloudAccountDisabled,
+		apperr.CodeAssetsCloudKeyNotFound,
+		apperr.CodeAssetsVPCNotFound,
+		apperr.CodeAssetsSyncBusy,
+		apperr.CodeAssetsAWSUnauthorized,
+		apperr.CodeAssetsAWSForbidden,
+		apperr.CodeAssetsAWSUnreachable,
+		apperr.CodeAssetsAWSThrottled,
+		apperr.CodeAssetsAWSOther,
+		apperr.CodeAssetsAWSConfig,
+	}
+	seen := map[apperr.Code]bool{}
+	for _, c := range codes {
+		if c == 0 {
+			t.Errorf("code is zero")
+		}
+		if c < 43000 || c > 43999 {
+			t.Errorf("code %d outside 43xxx segment", c)
+		}
+		if seen[c] {
+			t.Errorf("code %d duplicated", c)
+		}
+		seen[c] = true
+	}
+	if len(codes) != 15 {
+		t.Errorf("expected 15 P4 codes, got %d", len(codes))
+	}
+}

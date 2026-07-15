@@ -70,7 +70,22 @@
     "42203": "Target rollback revision does not exist.",
     "42204": "Release is still installed. Uninstall first.",
     "42205": "Invalid values YAML.",
-    "42299": "Helm error."
+    "42299": "Helm error.",
+    "43001": "Cloud key is referenced by a cloud account; delete blocked",
+    "43002": "Cloud account not found",
+    "43003": "Cloud account name already exists",
+    "43004": "Invalid region format",
+    "43005": "Cloud provider not supported",
+    "43006": "Cloud account is disabled; cannot trigger sync",
+    "43008": "Referenced cloud key not found",
+    "43009": "VPC not found",
+    "43101": "Sync already in progress for this account",
+    "43102": "AWS credentials invalid or expired",
+    "43103": "AWS API access denied (insufficient IAM permissions)",
+    "43104": "Cannot reach the AWS API",
+    "43105": "AWS API throttled",
+    "43106": "AWS API call failed",
+    "43107": "AWS SDK config load failed"
   },
   "network": {
     "error": "Network error, please try again later"

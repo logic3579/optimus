@@ -69,4 +69,28 @@ const (
 	CodeAppsReleaseStillPresent    Code = 42204 // application delete blocked: helm secret still exists
 	CodeAppsReleaseInvalidValues   Code = 42205 // values yaml parse error / not a map
 	CodeAppsReleaseOther           Code = 42299 // other helm SDK error
+
+	// 43xxx P4 assets domain — cloud asset discovery + AWS SDK runtime.
+	// See P4 spec §9. 43001-43099 cloud-account domain; 43100-43199 sync/AWS.
+	// 43200+ reserved for future P4.x GCP/Azure provider expansion.
+
+	// 43001-43099 cloud account / domain
+	CodeAssetsCloudAccountInUse        Code = 43001 // cloudkey delete blocked: referenced by CloudAccount
+	CodeAssetsCloudAccountNotFound     Code = 43002
+	CodeAssetsCloudAccountNameConflict Code = 43003
+	CodeAssetsRegionInvalid            Code = 43004 // region string fails AWS regex
+	CodeAssetsProviderUnsupported      Code = 43005 // provider != "aws" at MVP
+	CodeAssetsCloudAccountDisabled     Code = 43006 // manual sync on enabled=false account
+	CodeAssetsCloudKeyNotFound         Code = 43008 // Create/Update references missing cloudkey_id
+	CodeAssetsVPCNotFound              Code = 43009 // /vpcs/{id}/subnets row lookup miss
+	// (43007 reserved)
+
+	// 43100-43199 sync / AWS
+	CodeAssetsSyncBusy        Code = 43101 // manual sync invoked while account lock held
+	CodeAssetsAWSUnauthorized Code = 43102 // AuthFailure / InvalidClientTokenId / SignatureDoesNotMatch / ExpiredToken
+	CodeAssetsAWSForbidden    Code = 43103 // UnauthorizedOperation / AccessDenied
+	CodeAssetsAWSUnreachable  Code = 43104 // ctx deadline / DNS / net error / RequestCanceled
+	CodeAssetsAWSThrottled    Code = 43105 // Throttling / RequestLimitExceeded after SDK retries
+	CodeAssetsAWSOther        Code = 43106 // any other API error
+	CodeAssetsAWSConfig       Code = 43107 // config.LoadDefaultConfig failed
 )
