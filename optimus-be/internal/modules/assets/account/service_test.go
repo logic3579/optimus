@@ -288,3 +288,18 @@ func TestService_PropagatesNameAndCloudKeyNameLookupErrors(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestService_UpdateDelete_DeletedAccountReturnsNotFoundWithoutAudit(t *testing.T) {
+	svc, repo, recorder, cloudKey := setupSvc(t)
+	detail, err := svc.Create(context.Background(), 7, "", "", CreateRequest{
+		Name: "stale", Provider: "aws", CloudKeyID: cloudKey.ID, EnabledRegions: []string{"us-east-1"},
+	})
+	require.NoError(t, err)
+	require.NoError(t, repo.SoftDelete(context.Background(), detail.ID))
+	name := "renamed"
+	_, err = svc.Update(context.Background(), 7, "", "", detail.ID, UpdateRequest{Name: &name})
+	requireBizCode(t, err, errs.CodeAssetsCloudAccountNotFound)
+	_, err = svc.Delete(context.Background(), 7, "", "", detail.ID)
+	requireBizCode(t, err, errs.CodeAssetsCloudAccountNotFound)
+	require.Len(t, recorder.snapshot(), 1, "failed stale writes must not audit")
+}

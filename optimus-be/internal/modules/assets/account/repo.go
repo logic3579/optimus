@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
@@ -27,8 +28,19 @@ func (r *Repo) Create(ctx context.Context, row *models.CloudAccount) error {
 }
 
 func (r *Repo) FindByID(ctx context.Context, id uint64) (*models.CloudAccount, error) {
+	return findByID(ctx, r.db, id)
+}
+
+// FindByIDForUpdate locks one live account for mutation. Task 8 sweep
+// persistence must take this lock and recheck both account liveness and the
+// enabled region before writing discovered resources.
+func (r *Repo) FindByIDForUpdate(ctx context.Context, tx *gorm.DB, id uint64) (*models.CloudAccount, error) {
+	return findByID(ctx, tx.Clauses(clause.Locking{Strength: "UPDATE"}), id)
+}
+
+func findByID(ctx context.Context, db *gorm.DB, id uint64) (*models.CloudAccount, error) {
 	var row models.CloudAccount
-	if err := r.db.WithContext(ctx).First(&row, id).Error; err != nil {
+	if err := db.WithContext(ctx).First(&row, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperr.New(errs.CodeAssetsCloudAccountNotFound, errs.KeyCloudAccountNotFound, "cloud account not found")
 		}
@@ -47,8 +59,24 @@ func (r *Repo) Update(ctx context.Context, id uint64, fields map[string]any) err
 		Updates(fields).Error)
 }
 
+func (r *Repo) UpdateTx(ctx context.Context, tx *gorm.DB, id uint64, fields map[string]any) (int64, error) {
+	if len(fields) == 0 {
+		return 0, nil
+	}
+	result := tx.WithContext(ctx).
+		Model(&models.CloudAccount{}).
+		Where("id = ?", id).
+		Updates(fields)
+	return result.RowsAffected, mapWriteError(result.Error)
+}
+
 func (r *Repo) SoftDelete(ctx context.Context, id uint64) error {
 	return r.db.WithContext(ctx).Delete(&models.CloudAccount{}, id).Error
+}
+
+func (r *Repo) SoftDeleteTx(ctx context.Context, tx *gorm.DB, id uint64) (int64, error) {
+	result := tx.WithContext(ctx).Delete(&models.CloudAccount{}, id)
+	return result.RowsAffected, result.Error
 }
 
 func (r *Repo) Transaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
@@ -103,7 +131,15 @@ func (r *Repo) List(ctx context.Context, q ListQuery) ([]Summary, int64, error) 
 }
 
 func (r *Repo) FindNameAlive(ctx context.Context, name string, excludeID uint64) (bool, error) {
-	tx := r.db.WithContext(ctx).Model(&models.CloudAccount{}).Where("name = ?", name)
+	return findNameAlive(ctx, r.db, name, excludeID)
+}
+
+func (r *Repo) FindNameAliveTx(ctx context.Context, tx *gorm.DB, name string, excludeID uint64) (bool, error) {
+	return findNameAlive(ctx, tx, name, excludeID)
+}
+
+func findNameAlive(ctx context.Context, db *gorm.DB, name string, excludeID uint64) (bool, error) {
+	tx := db.WithContext(ctx).Model(&models.CloudAccount{}).Where("name = ?", name)
 	if excludeID != 0 {
 		tx = tx.Where("id <> ?", excludeID)
 	}

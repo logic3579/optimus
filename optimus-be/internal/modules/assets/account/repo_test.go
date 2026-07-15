@@ -210,6 +210,25 @@ func TestRepo_CascadeSoftDelete_TransactionRollback(t *testing.T) {
 	}
 }
 
+func TestRepo_TransactionalWritesRequireLiveRow(t *testing.T) {
+	r, _ := setupRepo(t)
+	ctx := context.Background()
+	err := r.Transaction(ctx, func(tx *gorm.DB) error {
+		_, err := r.FindByIDForUpdate(ctx, tx, 99999)
+		bizErr, ok := apperr.AsBiz(err)
+		require.True(t, ok)
+		require.Equal(t, errs.CodeAssetsCloudAccountNotFound, bizErr.Code)
+		updated, err := r.UpdateTx(ctx, tx, 99999, map[string]any{"name": "missing"})
+		require.NoError(t, err)
+		require.Zero(t, updated)
+		deleted, err := r.SoftDeleteTx(ctx, tx, 99999)
+		require.NoError(t, err)
+		require.Zero(t, deleted)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func seedResourceSet(t *testing.T, gdb *gorm.DB, accountID uint64, region, suffix string) {
 	t.Helper()
 	now := time.Now()

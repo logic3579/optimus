@@ -86,66 +86,73 @@ func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 }
 
 func (s *Service) Update(ctx context.Context, actorID uint64, ip, userAgent string, id uint64, req UpdateRequest) (*Detail, error) {
-	row, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
 	fields := make(map[string]any)
 	changed := make([]string, 0, 4)
 	removedRegions := make([]string, 0)
-	if req.Name != nil && *req.Name != row.Name {
-		conflict, err := s.repo.FindNameAlive(ctx, *req.Name, row.ID)
-		if err != nil {
-			return nil, err
-		}
-		if conflict {
-			return nil, apperr.New(errs.CodeAssetsCloudAccountNameConflict, errs.KeyCloudAccountNameConflict, "cloud account name already exists")
-		}
-		fields["name"] = *req.Name
-		changed = append(changed, "name")
-	}
-	regionsChanged := req.EnabledRegions != nil && !slices.Equal(req.EnabledRegions, []string(row.EnabledRegions))
-	if regionsChanged {
+	if req.EnabledRegions != nil {
 		if err := validateRegions(req.EnabledRegions); err != nil {
 			return nil, err
 		}
-		newRegions := make(map[string]struct{}, len(req.EnabledRegions))
-		for _, region := range req.EnabledRegions {
-			newRegions[region] = struct{}{}
-		}
-		for _, region := range row.EnabledRegions {
-			if _, ok := newRegions[region]; !ok {
-				removedRegions = append(removedRegions, region)
-			}
-		}
-		fields["enabled_regions"] = models.StringArray(req.EnabledRegions)
-		changed = append(changed, "enabled_regions")
 	}
-	if req.Enabled != nil && *req.Enabled != row.Enabled {
-		fields["enabled"] = *req.Enabled
-		changed = append(changed, "enabled")
-	}
-	if req.Description != nil && *req.Description != row.Description {
-		fields["description"] = *req.Description
-		changed = append(changed, "description")
-	}
-	if len(fields) == 0 {
-		return s.detail(ctx, id)
-	}
-
-	err = s.repo.Transaction(ctx, func(tx *gorm.DB) error {
-		if err := tx.Model(&models.CloudAccount{}).Where("id = ?", id).Updates(fields).Error; err != nil {
+	regionsChanged := false
+	err := s.repo.Transaction(ctx, func(tx *gorm.DB) error {
+		row, err := s.repo.FindByIDForUpdate(ctx, tx, id)
+		if err != nil {
 			return err
+		}
+		if req.Name != nil && *req.Name != row.Name {
+			conflict, err := s.repo.FindNameAliveTx(ctx, tx, *req.Name, row.ID)
+			if err != nil {
+				return err
+			}
+			if conflict {
+				return apperr.New(errs.CodeAssetsCloudAccountNameConflict, errs.KeyCloudAccountNameConflict, "cloud account name already exists")
+			}
+			fields["name"] = *req.Name
+			changed = append(changed, "name")
+		}
+		regionsChanged = req.EnabledRegions != nil && !slices.Equal(req.EnabledRegions, []string(row.EnabledRegions))
+		if regionsChanged {
+			newRegions := make(map[string]struct{}, len(req.EnabledRegions))
+			for _, region := range req.EnabledRegions {
+				newRegions[region] = struct{}{}
+			}
+			for _, region := range row.EnabledRegions {
+				if _, ok := newRegions[region]; !ok {
+					removedRegions = append(removedRegions, region)
+				}
+			}
+			fields["enabled_regions"] = models.StringArray(req.EnabledRegions)
+			changed = append(changed, "enabled_regions")
+		}
+		if req.Enabled != nil && *req.Enabled != row.Enabled {
+			fields["enabled"] = *req.Enabled
+			changed = append(changed, "enabled")
+		}
+		if req.Description != nil && *req.Description != row.Description {
+			fields["description"] = *req.Description
+			changed = append(changed, "description")
+		}
+		if len(fields) == 0 {
+			return nil
+		}
+		rows, err := s.repo.UpdateTx(ctx, tx, id, fields)
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return accountNotFoundError()
 		}
 		if len(removedRegions) > 0 {
-			_, err := s.repo.CascadeSoftDeleteResources(ctx, tx, id, removedRegions)
-			return err
+			_, err = s.repo.CascadeSoftDeleteResources(ctx, tx, id, removedRegions)
 		}
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
+	}
+	if len(fields) == 0 {
+		return s.detail(ctx, id)
 	}
 	sort.Strings(changed)
 	sort.Strings(removedRegions)
@@ -159,18 +166,27 @@ func (s *Service) Update(ctx context.Context, actorID uint64, ip, userAgent stri
 }
 
 func (s *Service) Delete(ctx context.Context, actorID uint64, ip, userAgent string, id uint64) (int64, error) {
-	row, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		return 0, err
-	}
+	var row *models.CloudAccount
 	var cascaded int64
-	err = s.repo.Transaction(ctx, func(tx *gorm.DB) error {
+	err := s.repo.Transaction(ctx, func(tx *gorm.DB) error {
+		var err error
+		row, err = s.repo.FindByIDForUpdate(ctx, tx, id)
+		if err != nil {
+			return err
+		}
 		count, err := s.repo.CascadeSoftDeleteResources(ctx, tx, id, nil)
 		if err != nil {
 			return err
 		}
 		cascaded = count
-		return tx.Delete(&models.CloudAccount{}, id).Error
+		rows, err := s.repo.SoftDeleteTx(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return accountNotFoundError()
+		}
+		return nil
 	})
 	if err != nil {
 		return 0, err
@@ -180,6 +196,10 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, userAgent stri
 		"cascaded_resources_count": cascaded,
 	})
 	return cascaded, nil
+}
+
+func accountNotFoundError() error {
+	return apperr.New(errs.CodeAssetsCloudAccountNotFound, errs.KeyCloudAccountNotFound, "cloud account not found")
 }
 
 func (s *Service) List(ctx context.Context, query ListQuery) (*ListResponse, error) {
