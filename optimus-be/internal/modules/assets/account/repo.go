@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -84,6 +85,10 @@ func (r *Repo) Transaction(ctx context.Context, fn func(tx *gorm.DB) error) erro
 }
 
 func (r *Repo) List(ctx context.Context, q ListQuery) ([]Summary, int64, error) {
+	_, size, offset, err := paginationOffset(q.Page, q.Size)
+	if err != nil {
+		return nil, 0, err
+	}
 	tx := r.db.WithContext(ctx).Model(&models.CloudAccount{})
 	if q.IncludeDeleted {
 		tx = tx.Unscoped()
@@ -102,15 +107,8 @@ func (r *Repo) List(ctx context.Context, q ListQuery) ([]Summary, int64, error) 
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	page, size := q.Page, q.Size
-	if page < 1 {
-		page = 1
-	}
-	if size < 1 {
-		size = 20
-	}
 	var rows []models.CloudAccount
-	if err := tx.Order("id DESC").Limit(size).Offset((page - 1) * size).Find(&rows).Error; err != nil {
+	if err := tx.Order("id DESC").Limit(size).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -128,6 +126,19 @@ func (r *Repo) List(ctx context.Context, q ListQuery) ([]Summary, int64, error) 
 		items = append(items, toSummary(rows[i], "", sync.startedAt, sync.status))
 	}
 	return items, total, nil
+}
+
+func paginationOffset(page, size int) (int, int, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 20
+	}
+	if page-1 > math.MaxInt/size {
+		return 0, 0, 0, apperr.New(apperr.CodeValidation, "common.validation", "pagination offset is too large")
+	}
+	return page, size, (page - 1) * size, nil
 }
 
 func (r *Repo) FindNameAlive(ctx context.Context, name string, excludeID uint64) (bool, error) {

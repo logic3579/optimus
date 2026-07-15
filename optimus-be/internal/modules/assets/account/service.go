@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -36,6 +37,10 @@ func NewService(repo *Repo, recorder AuditRecorder, checker CloudKeyExistenceChe
 }
 
 func (s *Service) Create(ctx context.Context, actorID uint64, ip, userAgent string, req CreateRequest) (*Detail, error) {
+	name, err := normalizeName(req.Name)
+	if err != nil {
+		return nil, err
+	}
 	if req.Provider != "aws" {
 		return nil, apperr.New(errs.CodeAssetsProviderUnsupported, errs.KeyProviderUnsupported, "only aws is supported")
 	}
@@ -49,7 +54,7 @@ func (s *Service) Create(ctx context.Context, actorID uint64, ip, userAgent stri
 	if !exists {
 		return nil, apperr.New(errs.CodeAssetsCloudKeyNotFound, errs.KeyCloudKeyNotFound, "cloud key not found")
 	}
-	conflict, err := s.repo.FindNameAlive(ctx, req.Name, 0)
+	conflict, err := s.repo.FindNameAlive(ctx, name, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +67,7 @@ func (s *Service) Create(ctx context.Context, actorID uint64, ip, userAgent stri
 		enabled = *req.Enabled
 	}
 	row := &models.CloudAccount{
-		Name:           req.Name,
+		Name:           name,
 		Provider:       req.Provider,
 		CloudKeyID:     req.CloudKeyID,
 		EnabledRegions: models.StringArray(req.EnabledRegions),
@@ -86,6 +91,13 @@ func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 }
 
 func (s *Service) Update(ctx context.Context, actorID uint64, ip, userAgent string, id uint64, req UpdateRequest) (*Detail, error) {
+	if req.Name != nil {
+		name, err := normalizeName(*req.Name)
+		if err != nil {
+			return nil, err
+		}
+		req.Name = &name
+	}
 	fields := make(map[string]any)
 	changed := make([]string, 0, 4)
 	removedRegions := make([]string, 0)
@@ -255,12 +267,25 @@ func validateRegions(regions []string) error {
 	if len(regions) == 0 {
 		return apperr.New(errs.CodeAssetsRegionInvalid, errs.KeyRegionInvalid, "at least one region is required")
 	}
+	seen := make(map[string]struct{}, len(regions))
 	for _, region := range regions {
 		if !regionRegex.MatchString(region) {
 			return apperr.New(errs.CodeAssetsRegionInvalid, errs.KeyRegionInvalid, "invalid AWS region")
 		}
+		if _, exists := seen[region]; exists {
+			return apperr.New(errs.CodeAssetsRegionInvalid, errs.KeyRegionInvalid, "duplicate AWS region")
+		}
+		seen[region] = struct{}{}
 	}
 	return nil
+}
+
+func normalizeName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", apperr.New(apperr.CodeValidation, "common.validation", "name is required")
+	}
+	return name, nil
 }
 
 func (s *Service) writeAudit(ctx context.Context, actor *uint64, action string, id uint64, ip, userAgent string, payload map[string]any) {
