@@ -89,8 +89,9 @@ The most important rules are:
 
 ## Codex Environment Notes
 
-Project-local Codex configuration lives in `.codex/config.toml` and contains the
-hosted mem0 Streamable HTTP MCP server configuration:
+Project-local Codex configuration lives in `.codex/config.toml` and contains
+the hosted mem0 and Context7 Streamable HTTP MCP servers plus the local Serena
+STDIO MCP server:
 
 ```toml
 [mcp_servers.mem0]
@@ -99,14 +100,29 @@ bearer_token_env_var = "MEM0_API_KEY"
 startup_timeout_sec = 15
 tool_timeout_sec = 60
 default_tools_approval_mode = "auto"
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+env_http_headers = { "CONTEXT7_API_KEY" = "CONTEXT7_API_KEY" }
+
+[mcp_servers.serena]
+startup_timeout_sec = 15
+command = "serena"
+args = ["start-mcp-server", "--project-from-cwd", "--context=codex"]
 ```
 
-Export `MEM0_API_KEY` before starting Codex. The hosted MCP connection does not
-have a Codex configuration field for a default memory user. Unless the user
-explicitly requests another scope, pass `user_id = "logic"` to mem0 tools; for
-tools that accept structured filters, include `{"user_id": "logic"}` in the
-filter. This convention applies to reads and writes so project memories remain
-in the same scope.
+Export `MEM0_API_KEY` and `CONTEXT7_API_KEY` before starting Codex. Context7's
+`env_http_headers` mapping keeps its key out of the tracked TOML file. The
+hosted mem0 connection does not have a Codex configuration field for a default
+memory user. Unless the user explicitly requests another scope, pass
+`user_id = "logic"` to mem0 tools; for tools that accept structured filters,
+include `{"user_id": "logic"}` in the filter. This convention applies to reads
+and writes so project memories remain in the same scope.
+
+Serena must be available as `serena` on `PATH`. Its `--context=codex` mode
+provides symbol-aware project navigation while avoiding unnecessary overlap
+with Codex built-ins. Serena-generated project metadata and caches live under
+`.serena/` and are ignored by Git.
 
 Long-term project guidance also lives in the private Codex skill
 `optimus-project` under `~/.codex/skills/optimus-project`.

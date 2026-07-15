@@ -1,5 +1,6 @@
 # Runtime state
 .omo/
+.serena/
 
 # Dependencies
 node_modules/
