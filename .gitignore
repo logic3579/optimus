@@ -1,6 +1,7 @@
 # Runtime state
 .omo/
 .serena/
+.worktrees/
 
 # Dependencies
 node_modules/
