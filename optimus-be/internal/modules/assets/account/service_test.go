@@ -167,13 +167,22 @@ func TestService_Delete_CascadesAllRegions(t *testing.T) {
 	seedResourceSet(t, repo.DB(), detail.ID, "us-east-1", "delete-east")
 	seedResourceSet(t, repo.DB(), detail.ID, "us-west-2", "delete-west")
 
-	cascaded, err := svc.Delete(context.Background(), 7, "", "", detail.ID)
+	cascaded, err := svc.Delete(context.Background(), 7, "delete-ip", "delete-ua", detail.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, 8, cascaded)
 	_, err = repo.FindByID(context.Background(), detail.ID)
 	requireBizCode(t, err, errs.CodeAssetsCloudAccountNotFound)
 	events := recorder.snapshot()
-	require.Equal(t, "assets.cloud_account.delete", events[len(events)-1].Action)
+	event := events[len(events)-1]
+	require.Equal(t, "assets.cloud_account.delete", event.Action)
+	require.Equal(t, "cloud_account", event.TargetType)
+	require.Equal(t, detail.ID, parseTargetID(t, event.TargetID))
+	require.Equal(t, uint64(7), *event.UserID)
+	require.Equal(t, "delete-ip", event.IP)
+	require.Equal(t, "delete-ua", event.UserAgent)
+	payload := event.Payload.(map[string]any)
+	require.Equal(t, "prod", payload["name"])
+	require.EqualValues(t, 8, payload["cascaded_resources_count"])
 }
 
 func TestService_GetListUpdateAndNoop(t *testing.T) {
@@ -191,7 +200,7 @@ func TestService_GetListUpdateAndNoop(t *testing.T) {
 	require.Equal(t, cloudKey.Name, listed.Items[0].CloudKeyName)
 
 	name, description, enabled := "after", "desc", false
-	updated, err := svc.Update(context.Background(), 9, "ip", "ua", detail.ID, UpdateRequest{
+	updated, err := svc.Update(context.Background(), 9, "update-ip", "update-ua", detail.ID, UpdateRequest{
 		Name: &name, Description: &description, Enabled: &enabled, EnabledRegions: []string{"us-east-1"},
 	})
 	require.NoError(t, err)
@@ -200,6 +209,11 @@ func TestService_GetListUpdateAndNoop(t *testing.T) {
 	events := recorder.snapshot()
 	updateEvent := events[len(events)-1]
 	require.Equal(t, "assets.cloud_account.update", updateEvent.Action)
+	require.Equal(t, "cloud_account", updateEvent.TargetType)
+	require.Equal(t, detail.ID, parseTargetID(t, updateEvent.TargetID))
+	require.Equal(t, uint64(9), *updateEvent.UserID)
+	require.Equal(t, "update-ip", updateEvent.IP)
+	require.Equal(t, "update-ua", updateEvent.UserAgent)
 	require.Equal(t, []string{"description", "enabled", "name"}, updateEvent.Payload.(map[string]any)["changed_fields"])
 
 	before := len(events)
@@ -251,4 +265,26 @@ func TestService_Delete_RollsBackWhenCascadeFails(t *testing.T) {
 	var alive int64
 	require.NoError(t, repo.DB().Model(&models.AWSInstance{}).Where("cloud_account_id = ?", detail.ID).Count(&alive).Error)
 	require.EqualValues(t, 1, alive)
+}
+
+func TestService_PropagatesNameAndCloudKeyNameLookupErrors(t *testing.T) {
+	t.Run("name lookup", func(t *testing.T) {
+		repo, _ := setupRepo(t)
+		require.NoError(t, repo.DB().Migrator().DropTable(&models.CloudAccount{}))
+		svc := NewService(repo, &fakeAudit{}, fakeCloudKeyExists{exists: true})
+		_, err := svc.Create(context.Background(), 1, "", "", CreateRequest{
+			Name: "prod", Provider: "aws", CloudKeyID: 1, EnabledRegions: []string{"us-east-1"},
+		})
+		require.Error(t, err)
+	})
+	t.Run("cloud key names lookup", func(t *testing.T) {
+		svc, repo, _, cloudKey := setupSvc(t)
+		_, err := svc.Create(context.Background(), 1, "", "", CreateRequest{
+			Name: "prod", Provider: "aws", CloudKeyID: cloudKey.ID, EnabledRegions: []string{"us-east-1"},
+		})
+		require.NoError(t, err)
+		require.NoError(t, repo.DB().Migrator().DropTable(&models.CredentialCloudKey{}))
+		_, err = svc.List(context.Background(), ListQuery{})
+		require.Error(t, err)
+	})
 }
