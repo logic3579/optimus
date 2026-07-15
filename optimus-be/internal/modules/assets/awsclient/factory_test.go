@@ -84,6 +84,39 @@ func TestFor_ConfigErrorIsWrapped(t *testing.T) {
 	require.ErrorIs(t, err, wantErr)
 }
 
+func TestFor_RejectsEndpointOverrideEnvironment(t *testing.T) {
+	t.Setenv("AWS_PROFILE", "")
+	for _, envName := range endpointOverrideEnvNames {
+		t.Run(envName, func(t *testing.T) {
+			for _, name := range endpointOverrideEnvNames {
+				t.Setenv(name, "")
+			}
+			hostile := "https://SECRET.invalid/" + envName
+			t.Setenv(envName, hostile)
+			_, err := For(context.Background(), validCloudKey(), "us-east-1", time.Second)
+			assertBizError(t, err, errs.CodeAssetsAWSConfig, errs.KeyAWSConfig)
+			var bizErr *apperr.BizError
+			require.ErrorAs(t, err, &bizErr)
+			require.NotContains(t, bizErr.Message, hostile)
+			require.NotContains(t, bizErr.Message, "SECRET")
+		})
+	}
+}
+
+func TestFor_ForcesStandardRetryMode(t *testing.T) {
+	t.Setenv("AWS_PROFILE", "")
+	for _, name := range endpointOverrideEnvNames {
+		t.Setenv(name, "")
+	}
+	t.Setenv("AWS_RETRY_MODE", "adaptive")
+	clients, err := For(context.Background(), validCloudKey(), "us-east-1", time.Second)
+	require.NoError(t, err)
+	require.Equal(t, aws.RetryModeStandard, clients.EC2.Options().RetryMode)
+	require.Equal(t, aws.RetryModeStandard, clients.RDS.Options().RetryMode)
+	require.Equal(t, 3, clients.EC2.Options().RetryMaxAttempts)
+	require.Equal(t, 3, clients.RDS.Options().RetryMaxAttempts)
+}
+
 func validCloudKey() *credentials.CloudKey {
 	return &credentials.CloudKey{
 		Provider: "aws", AccessKeyID: "AKIATEST", SecretAccessKey: "test-secret",

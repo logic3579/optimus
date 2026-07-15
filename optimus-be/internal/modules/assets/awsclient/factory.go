@@ -3,9 +3,11 @@ package awsclient
 import (
 	"context"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awscredentials "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -19,6 +21,12 @@ import (
 const defaultRequestTimeout = 30 * time.Second
 
 var loadDefaultConfig = awsconfig.LoadDefaultConfig
+
+var endpointOverrideEnvNames = []string{
+	"AWS_ENDPOINT_URL",
+	"AWS_ENDPOINT_URL_EC2",
+	"AWS_ENDPOINT_URL_RDS",
+}
 
 // Clients contains the AWS service clients used by one discovery sweep.
 // Instances are constructed fresh for every call to For and are never cached.
@@ -40,6 +48,11 @@ func For(ctx context.Context, cloudKey *credentials.CloudKey, region string, tim
 	if timeout <= 0 {
 		timeout = defaultRequestTimeout
 	}
+	for _, envName := range endpointOverrideEnvNames {
+		if value, exists := os.LookupEnv(envName); exists && strings.TrimSpace(value) != "" {
+			return nil, apperr.New(errs.CodeAssetsAWSConfig, errs.KeyAWSConfig, "AWS endpoint overrides are not allowed")
+		}
+	}
 	config, err := loadDefaultConfig(ctx,
 		awsconfig.WithRegion(region),
 		awsconfig.WithSharedConfigFiles([]string{}),
@@ -50,6 +63,7 @@ func For(ctx context.Context, cloudKey *credentials.CloudKey, region string, tim
 			"",
 		)),
 		awsconfig.WithRetryMaxAttempts(3),
+		awsconfig.WithRetryMode(aws.RetryModeStandard),
 		awsconfig.WithHTTPClient(&http.Client{Timeout: timeout}),
 	)
 	if err != nil {
