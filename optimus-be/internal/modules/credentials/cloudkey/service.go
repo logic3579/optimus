@@ -3,6 +3,7 @@ package cloudkey
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -19,14 +20,24 @@ type Cipher interface {
 	Open([]byte) ([]byte, error)
 }
 
+// AccountsInUseCounter reports live CloudAccounts that reference a cloud key.
+type AccountsInUseCounter interface {
+	CountByCloudKeyID(ctx context.Context, id uint64) (int64, error)
+}
+
 type Service struct {
-	repo   *Repo
-	cipher Cipher
-	audit  *audit.Recorder
+	repo                 *Repo
+	cipher               Cipher
+	audit                *audit.Recorder
+	accountsInUseCounter AccountsInUseCounter
 }
 
 func NewService(repo *Repo, cipher Cipher, rec *audit.Recorder) *Service {
 	return &Service{repo: repo, cipher: cipher, audit: rec}
+}
+
+func (s *Service) SetAccountsInUseCounter(counter AccountsInUseCounter) {
+	s.accountsInUseCounter = counter
 }
 
 func (s *Service) Repo() *Repo { return s.repo }
@@ -194,6 +205,19 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 			return apperr.New(apperr.CodeNotFound, "credentials.not_found", "credential not found")
 		}
 		return err
+	}
+	if s.accountsInUseCounter != nil {
+		n, err := s.accountsInUseCounter.CountByCloudKeyID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return apperr.New(
+				apperr.CodeAssetsCloudAccountInUse,
+				"assets.cloud_account.in_use",
+				fmt.Sprintf("cloud key referenced by %d cloud account(s)", n),
+			)
+		}
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err

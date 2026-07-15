@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"optimus-be/internal/infra/db"
 	apperr "optimus-be/internal/infra/errors"
+	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/credentials/cloudkey"
 )
@@ -33,8 +35,26 @@ func (passthroughCipher) Open(b []byte) ([]byte, error) {
 }
 
 func newSvc(t *testing.T) (*cloudkey.Service, func()) {
+	svc, _, td := newSvcWithDB(t)
+	return svc, td
+}
+
+func newSvcWithDB(t *testing.T) (*cloudkey.Service, *gorm.DB, func()) {
 	gdb, td := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "..", "migrations"))
-	return cloudkey.NewService(cloudkey.NewRepo(gdb), passthroughCipher{}, audit.NewRecorder(gdb)), td
+	return cloudkey.NewService(cloudkey.NewRepo(gdb), passthroughCipher{}, audit.NewRecorder(gdb)), gdb, td
+}
+
+type fakeAccountsInUseCounter struct {
+	n     int64
+	err   error
+	gotID uint64
+	calls int
+}
+
+func (f *fakeAccountsInUseCounter) CountByCloudKeyID(_ context.Context, id uint64) (int64, error) {
+	f.gotID = id
+	f.calls++
+	return f.n, f.err
 }
 
 func newReq() cloudkey.CreateRequest {
@@ -132,6 +152,77 @@ func TestService_Delete_NotFound(t *testing.T) {
 	be, ok := apperr.AsBiz(err)
 	require.True(t, ok)
 	require.Equal(t, apperr.CodeNotFound, be.Code)
+}
+
+func TestService_Delete_RefusesWhenCloudAccountReferencesKey(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	ctx := context.Background()
+	detail, err := svc.Create(ctx, 0, "", "", newReq())
+	require.NoError(t, err)
+	counter := &fakeAccountsInUseCounter{n: 2}
+	svc.SetAccountsInUseCounter(counter)
+
+	err = svc.Delete(ctx, 0, "", "", detail.ID)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeAssetsCloudAccountInUse, be.Code)
+	require.Equal(t, "assets.cloud_account.in_use", be.MessageKey)
+	require.Equal(t, detail.ID, counter.gotID)
+	require.Equal(t, 1, counter.calls)
+	_, err = svc.Get(ctx, detail.ID)
+	require.NoError(t, err)
+}
+
+func TestService_Delete_AllowsWhenCloudAccountCounterIsZero(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	ctx := context.Background()
+	detail, err := svc.Create(ctx, 0, "", "", newReq())
+	require.NoError(t, err)
+	counter := &fakeAccountsInUseCounter{}
+	svc.SetAccountsInUseCounter(counter)
+
+	require.NoError(t, svc.Delete(ctx, 0, "", "", detail.ID))
+	require.Equal(t, detail.ID, counter.gotID)
+	_, err = svc.Get(ctx, detail.ID)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeNotFound, be.Code)
+}
+
+func TestService_Delete_AllowsNilCloudAccountCounter(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	ctx := context.Background()
+	detail, err := svc.Create(ctx, 0, "", "", newReq())
+	require.NoError(t, err)
+	svc.SetAccountsInUseCounter(nil)
+
+	require.NoError(t, svc.Delete(ctx, 0, "", "", detail.ID))
+}
+
+func TestService_Delete_PropagatesCloudAccountCounterErrorWithoutDeleteOrAudit(t *testing.T) {
+	svc, gdb, td := newSvcWithDB(t)
+	defer td()
+	ctx := context.Background()
+	detail, err := svc.Create(ctx, 0, "", "", newReq())
+	require.NoError(t, err)
+	counterErr := errors.New("count cloud account references")
+	counter := &fakeAccountsInUseCounter{err: counterErr}
+	svc.SetAccountsInUseCounter(counter)
+
+	err = svc.Delete(ctx, 0, "", "", detail.ID)
+	require.ErrorIs(t, err, counterErr)
+	require.Equal(t, detail.ID, counter.gotID)
+	require.Equal(t, 1, counter.calls)
+	_, err = svc.Get(ctx, detail.ID)
+	require.NoError(t, err)
+	var deleteAudits int64
+	require.NoError(t, gdb.Model(&models.AuditLog{}).
+		Where("action = ? AND target_type = ?", "credentials.delete", "credentials.cloud_key").
+		Count(&deleteAudits).Error)
+	require.Zero(t, deleteAudits)
 }
 
 func TestService_Consume_System(t *testing.T) {
