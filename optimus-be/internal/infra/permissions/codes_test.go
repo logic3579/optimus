@@ -111,3 +111,62 @@ func TestRegistry_K8sCodes(t *testing.T) {
 		t.Errorf("unexpected extra k8s codes: want %d, got %d", len(want), len(got))
 	}
 }
+
+func TestAssetsPermsRegistered(t *testing.T) {
+	want := []string{
+		PermAssetsAccountRead,
+		PermAssetsAccountWrite,
+		PermAssetsAccountDelete,
+		PermAssetsResourceRead,
+		PermAssetsSyncRead,
+	}
+	exact := []string{
+		"assets:account:read",
+		"assets:account:write",
+		"assets:account:delete",
+		"assets:resource:read",
+		"assets:sync:read",
+	}
+	have := map[string]bool{}
+	for _, p := range All {
+		have[p.Code] = true
+	}
+	for i, permission := range want {
+		if permission != exact[i] {
+			t.Errorf("permission constant = %q, want %q", permission, exact[i])
+		}
+		if !have[permission] {
+			t.Errorf("permission %q not registered in All", permission)
+		}
+		if !strings.HasPrefix(permission, "assets:") {
+			t.Errorf("permission %q does not have assets: prefix", permission)
+		}
+	}
+
+	matchedByViewer := []string{}
+	for _, permission := range want {
+		if strings.HasSuffix(permission, ":read") {
+			matchedByViewer = append(matchedByViewer, permission)
+		}
+	}
+	wantViewer := []string{
+		PermAssetsAccountRead,
+		PermAssetsResourceRead,
+		PermAssetsSyncRead,
+	}
+	if len(matchedByViewer) != len(wantViewer) {
+		t.Fatalf("viewer permissions = %v, want %v", matchedByViewer, wantViewer)
+	}
+	for i, permission := range matchedByViewer {
+		if permission != wantViewer[i] {
+			t.Errorf("viewer permission %d = %q, want %q", i, permission, wantViewer[i])
+		}
+	}
+	for _, excluded := range []string{PermAssetsAccountWrite, PermAssetsAccountDelete} {
+		for _, permission := range matchedByViewer {
+			if permission == excluded {
+				t.Errorf("viewer permissions unexpectedly include %q", excluded)
+			}
+		}
+	}
+}

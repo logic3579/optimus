@@ -5,7 +5,6 @@ package permissions_test
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -60,47 +59,4 @@ func TestRegister_DetectsStaleRows(t *testing.T) {
 	result, err := permissions.Register(context.Background(), gdb, permissions.All)
 	require.NoError(t, err)
 	require.Contains(t, result.Stale, "obsolete:thing:read")
-}
-
-func TestAssetsPermsRegistered(t *testing.T) {
-	want := []string{
-		permissions.PermAssetsAccountRead,
-		permissions.PermAssetsAccountWrite,
-		permissions.PermAssetsAccountDelete,
-		permissions.PermAssetsResourceRead,
-		permissions.PermAssetsSyncRead,
-	}
-	exact := []string{
-		"assets:account:read",
-		"assets:account:write",
-		"assets:account:delete",
-		"assets:resource:read",
-		"assets:sync:read",
-	}
-	have := map[string]bool{}
-	for _, p := range permissions.All {
-		have[p.Code] = true
-	}
-	for i, w := range want {
-		if w != exact[i] {
-			t.Errorf("permission constant = %q, want %q", w, exact[i])
-		}
-		if !have[w] {
-			t.Errorf("permission %q not registered in All", w)
-		}
-		if !strings.HasPrefix(w, "assets:") {
-			t.Errorf("permission %q does not have assets: prefix", w)
-		}
-	}
-
-	// The viewer role should match the three read permissions, but not write/delete.
-	matchedByViewer := []string{}
-	for _, p := range want {
-		if strings.HasSuffix(p, ":read") {
-			matchedByViewer = append(matchedByViewer, p)
-		}
-	}
-	if len(matchedByViewer) != 3 {
-		t.Errorf("expected 3 read perms for viewer, got %d", len(matchedByViewer))
-	}
 }
