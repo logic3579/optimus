@@ -155,7 +155,7 @@ func TestService_Delete_NotFound(t *testing.T) {
 }
 
 func TestService_Delete_RefusesWhenCloudAccountReferencesKey(t *testing.T) {
-	svc, td := newSvc(t)
+	svc, gdb, td := newSvcWithDB(t)
 	defer td()
 	ctx := context.Background()
 	detail, err := svc.Create(ctx, 0, "", "", newReq())
@@ -172,6 +172,11 @@ func TestService_Delete_RefusesWhenCloudAccountReferencesKey(t *testing.T) {
 	require.Equal(t, 1, counter.calls)
 	_, err = svc.Get(ctx, detail.ID)
 	require.NoError(t, err)
+	var deleteAudits int64
+	require.NoError(t, gdb.Model(&models.AuditLog{}).
+		Where("action = ? AND target_type = ?", "credentials.delete", "credentials.cloud_key").
+		Count(&deleteAudits).Error)
+	require.Zero(t, deleteAudits)
 }
 
 func TestService_Delete_AllowsWhenCloudAccountCounterIsZero(t *testing.T) {

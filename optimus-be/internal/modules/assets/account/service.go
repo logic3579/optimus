@@ -10,6 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"optimus-be/internal/infra/advisorylock"
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/assets/errs"
@@ -54,14 +55,6 @@ func (s *Service) Create(ctx context.Context, actorID uint64, ip, userAgent stri
 	if !exists {
 		return nil, apperr.New(errs.CodeAssetsCloudKeyNotFound, errs.KeyCloudKeyNotFound, "cloud key not found")
 	}
-	conflict, err := s.repo.FindNameAlive(ctx, name, 0)
-	if err != nil {
-		return nil, err
-	}
-	if conflict {
-		return nil, apperr.New(errs.CodeAssetsCloudAccountNameConflict, errs.KeyCloudAccountNameConflict, "cloud account name already exists")
-	}
-
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
@@ -74,7 +67,26 @@ func (s *Service) Create(ctx context.Context, actorID uint64, ip, userAgent stri
 		Enabled:        enabled,
 		Description:    req.Description,
 	}
-	if err := s.repo.Create(ctx, row); err != nil {
+	if err := s.repo.Transaction(ctx, func(tx *gorm.DB) error {
+		if err := advisorylock.LockCloudKey(ctx, tx, req.CloudKeyID); err != nil {
+			return err
+		}
+		exists, err := s.repo.CloudKeyExistsTx(ctx, tx, req.CloudKeyID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return apperr.New(errs.CodeAssetsCloudKeyNotFound, errs.KeyCloudKeyNotFound, "cloud key not found")
+		}
+		conflict, err := s.repo.FindNameAliveTx(ctx, tx, name, 0)
+		if err != nil {
+			return err
+		}
+		if conflict {
+			return apperr.New(errs.CodeAssetsCloudAccountNameConflict, errs.KeyCloudAccountNameConflict, "cloud account name already exists")
+		}
+		return s.repo.CreateTx(ctx, tx, row)
+	}); err != nil {
 		return nil, err
 	}
 	s.writeAudit(ctx, actorIDOrNil(actorID), "assets.cloud_account.create", row.ID, ip, userAgent, map[string]any{

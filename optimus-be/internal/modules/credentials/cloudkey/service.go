@@ -9,6 +9,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"optimus-be/internal/infra/advisorylock"
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
@@ -25,6 +26,10 @@ type AccountsInUseCounter interface {
 	CountByCloudKeyID(ctx context.Context, id uint64) (int64, error)
 }
 
+type transactionalAccountsInUseCounter interface {
+	CountByCloudKeyIDTx(ctx context.Context, tx *gorm.DB, id uint64) (int64, error)
+}
+
 type Service struct {
 	repo                 *Repo
 	cipher               Cipher
@@ -36,6 +41,8 @@ func NewService(repo *Repo, cipher Cipher, rec *audit.Recorder) *Service {
 	return &Service{repo: repo, cipher: cipher, audit: rec}
 }
 
+// SetAccountsInUseCounter is a composition-time setter. Call it before route
+// serving begins; it is not intended to race with Delete requests.
 func (s *Service) SetAccountsInUseCounter(counter AccountsInUseCounter) {
 	s.accountsInUseCounter = counter
 }
@@ -199,27 +206,47 @@ func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id 
 }
 
 func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id uint64) error {
-	m, err := s.repo.Get(ctx, id)
+	var m *models.CredentialCloudKey
+	err := s.repo.Transaction(ctx, func(tx *gorm.DB) error {
+		if err := advisorylock.LockCloudKey(ctx, tx, id); err != nil {
+			return err
+		}
+		var err error
+		m, err = s.repo.GetTx(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if s.accountsInUseCounter != nil {
+			var n int64
+			if counter, ok := s.accountsInUseCounter.(transactionalAccountsInUseCounter); ok {
+				n, err = counter.CountByCloudKeyIDTx(ctx, tx, id)
+			} else {
+				n, err = s.accountsInUseCounter.CountByCloudKeyID(ctx, id)
+			}
+			if err != nil {
+				return err
+			}
+			if n > 0 {
+				return apperr.New(
+					apperr.CodeAssetsCloudAccountInUse,
+					"assets.cloud_account.in_use",
+					fmt.Sprintf("cloud key referenced by %d cloud account(s)", n),
+				)
+			}
+		}
+		rows, err := s.repo.DeleteTx(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return apperr.New(apperr.CodeNotFound, "credentials.not_found", "credential not found")
 		}
-		return err
-	}
-	if s.accountsInUseCounter != nil {
-		n, err := s.accountsInUseCounter.CountByCloudKeyID(ctx, id)
-		if err != nil {
-			return err
-		}
-		if n > 0 {
-			return apperr.New(
-				apperr.CodeAssetsCloudAccountInUse,
-				"assets.cloud_account.in_use",
-				fmt.Sprintf("cloud key referenced by %d cloud account(s)", n),
-			)
-		}
-	}
-	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.writeAudit(ctx, ptrIfNonZero(actorID), "credentials.delete", id, ip, ua, map[string]any{

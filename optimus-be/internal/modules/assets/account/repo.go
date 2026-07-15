@@ -28,6 +28,19 @@ func (r *Repo) Create(ctx context.Context, row *models.CloudAccount) error {
 	return mapWriteError(r.db.WithContext(ctx).Create(row).Error)
 }
 
+func (r *Repo) CreateTx(ctx context.Context, tx *gorm.DB, row *models.CloudAccount) error {
+	return mapWriteError(tx.WithContext(ctx).Create(row).Error)
+}
+
+func (r *Repo) CloudKeyExistsTx(ctx context.Context, tx *gorm.DB, id uint64) (bool, error) {
+	var count int64
+	err := tx.WithContext(ctx).
+		Model(&models.CredentialCloudKey{}).
+		Where("id = ?", id).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (r *Repo) FindByID(ctx context.Context, id uint64) (*models.CloudAccount, error) {
 	return findByID(ctx, r.db, id)
 }
@@ -162,8 +175,16 @@ func findNameAlive(ctx context.Context, db *gorm.DB, name string, excludeID uint
 }
 
 func (r *Repo) CountByCloudKeyID(ctx context.Context, cloudKeyID uint64) (int64, error) {
+	return countByCloudKeyID(ctx, r.db, cloudKeyID)
+}
+
+func (r *Repo) CountByCloudKeyIDTx(ctx context.Context, tx *gorm.DB, cloudKeyID uint64) (int64, error) {
+	return countByCloudKeyID(ctx, tx, cloudKeyID)
+}
+
+func countByCloudKeyID(ctx context.Context, db *gorm.DB, cloudKeyID uint64) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := db.WithContext(ctx).
 		Model(&models.CloudAccount{}).
 		Where("cloudkey_id = ?", cloudKeyID).
 		Count(&count).Error

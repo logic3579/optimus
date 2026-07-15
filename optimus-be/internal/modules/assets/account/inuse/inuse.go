@@ -21,8 +21,16 @@ type GORMCounter struct {
 func New(db *gorm.DB) *GORMCounter { return &GORMCounter{db: db} }
 
 func (c *GORMCounter) CountByCloudKeyID(ctx context.Context, cloudKeyID uint64) (int64, error) {
+	return countByCloudKeyID(ctx, c.db, cloudKeyID)
+}
+
+func (c *GORMCounter) CountByCloudKeyIDTx(ctx context.Context, tx *gorm.DB, cloudKeyID uint64) (int64, error) {
+	return countByCloudKeyID(ctx, tx, cloudKeyID)
+}
+
+func countByCloudKeyID(ctx context.Context, db *gorm.DB, cloudKeyID uint64) (int64, error) {
 	var count int64
-	err := c.db.WithContext(ctx).
+	err := db.WithContext(ctx).
 		Model(&models.CloudAccount{}).
 		Where("cloudkey_id = ?", cloudKeyID).
 		Count(&count).Error

@@ -8,13 +8,17 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
+	"optimus-be/internal/infra/advisorylock"
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/assets/errs"
 	"optimus-be/internal/modules/audit"
+	"optimus-be/internal/modules/credentials/cloudkey"
 	"optimus-be/tests/dbtest"
 )
 
@@ -41,6 +45,11 @@ type fakeCloudKeyExists struct {
 	exists bool
 	err    error
 }
+
+type unusedCipher struct{}
+
+func (unusedCipher) Seal([]byte) ([]byte, error) { return nil, errors.New("unused") }
+func (unusedCipher) Open([]byte) ([]byte, error) { return nil, errors.New("unused") }
 
 func (f fakeCloudKeyExists) Exists(context.Context, uint64) (bool, error) {
 	return f.exists, f.err
@@ -129,6 +138,88 @@ func TestService_Create_WritesAudit(t *testing.T) {
 	require.Equal(t, cloudKey.ID, payload["cloudkey_id"])
 	require.Equal(t, []string{"us-east-1"}, payload["regions"])
 	require.True(t, detail.Enabled)
+}
+
+func TestCloudKeyCreateAndDeleteSerializeWithoutDanglingReference(t *testing.T) {
+	repo, gdb := setupRepo(t)
+	key := dbtest.SeedCloudKey(t, gdb, "lifecycle-key")
+	cloudKeySvc := cloudkey.NewService(cloudkey.NewRepo(gdb), unusedCipher{}, audit.NewRecorder(gdb))
+	cloudKeySvc.SetAccountsInUseCounter(repo)
+	accountSvc := NewService(repo, &fakeAudit{}, cloudKeySvc)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	lockReady := make(chan struct{})
+	releaseLock := make(chan struct{})
+	lockDone := make(chan error, 1)
+	go func() {
+		lockDone <- gdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := advisorylock.LockCloudKey(ctx, tx, key.ID); err != nil {
+				return err
+			}
+			close(lockReady)
+			select {
+			case <-releaseLock:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+	}()
+	select {
+	case <-lockReady:
+	case <-ctx.Done():
+		t.Fatal("timed out acquiring lifecycle test lock")
+	}
+
+	createStarted := make(chan struct{})
+	createDone := make(chan error, 1)
+	go func() {
+		close(createStarted)
+		_, err := accountSvc.Create(ctx, 7, "", "", CreateRequest{
+			Name: "concurrent", Provider: "aws", CloudKeyID: key.ID, EnabledRegions: []string{"us-east-1"},
+		})
+		createDone <- err
+	}()
+	deleteStarted := make(chan struct{})
+	deleteDone := make(chan error, 1)
+	go func() {
+		close(deleteStarted)
+		deleteDone <- cloudKeySvc.Delete(ctx, 7, "", "", key.ID)
+	}()
+	<-createStarted
+	<-deleteStarted
+
+	select {
+	case err := <-createDone:
+		t.Fatalf("account create bypassed lifecycle lock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	select {
+	case err := <-deleteDone:
+		t.Fatalf("cloud key delete bypassed lifecycle lock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(releaseLock)
+	require.NoError(t, <-lockDone)
+	createErr := <-createDone
+	deleteErr := <-deleteDone
+
+	keyAlive, err := cloudKeySvc.Exists(ctx, key.ID)
+	require.NoError(t, err)
+	accountCount, err := repo.CountByCloudKeyID(ctx, key.ID)
+	require.NoError(t, err)
+	require.False(t, !keyAlive && accountCount > 0, "live account must never reference a deleted cloud key")
+	if createErr == nil {
+		requireBizCode(t, deleteErr, errs.CodeAssetsCloudAccountInUse)
+		require.True(t, keyAlive)
+		require.EqualValues(t, 1, accountCount)
+	} else {
+		requireBizCode(t, createErr, errs.CodeAssetsCloudKeyNotFound)
+		require.NoError(t, deleteErr)
+		require.False(t, keyAlive)
+		require.Zero(t, accountCount)
+	}
 }
 
 func TestService_Update_RegionShrinkageCascades(t *testing.T) {

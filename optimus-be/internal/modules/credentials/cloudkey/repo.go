@@ -22,8 +22,16 @@ func (r *Repo) Create(ctx context.Context, m *models.CredentialCloudKey) error {
 }
 
 func (r *Repo) Get(ctx context.Context, id uint64) (*models.CredentialCloudKey, error) {
+	return get(ctx, r.db, id)
+}
+
+func (r *Repo) GetTx(ctx context.Context, tx *gorm.DB, id uint64) (*models.CredentialCloudKey, error) {
+	return get(ctx, tx, id)
+}
+
+func get(ctx context.Context, db *gorm.DB, id uint64) (*models.CredentialCloudKey, error) {
 	var m models.CredentialCloudKey
-	if err := r.db.WithContext(ctx).First(&m, id).Error; err != nil {
+	if err := db.WithContext(ctx).First(&m, id).Error; err != nil {
 		return nil, err
 	}
 	return &m, nil
@@ -87,4 +95,13 @@ func (r *Repo) Update(ctx context.Context, id uint64, fields map[string]any) err
 
 func (r *Repo) Delete(ctx context.Context, id uint64) error {
 	return r.db.WithContext(ctx).Delete(&models.CredentialCloudKey{}, id).Error
+}
+
+func (r *Repo) DeleteTx(ctx context.Context, tx *gorm.DB, id uint64) (int64, error) {
+	result := tx.WithContext(ctx).Delete(&models.CredentialCloudKey{}, id)
+	return result.RowsAffected, result.Error
+}
+
+func (r *Repo) Transaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	return r.db.WithContext(ctx).Transaction(fn)
 }
