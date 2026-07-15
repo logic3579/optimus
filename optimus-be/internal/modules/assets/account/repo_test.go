@@ -13,7 +13,9 @@ import (
 	"gorm.io/gorm"
 
 	"optimus-be/internal/infra/db"
+	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
+	"optimus-be/internal/modules/assets/errs"
 	"optimus-be/tests/dbtest"
 )
 
@@ -62,6 +64,25 @@ func TestRepo_NameReusableAfterSoftDelete(t *testing.T) {
 	require.NoError(t, r.SoftDelete(ctx, a.ID))
 	b := &models.CloudAccount{Name: "x", Provider: "aws", CloudKeyID: ck.ID, EnabledRegions: models.StringArray{"us-east-1"}}
 	require.NoError(t, r.Create(ctx, b))
+}
+
+func TestRepo_NameUniqueViolationMappedOnCreateAndUpdate(t *testing.T) {
+	r, gdb := setupRepo(t)
+	ctx := context.Background()
+	key := dbtest.SeedCloudKey(t, gdb, "conflict-key")
+	first := &models.CloudAccount{Name: "first", Provider: "aws", CloudKeyID: key.ID, EnabledRegions: models.StringArray{"us-east-1"}}
+	second := &models.CloudAccount{Name: "second", Provider: "aws", CloudKeyID: key.ID, EnabledRegions: models.StringArray{"us-east-1"}}
+	require.NoError(t, r.Create(ctx, first))
+	require.NoError(t, r.Create(ctx, second))
+	assertNameConflict := func(err error) {
+		t.Helper()
+		bizErr, ok := apperr.AsBiz(err)
+		require.True(t, ok)
+		require.Equal(t, errs.CodeAssetsCloudAccountNameConflict, bizErr.Code)
+	}
+	duplicate := &models.CloudAccount{Name: "first", Provider: "aws", CloudKeyID: key.ID, EnabledRegions: models.StringArray{"us-east-1"}}
+	assertNameConflict(r.Create(ctx, duplicate))
+	assertNameConflict(r.Update(ctx, second.ID, map[string]any{"name": "first"}))
 }
 
 func TestRepo_CascadeSoftDelete_AllRegions(t *testing.T) {

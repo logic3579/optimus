@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	apperr "optimus-be/internal/infra/errors"
@@ -22,7 +23,7 @@ func NewRepo(db *gorm.DB) *Repo { return &Repo{db: db} }
 func (r *Repo) DB() *gorm.DB { return r.db }
 
 func (r *Repo) Create(ctx context.Context, row *models.CloudAccount) error {
-	return r.db.WithContext(ctx).Create(row).Error
+	return mapWriteError(r.db.WithContext(ctx).Create(row).Error)
 }
 
 func (r *Repo) FindByID(ctx context.Context, id uint64) (*models.CloudAccount, error) {
@@ -40,10 +41,10 @@ func (r *Repo) Update(ctx context.Context, id uint64, fields map[string]any) err
 	if len(fields) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).
+	return mapWriteError(r.db.WithContext(ctx).
 		Model(&models.CloudAccount{}).
 		Where("id = ?", id).
-		Updates(fields).Error
+		Updates(fields).Error)
 }
 
 func (r *Repo) SoftDelete(ctx context.Context, id uint64) error {
@@ -222,4 +223,15 @@ func toDetail(row models.CloudAccount, cloudKeyName string, lastSyncAt *time.Tim
 		EnabledRegions: append([]string(nil), row.EnabledRegions...),
 		Description:    row.Description,
 	}
+}
+
+func mapWriteError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uq_cloud_accounts_name_alive" {
+		return apperr.Wrap(err, errs.CodeAssetsCloudAccountNameConflict, errs.KeyCloudAccountNameConflict, "cloud account name already exists")
+	}
+	return err
 }
