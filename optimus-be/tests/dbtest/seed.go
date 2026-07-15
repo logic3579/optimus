@@ -24,6 +24,19 @@ func SeedCloudKey(t *testing.T, db *gorm.DB, name string) *models.CredentialClou
 	return row
 }
 
+func SeedCloudAccount(t *testing.T, db *gorm.DB, cloudKeyID uint64, name string, regions ...string) *models.CloudAccount {
+	t.Helper()
+	row := &models.CloudAccount{
+		Name:           name,
+		Provider:       "aws",
+		CloudKeyID:     cloudKeyID,
+		EnabledRegions: models.StringArray(regions),
+		Enabled:        true,
+	}
+	require.NoError(t, db.Create(row).Error)
+	return row
+}
+
 func SeedAWSInstance(t *testing.T, db *gorm.DB, accountID uint64, region, instanceID string) *models.AWSInstance {
 	t.Helper()
 	row := &models.AWSInstance{
