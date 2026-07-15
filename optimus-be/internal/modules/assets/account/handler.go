@@ -39,7 +39,7 @@ func (h *Handler) Mount(group *gin.RouterGroup, requirePermission func(code stri
 }
 
 func (h *Handler) parseID(c *gin.Context) (uint64, bool) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 63)
 	if err != nil || id == 0 {
 		response.Error(c, apperr.New(apperr.CodeBadRequest, "common.bad_request", "invalid id"))
 		return 0, false

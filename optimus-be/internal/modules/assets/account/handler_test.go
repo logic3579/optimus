@@ -117,6 +117,7 @@ func TestHandler_InvalidIDsReturnEnvelope(t *testing.T) {
 	router.POST("/accounts/:id/sync", handler.TriggerSync)
 	for _, request := range []struct{ method, path string }{
 		{http.MethodGet, "/accounts/not-a-number"},
+		{http.MethodGet, "/accounts/9223372036854775808"},
 		{http.MethodPut, "/accounts/0"},
 		{http.MethodDelete, "/accounts/-1"},
 		{http.MethodPost, "/accounts/nope/sync"},
