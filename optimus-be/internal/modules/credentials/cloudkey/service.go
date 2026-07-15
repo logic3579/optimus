@@ -63,6 +63,12 @@ func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 	return &d, nil
 }
 
+// Exists checks whether a cloud key can be referenced without decrypting it
+// or emitting a credential-consumption audit event.
+func (s *Service) Exists(ctx context.Context, id uint64) (bool, error) {
+	return s.repo.Exists(ctx, id)
+}
+
 // --- mutations -------------------------------------------------------------
 
 func (s *Service) Create(ctx context.Context, actorID uint64, ip, ua string, req CreateRequest) (*Detail, error) {

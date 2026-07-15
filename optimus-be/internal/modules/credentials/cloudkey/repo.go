@@ -29,6 +29,15 @@ func (r *Repo) Get(ctx context.Context, id uint64) (*models.CredentialCloudKey, 
 	return &m, nil
 }
 
+func (r *Repo) Exists(ctx context.Context, id uint64) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.CredentialCloudKey{}).
+		Where("id = ?", id).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (r *Repo) FindByName(ctx context.Context, name string) (*models.CredentialCloudKey, error) {
 	var m models.CredentialCloudKey
 	if err := r.db.WithContext(ctx).Where("name = ?", name).First(&m).Error; err != nil {

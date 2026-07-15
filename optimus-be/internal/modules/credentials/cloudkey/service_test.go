@@ -74,6 +74,19 @@ func TestService_Get_NotFound(t *testing.T) {
 	require.Equal(t, apperr.CodeNotFound, be.Code)
 }
 
+func TestService_Exists(t *testing.T) {
+	svc, td := newSvc(t)
+	defer td()
+	detail, err := svc.Create(context.Background(), 0, "", "", newReq())
+	require.NoError(t, err)
+	exists, err := svc.Exists(context.Background(), detail.ID)
+	require.NoError(t, err)
+	require.True(t, exists)
+	exists, err = svc.Exists(context.Background(), detail.ID+1)
+	require.NoError(t, err)
+	require.False(t, exists)
+}
+
 func TestService_Update_PartialAndRotate(t *testing.T) {
 	svc, td := newSvc(t)
 	defer td()
