@@ -83,6 +83,10 @@ func TestService_Create_ValidatesRegion(t *testing.T) {
 		Name: "prod", Provider: "aws", CloudKeyID: cloudKey.ID, EnabledRegions: []string{"US_EAST_1"},
 	})
 	requireBizCode(t, err, errs.CodeAssetsRegionInvalid)
+	_, err = svc.Create(context.Background(), 7, "", "", CreateRequest{
+		Name: "prod", Provider: "aws", CloudKeyID: cloudKey.ID, EnabledRegions: []string{},
+	})
+	requireBizCode(t, err, errs.CodeAssetsRegionInvalid)
 }
 
 func TestService_Create_ChecksCloudKeyExists(t *testing.T) {
@@ -117,6 +121,14 @@ func TestService_Create_WritesAudit(t *testing.T) {
 	require.Equal(t, "cloud_account", events[0].TargetType)
 	require.Equal(t, detail.ID, parseTargetID(t, events[0].TargetID))
 	require.Equal(t, uint64(7), *events[0].UserID)
+	require.Equal(t, "10.0.0.1", events[0].IP)
+	require.Equal(t, "test-agent", events[0].UserAgent)
+	payload := events[0].Payload.(map[string]any)
+	require.Equal(t, "prod", payload["name"])
+	require.Equal(t, "aws", payload["provider"])
+	require.Equal(t, cloudKey.ID, payload["cloudkey_id"])
+	require.Equal(t, []string{"us-east-1"}, payload["regions"])
+	require.True(t, detail.Enabled)
 }
 
 func TestService_Update_RegionShrinkageCascades(t *testing.T) {
@@ -126,8 +138,8 @@ func TestService_Update_RegionShrinkageCascades(t *testing.T) {
 		EnabledRegions: []string{"us-east-1", "us-west-2"},
 	})
 	require.NoError(t, err)
-	dbtest.SeedAWSInstance(t, repo.DB(), detail.ID, "us-east-1", "i-east")
-	dbtest.SeedAWSInstance(t, repo.DB(), detail.ID, "us-west-2", "i-west")
+	seedResourceSet(t, repo.DB(), detail.ID, "us-east-1", "service-east")
+	seedResourceSet(t, repo.DB(), detail.ID, "us-west-2", "service-west")
 
 	updated, err := svc.Update(context.Background(), 7, "", "", detail.ID, UpdateRequest{
 		EnabledRegions: []string{"us-east-1"},
@@ -138,6 +150,11 @@ func TestService_Update_RegionShrinkageCascades(t *testing.T) {
 	require.NoError(t, repo.DB().Where("cloud_account_id = ?", detail.ID).Find(&alive).Error)
 	require.Len(t, alive, 1)
 	require.Equal(t, "us-east-1", alive[0].Region)
+	for _, model := range []any{&models.AWSVPC{}, &models.AWSSubnet{}, &models.AWSDatabase{}} {
+		var count int64
+		require.NoError(t, repo.DB().Model(model).Where("cloud_account_id = ?", detail.ID).Count(&count).Error)
+		require.EqualValues(t, 1, count)
+	}
 }
 
 func TestService_Delete_CascadesAllRegions(t *testing.T) {
@@ -147,14 +164,91 @@ func TestService_Delete_CascadesAllRegions(t *testing.T) {
 		EnabledRegions: []string{"us-east-1", "us-west-2"},
 	})
 	require.NoError(t, err)
-	dbtest.SeedAWSInstance(t, repo.DB(), detail.ID, "us-east-1", "i-east")
-	dbtest.SeedAWSInstance(t, repo.DB(), detail.ID, "us-west-2", "i-west")
+	seedResourceSet(t, repo.DB(), detail.ID, "us-east-1", "delete-east")
+	seedResourceSet(t, repo.DB(), detail.ID, "us-west-2", "delete-west")
 
 	cascaded, err := svc.Delete(context.Background(), 7, "", "", detail.ID)
 	require.NoError(t, err)
-	require.EqualValues(t, 2, cascaded)
+	require.EqualValues(t, 8, cascaded)
 	_, err = repo.FindByID(context.Background(), detail.ID)
 	requireBizCode(t, err, errs.CodeAssetsCloudAccountNotFound)
 	events := recorder.snapshot()
 	require.Equal(t, "assets.cloud_account.delete", events[len(events)-1].Action)
+}
+
+func TestService_GetListUpdateAndNoop(t *testing.T) {
+	svc, _, recorder, cloudKey := setupSvc(t)
+	detail, err := svc.Create(context.Background(), 9, "ip", "ua", CreateRequest{
+		Name: "before", Provider: "aws", CloudKeyID: cloudKey.ID, EnabledRegions: []string{"us-east-1"},
+	})
+	require.NoError(t, err)
+	got, err := svc.Get(context.Background(), detail.ID)
+	require.NoError(t, err)
+	require.Equal(t, "before", got.Name)
+	listed, err := svc.List(context.Background(), ListQuery{})
+	require.NoError(t, err)
+	require.Len(t, listed.Items, 1)
+	require.Equal(t, cloudKey.Name, listed.Items[0].CloudKeyName)
+
+	name, description, enabled := "after", "desc", false
+	updated, err := svc.Update(context.Background(), 9, "ip", "ua", detail.ID, UpdateRequest{
+		Name: &name, Description: &description, Enabled: &enabled, EnabledRegions: []string{"us-east-1"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "after", updated.Name)
+	require.False(t, updated.Enabled)
+	events := recorder.snapshot()
+	updateEvent := events[len(events)-1]
+	require.Equal(t, "assets.cloud_account.update", updateEvent.Action)
+	require.Equal(t, []string{"description", "enabled", "name"}, updateEvent.Payload.(map[string]any)["changed_fields"])
+
+	before := len(events)
+	_, err = svc.Update(context.Background(), 9, "ip", "ua", detail.ID, UpdateRequest{EnabledRegions: []string{"us-east-1"}})
+	require.NoError(t, err)
+	require.Len(t, recorder.snapshot(), before, "equal regions must be a no-op")
+}
+
+func TestService_Create_PropagatesCloudKeyCheckerError(t *testing.T) {
+	repo, _ := setupRepo(t)
+	wantErr := errors.New("checker failed")
+	svc := NewService(repo, &fakeAudit{}, fakeCloudKeyExists{err: wantErr})
+	_, err := svc.Create(context.Background(), 1, "", "", CreateRequest{
+		Name: "prod", Provider: "aws", CloudKeyID: 42, EnabledRegions: []string{"us-east-1"},
+	})
+	require.ErrorIs(t, err, wantErr)
+}
+
+func TestService_RecordSyncTriggerAudit(t *testing.T) {
+	svc, _, recorder, cloudKey := setupSvc(t)
+	detail, err := svc.Create(context.Background(), 7, "", "", CreateRequest{
+		Name: "prod", Provider: "aws", CloudKeyID: cloudKey.ID, EnabledRegions: []string{"us-east-1"},
+	})
+	require.NoError(t, err)
+	actor := uint64(11)
+	svc.RecordSyncTrigger(context.Background(), &actor, "sync-ip", "sync-ua", detail.ID)
+	event := recorder.snapshot()[1]
+	require.Equal(t, "assets.cloud_account.sync_trigger", event.Action)
+	require.Equal(t, "cloud_account", event.TargetType)
+	require.Equal(t, detail.ID, parseTargetID(t, event.TargetID))
+	require.Equal(t, actor, *event.UserID)
+	require.Equal(t, "sync-ip", event.IP)
+	require.Equal(t, "sync-ua", event.UserAgent)
+	require.Equal(t, "manual", event.Payload.(map[string]any)["trigger"])
+}
+
+func TestService_Delete_RollsBackWhenCascadeFails(t *testing.T) {
+	svc, repo, _, cloudKey := setupSvc(t)
+	detail, err := svc.Create(context.Background(), 7, "", "", CreateRequest{
+		Name: "rollback", Provider: "aws", CloudKeyID: cloudKey.ID, EnabledRegions: []string{"us-east-1"},
+	})
+	require.NoError(t, err)
+	dbtest.SeedAWSInstance(t, repo.DB(), detail.ID, "us-east-1", "i-rollback")
+	require.NoError(t, repo.DB().Migrator().DropTable(&models.AWSVPC{}))
+	_, err = svc.Delete(context.Background(), 7, "", "", detail.ID)
+	require.Error(t, err)
+	_, err = repo.FindByID(context.Background(), detail.ID)
+	require.NoError(t, err)
+	var alive int64
+	require.NoError(t, repo.DB().Model(&models.AWSInstance{}).Where("cloud_account_id = ?", detail.ID).Count(&alive).Error)
+	require.EqualValues(t, 1, alive)
 }

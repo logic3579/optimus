@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -104,7 +105,8 @@ func (s *Service) Update(ctx context.Context, actorID uint64, ip, userAgent stri
 		fields["name"] = *req.Name
 		changed = append(changed, "name")
 	}
-	if req.EnabledRegions != nil {
+	regionsChanged := req.EnabledRegions != nil && !slices.Equal(req.EnabledRegions, []string(row.EnabledRegions))
+	if regionsChanged {
 		if err := validateRegions(req.EnabledRegions); err != nil {
 			return nil, err
 		}
@@ -148,7 +150,7 @@ func (s *Service) Update(ctx context.Context, actorID uint64, ip, userAgent stri
 	sort.Strings(changed)
 	sort.Strings(removedRegions)
 	payload := map[string]any{"changed_fields": changed}
-	if req.EnabledRegions != nil {
+	if regionsChanged {
 		payload["regions"] = append([]string(nil), req.EnabledRegions...)
 		payload["regions_removed"] = removedRegions
 	}
