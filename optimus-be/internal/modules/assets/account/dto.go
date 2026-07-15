@@ -24,7 +24,7 @@ type Detail struct {
 
 type CreateRequest struct {
 	Name           string   `json:"name"            binding:"required,min=1,max=128"`
-	Provider       string   `json:"provider"        binding:"required,oneof=aws"`
+	Provider       string   `json:"provider"        binding:"required"`
 	CloudKeyID     uint64   `json:"cloudkey_id"     binding:"required"`
 	EnabledRegions []string `json:"enabled_regions" binding:"required,min=1,dive,min=1"`
 	Enabled        *bool    `json:"enabled"`
