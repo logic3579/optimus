@@ -4,7 +4,7 @@ CREATE TABLE cloud_accounts (
   id              BIGSERIAL PRIMARY KEY,
   name            VARCHAR(128) NOT NULL,
   provider        VARCHAR(16)  NOT NULL,
-  cloudkey_id     BIGINT       NOT NULL REFERENCES credential_cloud_keys(id),
+  cloudkey_id     BIGINT       NOT NULL REFERENCES credentials_cloud_keys(id),
   enabled_regions TEXT[]       NOT NULL,
   enabled         BOOLEAN      NOT NULL DEFAULT true,
   description     TEXT         NOT NULL DEFAULT '',

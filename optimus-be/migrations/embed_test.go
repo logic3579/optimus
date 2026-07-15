@@ -36,3 +36,12 @@ func TestEmbeddedMigrationsHaveUniqueVersions(t *testing.T) {
 	}
 	require.Equal(t, 1, version21Count, "migration version 21 must be discoverable exactly once")
 }
+
+func TestP4AssetsReferencesCredentialsCloudKeys(t *testing.T) {
+	sql, err := FS.ReadFile("00021_p4_assets.sql")
+	require.NoError(t, err)
+
+	contents := string(sql)
+	require.Contains(t, contents, "REFERENCES credentials_cloud_keys(id)")
+	require.NotContains(t, contents, "REFERENCES credential_cloud_keys")
+}
