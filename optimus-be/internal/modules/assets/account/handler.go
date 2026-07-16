@@ -59,6 +59,10 @@ func (h *Handler) parseID(c *gin.Context) (uint64, bool) {
 // @Param    page            query int    false "page" default(1)
 // @Param    size            query int    false "page size" default(20)
 // @Success  200 {object} response.Envelope{data=ListResponse}
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Failure  500 {object} response.Envelope
 // @Router   /assets/cloud-accounts [get]
 func (h *Handler) List(c *gin.Context) {
 	var query ListQuery
@@ -81,6 +85,11 @@ func (h *Handler) List(c *gin.Context) {
 // @Produce  json
 // @Param    id path int true "cloud account ID"
 // @Success  200 {object} response.Envelope{data=Detail}
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Failure  404 {object} response.Envelope
+// @Failure  500 {object} response.Envelope
 // @Router   /assets/cloud-accounts/{id} [get]
 func (h *Handler) Get(c *gin.Context) {
 	id, ok := h.parseID(c)
@@ -103,7 +112,11 @@ func (h *Handler) Get(c *gin.Context) {
 // @Produce  json
 // @Param    body body CreateRequest true "cloud account payload"
 // @Success  200 {object} response.Envelope{data=Detail}
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
 // @Failure  422 {object} response.Envelope
+// @Failure  500 {object} response.Envelope
 // @Router   /assets/cloud-accounts [post]
 func (h *Handler) Create(c *gin.Context) {
 	var request CreateRequest
@@ -134,7 +147,12 @@ func (h *Handler) Create(c *gin.Context) {
 // @Param    id   path int true "cloud account ID"
 // @Param    body body UpdateRequest true "cloud account payload"
 // @Success  200 {object} response.Envelope{data=Detail}
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Failure  404 {object} response.Envelope
 // @Failure  422 {object} response.Envelope
+// @Failure  500 {object} response.Envelope
 // @Router   /assets/cloud-accounts/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	id, ok := h.parseID(c)
@@ -168,6 +186,11 @@ func (h *Handler) Update(c *gin.Context) {
 // @Produce  json
 // @Param    id path int true "cloud account ID"
 // @Success  200 {object} response.Envelope
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Failure  404 {object} response.Envelope
+// @Failure  500 {object} response.Envelope
 // @Router   /assets/cloud-accounts/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	id, ok := h.parseID(c)
@@ -195,6 +218,13 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Produce  json
 // @Param    id path int true "cloud account ID"
 // @Success  200 {object} response.Envelope
+// @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
+// @Failure  404 {object} response.Envelope
+// @Failure  409 {object} response.Envelope
+// @Failure  422 {object} response.Envelope
+// @Failure  500 {object} response.Envelope
 // @Failure  501 {object} response.Envelope
 // @Router   /assets/cloud-accounts/{id}/sync [post]
 func (h *Handler) TriggerSync(c *gin.Context) {

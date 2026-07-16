@@ -32,6 +32,8 @@ func (h *Handler) Mount(group *gin.RouterGroup, requirePermission func(code stri
 // @Param    size            query int    false "page size" default(20) maximum(200)
 // @Success  200 {object} response.Envelope{data=ListResponse}
 // @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
 // @Failure  500 {object} response.Envelope
 // @Router   /assets/vpcs [get]
 func (h *Handler) List(c *gin.Context) {
@@ -60,6 +62,8 @@ func (h *Handler) List(c *gin.Context) {
 // @Param    size            query int    false "page size" default(20) maximum(200)
 // @Success  200 {object} response.Envelope{data=SubnetListResponse}
 // @Failure  400 {object} response.Envelope
+// @Failure  401 {object} response.Envelope
+// @Failure  403 {object} response.Envelope
 // @Failure  404 {object} response.Envelope
 // @Failure  500 {object} response.Envelope
 // @Router   /assets/vpcs/{id}/subnets [get]
