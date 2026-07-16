@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/registry"
 	helmrepo "helm.sh/helm/v3/pkg/repo"
@@ -280,7 +281,7 @@ func fetchHTTPIndex(m *models.AppsChartRepo, pwd string) (*helmrepo.IndexFile, e
 		URL:      m.URL,
 		Username: m.Username,
 		Password: pwd,
-	}, getter.All(nil))
+	}, getter.All(cli.New()))
 	if err != nil {
 		return nil, apps.MapError(err)
 	}

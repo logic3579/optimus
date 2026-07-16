@@ -142,6 +142,9 @@ func TestService_Create_WritesAudit(t *testing.T) {
 
 func TestCloudKeyCreateAndDeleteSerializeWithoutDanglingReference(t *testing.T) {
 	repo, gdb := setupRepo(t)
+	require.NoError(t, gdb.Create(&models.User{
+		ID: 7, Username: "lifecycle-actor", Email: "lifecycle@example.com", PasswordHash: "unused",
+	}).Error)
 	key := dbtest.SeedCloudKey(t, gdb, "lifecycle-key")
 	cloudKeySvc := cloudkey.NewService(cloudkey.NewRepo(gdb), unusedCipher{}, audit.NewRecorder(gdb))
 	cloudKeySvc.SetAccountsInUseCounter(repo)
