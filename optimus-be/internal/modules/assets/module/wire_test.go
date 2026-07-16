@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/require"
 
 	apperr "optimus-be/internal/infra/errors"
@@ -39,6 +40,7 @@ type fakeSyncEngine struct {
 	locked      bool
 	runStarted  chan context.Context
 	runReleased chan struct{}
+	waitCancel  bool
 	unlockCalls atomic.Int32
 }
 
@@ -46,10 +48,45 @@ func (f *fakeSyncEngine) TryLock(uint64) bool { return f.locked }
 func (f *fakeSyncEngine) Unlock(uint64)       { f.unlockCalls.Add(1) }
 func (f *fakeSyncEngine) RunAccountLocked(ctx context.Context, _ uint64, _ string, _ *uint64) error {
 	f.runStarted <- ctx
+	if f.waitCancel {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	if f.runReleased != nil {
 		<-f.runReleased
 	}
 	return nil
+}
+
+func TestModuleShutdown_CancelsAndWaitsForManualWorker(t *testing.T) {
+	rootCtx, cancel := context.WithCancel(context.Background())
+	m := &Module{cancel: cancel, CronScheduler: cron.New()}
+	svc := &fakeAccountSyncService{detail: enabledAccount("us-east-1")}
+	engine := &fakeSyncEngine{locked: true, runStarted: make(chan context.Context, 1), waitCancel: true}
+	c, rec, _ := testContext(t)
+
+	newManualSyncTrigger(svc, engine, time.Hour, nil, rootCtx, &m.workers)(c, 42)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var workerCtx context.Context
+	select {
+	case workerCtx = <-engine.runStarted:
+	case <-time.After(time.Second):
+		t.Fatal("manual sync worker did not start")
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), time.Second)
+	defer shutdownCancel()
+	require.NoError(t, m.Shutdown(shutdownCtx))
+	require.ErrorIs(t, workerCtx.Err(), context.Canceled)
+	require.EqualValues(t, 1, engine.unlockCalls.Load())
+
+	// Once shutdown begins, no later trigger can add work or retain the lock.
+	lateEngine := &fakeSyncEngine{locked: true, runStarted: make(chan context.Context, 1)}
+	lateCtx, lateRec, _ := testContext(t)
+	newManualSyncTrigger(svc, lateEngine, time.Hour, nil, rootCtx, &m.workers)(lateCtx, 42)
+	require.Equal(t, http.StatusInternalServerError, lateRec.Code)
+	require.EqualValues(t, 1, lateEngine.unlockCalls.Load())
+	require.Empty(t, lateEngine.runStarted)
 }
 
 func TestManualSyncTrigger_RejectsDisabledAccountBeforeLockAndAudit(t *testing.T) {
@@ -57,7 +94,7 @@ func TestManualSyncTrigger_RejectsDisabledAccountBeforeLockAndAudit(t *testing.T
 	engine := &fakeSyncEngine{locked: true, runStarted: make(chan context.Context, 1)}
 	c, rec, _ := testContext(t)
 
-	newManualSyncTrigger(svc, engine, time.Second, nil)(c, 42)
+	newManualSyncTrigger(svc, engine, time.Second, nil, context.Background(), &workerGroup{})(c, 42)
 
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 	require.Equal(t, int(asseterrs.CodeAssetsCloudAccountDisabled), envelopeCode(t, rec))
@@ -70,7 +107,7 @@ func TestManualSyncTrigger_RejectsBusyAccountWithoutAudit(t *testing.T) {
 	engine := &fakeSyncEngine{locked: false, runStarted: make(chan context.Context, 1)}
 	c, rec, _ := testContext(t)
 
-	newManualSyncTrigger(svc, engine, time.Second, nil)(c, 42)
+	newManualSyncTrigger(svc, engine, time.Second, nil, context.Background(), &workerGroup{})(c, 42)
 
 	require.Equal(t, http.StatusConflict, rec.Code)
 	require.Equal(t, int(asseterrs.CodeAssetsSyncBusy), envelopeCode(t, rec))
@@ -84,7 +121,7 @@ func TestManualSyncTrigger_AuditsInlineAndRunsWithDetachedBoundedContext(t *test
 	c, rec, cancelRequest := testContext(t)
 	c.Set(middleware.CtxKeyUserID, uint64(7))
 
-	newManualSyncTrigger(svc, engine, 50*time.Millisecond, nil)(c, 42)
+	newManualSyncTrigger(svc, engine, 50*time.Millisecond, nil, context.Background(), &workerGroup{})(c, 42)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, int(apperr.CodeOK), envelopeCode(t, rec))
 	require.Equal(t, 1, svc.auditCalls)
@@ -113,7 +150,7 @@ func TestManualSyncTrigger_PropagatesLookupError(t *testing.T) {
 	engine := &fakeSyncEngine{locked: true, runStarted: make(chan context.Context, 1)}
 	c, rec, _ := testContext(t)
 
-	newManualSyncTrigger(svc, engine, time.Second, nil)(c, 42)
+	newManualSyncTrigger(svc, engine, time.Second, nil, context.Background(), &workerGroup{})(c, 42)
 
 	require.Equal(t, apperr.HTTPStatus(apperr.CodeNotFound), rec.Code)
 	require.Equal(t, int(apperr.CodeNotFound), envelopeCode(t, rec))

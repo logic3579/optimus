@@ -259,17 +259,14 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	logger.Info("shutting down")
-	cancelAssets()
-	schedulerStopped := assetsModule.CronScheduler.Stop()
-	select {
-	case <-schedulerStopped.Done():
-	case <-time.After(30 * time.Second):
-		logger.Warn("assets scheduler shutdown timed out")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("shutdown", "err", err)
+	}
+	cancelAssets()
+	if err := assetsModule.Shutdown(ctx); err != nil {
+		logger.Error("assets shutdown", "err", err)
 	}
 	if sqlDB, _ := gdb.DB(); sqlDB != nil {
 		_ = sqlDB.Close()

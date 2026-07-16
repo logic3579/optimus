@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -52,9 +53,12 @@ type Module struct {
 	vpcHandler      *vpc.Handler
 	databaseHandler *assetdatabase.Handler
 	runsHandler     *runs.Handler
+	cancel          context.CancelFunc
+	workers         workerGroup
 }
 
 func Wire(rootCtx context.Context, in Input) *Module {
+	moduleCtx, cancel := context.WithCancel(rootCtx)
 	accountService := account.NewService(account.NewRepo(in.DB), in.Audit, in.CloudKeyService)
 	runsRepo := runs.NewRepo(in.DB)
 	engine := assetsync.NewEngine(
@@ -70,26 +74,49 @@ func Wire(rootCtx context.Context, in Input) *Module {
 		normalizeRequestTimeout(in.Config.AWSRequestTimeout),
 	)
 
-	accountHandler := account.NewHandler(accountService)
-	accountHandler.SetTriggerSync(newManualSyncTrigger(accountService, engine, in.Config.AWSRequestTimeout, in.Logger))
-
 	module := &Module{
 		Consumer:        assets.NewConsumer(in.DB),
 		InUseCounter:    inuse.New(in.DB),
 		Engine:          engine,
-		accountHandler:  accountHandler,
 		instanceHandler: instance.NewHandler(instance.NewService(instance.NewRepo(in.DB))),
 		vpcHandler:      vpc.NewHandler(vpc.NewService(vpc.NewRepo(in.DB))),
 		databaseHandler: assetdatabase.NewHandler(assetdatabase.NewService(assetdatabase.NewRepo(in.DB))),
 		runsHandler:     runs.NewHandler(runs.NewService(runsRepo)),
+		cancel:          cancel,
 	}
-	module.CronScheduler = assetsync.StartScheduler(rootCtx, assetsync.Config{
+	module.accountHandler = account.NewHandler(accountService)
+	module.accountHandler.SetTriggerSync(newManualSyncTrigger(accountService, engine, in.Config.AWSRequestTimeout, in.Logger, moduleCtx, &module.workers))
+	module.CronScheduler = assetsync.StartScheduler(moduleCtx, assetsync.Config{
 		SyncCron:          in.Config.SyncCron,
 		StartupDelay:      in.Config.SyncStartupDelay,
 		RetentionDays:     in.Config.SyncRunRetentionDays,
 		AWSRequestTimeout: normalizeRequestTimeout(in.Config.AWSRequestTimeout),
 	}, engine, in.Logger)
 	return module
+}
+
+// Shutdown cancels scheduled and manual sync work, then waits for both to
+// release their locks before the composition root closes the database.
+func (m *Module) Shutdown(ctx context.Context) error {
+	m.workers.close()
+	m.cancel()
+	cronDone := m.CronScheduler.Stop().Done()
+	workersDone := make(chan struct{})
+	go func() {
+		m.workers.wait()
+		close(workersDone)
+	}()
+	for cronDone != nil || workersDone != nil {
+		select {
+		case <-cronDone:
+			cronDone = nil
+		case <-workersDone:
+			workersDone = nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
 
 func (m *Module) MountRoutes(protected *gin.RouterGroup, cache *rbac.PermissionCache) {
@@ -115,7 +142,7 @@ type syncEngine interface {
 	RunAccountLocked(context.Context, uint64, string, *uint64) error
 }
 
-func newManualSyncTrigger(service accountSyncService, engine syncEngine, requestTimeout time.Duration, logger *slog.Logger) func(*gin.Context, uint64) {
+func newManualSyncTrigger(service accountSyncService, engine syncEngine, requestTimeout time.Duration, logger *slog.Logger, rootCtx context.Context, workers *workerGroup) func(*gin.Context, uint64) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -133,6 +160,11 @@ func newManualSyncTrigger(service accountSyncService, engine syncEngine, request
 			response.Error(c, apperr.New(asseterrs.CodeAssetsSyncBusy, asseterrs.KeySyncBusy, "asset sync already running"))
 			return
 		}
+		if !workers.add() {
+			engine.Unlock(accountID)
+			response.Error(c, apperr.New(apperr.CodeInternal, "common.internal_error", "asset sync is shutting down"))
+			return
+		}
 
 		requestCtx := c.Request.Context()
 		clientIP := c.ClientIP()
@@ -146,8 +178,11 @@ func newManualSyncTrigger(service accountSyncService, engine syncEngine, request
 		deadline := manualSyncTimeout(requestTimeout, len(detail.EnabledRegions))
 
 		go func() {
+			defer workers.done()
 			defer engine.Unlock(accountID)
 			workerCtx, cancel := context.WithTimeout(context.WithoutCancel(requestCtx), deadline)
+			stopOnShutdown := context.AfterFunc(rootCtx, cancel)
+			defer stopOnShutdown()
 			defer cancel()
 			if err := engine.RunAccountLocked(workerCtx, accountID, "manual", actor); err != nil {
 				logger.Error("assets.sync.manual.failed", "account_id", accountID)
@@ -157,6 +192,32 @@ func newManualSyncTrigger(service accountSyncService, engine syncEngine, request
 		response.Success(c, gin.H{"queued": true, "started_at": time.Now().UTC()})
 	}
 }
+
+type workerGroup struct {
+	mu      sync.Mutex
+	closing bool
+	wg      sync.WaitGroup
+}
+
+func (g *workerGroup) add() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.closing {
+		return false
+	}
+	g.wg.Add(1)
+	return true
+}
+
+func (g *workerGroup) done() { g.wg.Done() }
+
+func (g *workerGroup) close() {
+	g.mu.Lock()
+	g.closing = true
+	g.mu.Unlock()
+}
+
+func (g *workerGroup) wait() { g.wg.Wait() }
 
 func normalizeRequestTimeout(timeout time.Duration) time.Duration {
 	if timeout <= 0 {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/robfig/cron/v3"
 	"github.com/spf13/viper"
 )
 
@@ -124,6 +125,21 @@ func (c *Config) ValidateStrict() error {
 	}
 	if c.Database.DSN == "" {
 		return errors.New("database.dsn is required")
+	}
+	if strings.TrimSpace(c.Assets.SyncCron) == "" {
+		return errors.New("assets.sync_cron is required")
+	}
+	if _, err := cron.ParseStandard(c.Assets.SyncCron); err != nil {
+		return fmt.Errorf("assets.sync_cron is invalid: %w", err)
+	}
+	if c.Assets.SyncStartupDelay < 0 {
+		return errors.New("assets.sync_startup_delay must be >= 0")
+	}
+	if c.Assets.SyncRunRetentionDays <= 0 {
+		return errors.New("assets.sync_run_retention_days must be > 0")
+	}
+	if c.Assets.AWSRequestTimeout <= 0 {
+		return errors.New("assets.aws_request_timeout must be > 0")
 	}
 	return nil
 }
