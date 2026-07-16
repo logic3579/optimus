@@ -154,6 +154,41 @@ func TestEC2Fetcher_SecondPageErrorDiscardsPartialItems(t *testing.T) {
 	}
 }
 
+func TestEC2Fetcher_RepeatedPaginationTokenDiscardsPartialItems(t *testing.T) {
+	responses := []string{
+		describeInstancesPage("token-a", "i-first"),
+		describeInstancesPage("token-b", "i-second"),
+		describeInstancesPage("token-a", "i-third"),
+	}
+	var requests atomic.Int32
+	client := newEC2Client(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		call := int(requests.Add(1))
+		if call > len(responses) {
+			t.Errorf("request %d proves the repeated token loop was not stopped", call)
+			http.Error(writer, "unexpected request", http.StatusInternalServerError)
+			return
+		}
+		writer.Header().Set("Content-Type", "text/xml")
+		_, _ = writer.Write([]byte(responses[call-1]))
+	}))
+
+	items, err := (EC2Fetcher{}).FetchInstances(context.Background(), &Clients{EC2: client})
+	if items != nil || !errors.Is(err, ErrEC2PaginationTokenRepeated) {
+		t.Fatalf("items=%#v err=%v", items, err)
+	}
+	if got := requests.Load(); got != 3 {
+		t.Fatalf("requests = %d, want 3", got)
+	}
+}
+
+func describeInstancesPage(nextToken, instanceID string) string {
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<DescribeInstancesResponse xmlns="http://ec2.amazonaws.com/doc/2016-11-15/">
+  <nextToken>` + nextToken + `</nextToken>
+  <reservationSet><item><instancesSet><item><instanceId>` + instanceID + `</instanceId></item></instancesSet></item></reservationSet>
+</DescribeInstancesResponse>`
+}
+
 func TestEC2Fetcher_ContextCancellationDiscardsItems(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})

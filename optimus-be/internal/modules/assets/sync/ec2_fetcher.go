@@ -15,6 +15,10 @@ import (
 
 var errEC2ClientRequired = errors.New("assets sync: EC2 client is required")
 
+// ErrEC2PaginationTokenRepeated indicates a non-authoritative response cycle.
+// The caller must discard all items fetched before this error.
+var ErrEC2PaginationTokenRepeated = errors.New("assets sync: EC2 pagination token repeated")
+
 type EC2Fetcher struct{}
 
 // FetchInstances returns an authoritative region snapshot only after every
@@ -25,6 +29,7 @@ func (EC2Fetcher) FetchInstances(ctx context.Context, clients *Clients) ([]model
 	}
 
 	var out []models.AWSInstance
+	seenTokens := make(map[string]struct{})
 	paginator := ec2.NewDescribeInstancesPaginator(clients.EC2, &ec2.DescribeInstancesInput{
 		MaxResults: aws.Int32(100),
 	})
@@ -32,6 +37,12 @@ func (EC2Fetcher) FetchInstances(ctx context.Context, clients *Clients) ([]model
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return nil, err
+		}
+		if token := aws.ToString(page.NextToken); token != "" {
+			if _, seen := seenTokens[token]; seen {
+				return nil, ErrEC2PaginationTokenRepeated
+			}
+			seenTokens[token] = struct{}{}
 		}
 		for _, reservation := range page.Reservations {
 			for _, instance := range reservation.Instances {

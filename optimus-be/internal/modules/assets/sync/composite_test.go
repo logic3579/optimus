@@ -63,18 +63,35 @@ func TestCompositeFetcher_RoutesComponents(t *testing.T) {
 	}
 }
 
-func TestCompositeFetcher_NilComponentsAreNoOps(t *testing.T) {
-	var fetcher *CompositeFetcher
-	instances, err := fetcher.FetchInstances(context.Background(), nil)
-	if instances != nil || err != nil {
-		t.Fatalf("nil FetchInstances() = %#v, %v", instances, err)
+func TestCompositeFetcher_MissingComponentsReturnConfigurationError(t *testing.T) {
+	tests := []struct {
+		name    string
+		fetcher *CompositeFetcher
+	}{
+		{name: "nil receiver"},
+		{name: "nil components", fetcher: &CompositeFetcher{}},
+		{name: "typed nil components", fetcher: &CompositeFetcher{
+			Instance: instanceFetcherFunc(nil),
+			Network:  networkFetcherFunc(nil),
+			Database: databaseFetcherFunc(nil),
+		}},
 	}
-	vpcs, subnets, err := fetcher.FetchVPCsAndSubnets(context.Background(), nil)
-	if vpcs != nil || subnets != nil || err != nil {
-		t.Fatalf("nil FetchVPCsAndSubnets() = %#v, %#v, %v", vpcs, subnets, err)
-	}
-	databases, err := fetcher.FetchDatabases(context.Background(), nil)
-	if databases != nil || err != nil {
-		t.Fatalf("nil FetchDatabases() = %#v, %v", databases, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			instances, err := test.fetcher.FetchInstances(context.Background(), nil)
+			if instances != nil || !errors.Is(err, ErrFetcherNotConfigured) {
+				t.Errorf("FetchInstances() = %#v, %v", instances, err)
+			}
+
+			vpcs, subnets, err := test.fetcher.FetchVPCsAndSubnets(context.Background(), nil)
+			if vpcs != nil || subnets != nil || !errors.Is(err, ErrFetcherNotConfigured) {
+				t.Errorf("FetchVPCsAndSubnets() = %#v, %#v, %v", vpcs, subnets, err)
+			}
+
+			databases, err := test.fetcher.FetchDatabases(context.Background(), nil)
+			if databases != nil || !errors.Is(err, ErrFetcherNotConfigured) {
+				t.Errorf("FetchDatabases() = %#v, %v", databases, err)
+			}
+		})
 	}
 }
