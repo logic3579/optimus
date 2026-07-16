@@ -202,3 +202,105 @@ func TestRun_ViewerRoleIncludesAppsReadPermissions(t *testing.T) {
 		require.Equal(t, int64(1), n, "viewer role missing %q", code)
 	}
 }
+
+func TestRun_SeedsAssetsMenuTree(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	_, err = seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.NoError(t, err)
+
+	resourceRead := "assets:resource:read"
+	accountRead := "assets:account:read"
+	syncRead := "assets:sync:read"
+	want := []struct {
+		code, name, path, component string
+		permission                  *string
+		sortOrder                   int
+	}{
+		{"assets", "menu.assets", "/assets", "", &resourceRead, 5},
+		{"assets.cloud_accounts", "menu.assets.cloud_accounts", "/assets/cloud-accounts", "assets/cloud-accounts/List", &accountRead, 1},
+		{"assets.instances", "menu.assets.instances", "/assets/instances", "assets/instances/List", &resourceRead, 2},
+		{"assets.vpcs", "menu.assets.vpcs", "/assets/vpcs", "assets/vpcs/List", &resourceRead, 3},
+		{"assets.databases", "menu.assets.databases", "/assets/databases", "assets/databases/List", &resourceRead, 4},
+		{"assets.sync_runs", "menu.assets.sync_runs", "/assets/sync-runs", "assets/sync-runs/List", &syncRead, 5},
+	}
+
+	var parent models.Menu
+	require.NoError(t, gdb.Where("code = ?", "assets").First(&parent).Error)
+	for i, expected := range want {
+		var menu models.Menu
+		require.NoError(t, gdb.Where("code = ?", expected.code).First(&menu).Error, "missing menu %q", expected.code)
+		require.Equal(t, expected.name, menu.Name)
+		require.Equal(t, expected.path, menu.Path)
+		require.Equal(t, expected.component, menu.Component)
+		require.Equal(t, expected.permission, menu.PermissionCode)
+		require.Equal(t, expected.sortOrder, menu.SortOrder)
+		if i == 0 {
+			require.Nil(t, menu.ParentID)
+		} else {
+			require.Equal(t, &parent.ID, menu.ParentID)
+		}
+	}
+
+	var assetsRows int64
+	require.NoError(t, gdb.Model(&models.Menu{}).Where("code = ? OR code LIKE ?", "assets", "assets.%").Count(&assetsRows).Error)
+	require.Equal(t, int64(6), assetsRows)
+}
+
+func TestRun_AssetsMenusRemainIdempotent(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	options := seed.Options{AdminUsername: "admin", AdminEmail: "admin@example.com"}
+	_, err = seed.Run(context.Background(), gdb, options)
+	require.NoError(t, err)
+	_, err = seed.Run(context.Background(), gdb, options)
+	require.NoError(t, err)
+
+	var assetsRows int64
+	require.NoError(t, gdb.Model(&models.Menu{}).Where("code = ? OR code LIKE ?", "assets", "assets.%").Count(&assetsRows).Error)
+	require.Equal(t, int64(6), assetsRows)
+}
+
+func TestRun_AdminAndViewerCoverAssetsPermissions(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	_, err = seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.NoError(t, err)
+
+	roleHasPermission := func(roleCode, permissionCode string) bool {
+		var count int64
+		require.NoError(t, gdb.Table("permissions").
+			Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
+			Joins("JOIN roles ON roles.id = role_permissions.role_id").
+			Where("roles.code = ? AND permissions.code = ?", roleCode, permissionCode).
+			Count(&count).Error)
+		return count == 1
+	}
+
+	for _, code := range []string{
+		"assets:account:read", "assets:account:write", "assets:account:delete",
+		"assets:resource:read", "assets:sync:read",
+	} {
+		require.True(t, roleHasPermission("admin", code), "admin role missing %q", code)
+	}
+	for _, code := range []string{
+		"assets:account:read", "assets:resource:read", "assets:sync:read",
+	} {
+		require.True(t, roleHasPermission("viewer", code), "viewer role missing %q", code)
+	}
+	require.False(t, roleHasPermission("viewer", "assets:account:write"))
+	require.False(t, roleHasPermission("viewer", "assets:account:delete"))
+}

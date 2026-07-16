@@ -118,6 +118,7 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 		Code, Name, Path, Component, Icon string
 		PermissionCode                    *string
 		Children                          []spec
+		ChildSortStart                    int
 	}
 	sp := func(s string) *string { return &s }
 	tree := []spec{
@@ -152,9 +153,18 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			{Code: "apps.applications", Name: "menu.apps.applications", Path: "/apps/applications", Component: "apps/applications/List", PermissionCode: sp("apps:application:read")},
 			{Code: "apps.chart_repos", Name: "menu.apps.chart_repos", Path: "/apps/chart-repos", Component: "apps/chart-repos/List", PermissionCode: sp("apps:repo:read")},
 		}},
+		// P4 assets uses the same automatic role grants as the other modules:
+		// admin receives every permission and viewer receives every read permission.
+		{Code: "assets", Name: "menu.assets", Path: "/assets", Component: "", Icon: "cloud-server", PermissionCode: sp("assets:resource:read"), ChildSortStart: 1, Children: []spec{
+			{Code: "assets.cloud_accounts", Name: "menu.assets.cloud_accounts", Path: "/assets/cloud-accounts", Component: "assets/cloud-accounts/List", PermissionCode: sp("assets:account:read")},
+			{Code: "assets.instances", Name: "menu.assets.instances", Path: "/assets/instances", Component: "assets/instances/List", PermissionCode: sp("assets:resource:read")},
+			{Code: "assets.vpcs", Name: "menu.assets.vpcs", Path: "/assets/vpcs", Component: "assets/vpcs/List", PermissionCode: sp("assets:resource:read")},
+			{Code: "assets.databases", Name: "menu.assets.databases", Path: "/assets/databases", Component: "assets/databases/List", PermissionCode: sp("assets:resource:read")},
+			{Code: "assets.sync_runs", Name: "menu.assets.sync_runs", Path: "/assets/sync-runs", Component: "assets/sync-runs/List", PermissionCode: sp("assets:sync:read")},
+		}},
 	}
-	var insert func(parentID *uint64, nodes []spec) error
-	insert = func(parentID *uint64, nodes []spec) error {
+	var insert func(parentID *uint64, nodes []spec, sortStart int) error
+	insert = func(parentID *uint64, nodes []spec, sortStart int) error {
 		for i, n := range nodes {
 			var existing models.Menu
 			err := tx.WithContext(ctx).Where("code = ?", n.Code).First(&existing).Error
@@ -167,7 +177,7 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 					Component:      n.Component,
 					Icon:           n.Icon,
 					PermissionCode: n.PermissionCode,
-					SortOrder:      i,
+					SortOrder:      sortStart + i,
 				}
 				if err := tx.Create(&m).Error; err != nil {
 					return err
@@ -178,14 +188,14 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			}
 			if len(n.Children) > 0 {
 				id := existing.ID
-				if err := insert(&id, n.Children); err != nil {
+				if err := insert(&id, n.Children, n.ChildSortStart); err != nil {
 					return err
 				}
 			}
 		}
 		return nil
 	}
-	return insert(nil, tree)
+	return insert(nil, tree, 0)
 }
 
 func ensureAdminUser(ctx context.Context, tx *gorm.DB, opts Options) (string, error) {
