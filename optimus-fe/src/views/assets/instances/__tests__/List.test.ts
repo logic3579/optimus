@@ -66,4 +66,16 @@ describe('Assets instance list', () => {
     await wrapper.find('.account-id').trigger('click')
     await vi.waitFor(() => expect(api.listInstances).toHaveBeenLastCalledWith({ page: 1, size: 20, account_id: 9 }))
   })
+
+  it('loads every account page for the account picker', async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({ id: index + 1, name: `account-${index + 1}` }))
+    const pagedAccountApi = {
+      list: vi.fn()
+        .mockResolvedValueOnce({ items: firstPage, total: 101 })
+        .mockResolvedValueOnce({ items: [{ id: 101, name: 'account-101' }], total: 101 }),
+    }
+    const api = { listInstances: vi.fn().mockResolvedValue({ items: [], total: 0 }) }
+    mount(List, { global: { provide: { assetsResourceApi: api, assetsAccountApi: pagedAccountApi }, stubs } })
+    await vi.waitFor(() => expect(pagedAccountApi.list).toHaveBeenNthCalledWith(2, { page: 2, size: 100 }))
+  })
 })

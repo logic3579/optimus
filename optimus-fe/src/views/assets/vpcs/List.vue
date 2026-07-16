@@ -10,7 +10,7 @@
     </div>
     <a-table :columns="columns" :data-source="table.items.value" :loading="table.loading.value" :pagination="false" :custom-row="vpcRow" row-key="id">
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'vpc_id'"><a @click.stop="goDetail(record)">{{ record.vpc_id }}</a></template>
+        <template v-if="column.key === 'vpc_id'"><RouterLink :to="vpcPath(record)" @click.stop>{{ record.vpc_id }}</RouterLink></template>
         <template v-else-if="column.key === 'is_default'"><a-tag :color="record.is_default ? 'green' : 'default'">{{ record.is_default ? '✓' : '—' }}</a-tag></template>
         <template v-else-if="column.key === 'tags'">{{ formatTags(record.tags) }}</template>
         <template v-else-if="column.key === 'deleted'"><a-tag v-if="record.deleted" color="red">{{ t('assets.resource.common.deleted_badge') }}</a-tag></template>
@@ -24,7 +24,7 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import type { AssetsAccountApi } from '@/api/assets/account'
 import type { AssetsResourceApi, ResourceListParams } from '@/api/assets/resource'
 import PageHeader from '@/components/PageHeader.vue'
@@ -73,7 +73,19 @@ async function onIncludeDeletedChange(event: { target?: { checked?: boolean } })
 async function onPageChange(page: number) { await runTableAction(() => table.setPage(page)) }
 async function onPageSizeChange(_: number, size: number) { await runTableAction(() => table.setPageSize(size)) }
 function goDetail(record: VPCSummary) { void router.push(`/assets/vpcs/${record.id}`) }
-function vpcRow(record: VPCSummary) { return { onClick: () => goDetail(record) } }
+function vpcPath(record: VPCSummary) { return `/assets/vpcs/${record.id}` }
+function vpcRow(record: VPCSummary) {
+  return {
+    onClick: () => goDetail(record),
+    onKeydown: (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      goDetail(record)
+    },
+    tabindex: 0,
+    role: 'link',
+  }
+}
 function formatTags(tags: Record<string, string> | undefined) {
   return tags && Object.keys(tags).length > 0
     ? Object.entries(tags).map(([key, value]) => `${key}=${value}`).join(', ')
@@ -82,8 +94,17 @@ function formatTags(tags: Record<string, string> | undefined) {
 async function loadAccounts() {
   loadingAccounts.value = true
   try {
-    const result = await accountApi.list({ page: 1, size: 100 })
-    accountOptions.value = result.items.map(account => ({ label: account.name, value: account.id }))
+    const accounts: Array<{ id: number; name: string }> = []
+    let page = 1
+    let total = 0
+    do {
+      const result = await accountApi.list({ page, size: 100 })
+      accounts.push(...result.items)
+      total = result.total
+      page += 1
+      if (result.items.length === 0) break
+    } while (accounts.length < total)
+    accountOptions.value = accounts.map(account => ({ label: account.name, value: account.id }))
   } catch (error) { showLoadError(error) } finally { loadingAccounts.value = false }
 }
 onMounted(() => {

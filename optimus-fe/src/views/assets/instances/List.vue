@@ -124,7 +124,7 @@ const includeDeleted = ref(false)
 const accountOptions = ref<Array<{ label: string; value: number }>>([])
 const loadingAccounts = ref(false)
 
-const stateOptions = ['pending', 'running', 'stopping', 'stopped', 'terminated'].map(value => ({ value, label: value }))
+const stateOptions = ['pending', 'running', 'shutting-down', 'terminated', 'stopping', 'stopped'].map(value => ({ value, label: value }))
 const columns = computed(() => [
   { key: 'account', title: t('assets.account.title'), dataIndex: 'cloud_account_name' },
   { key: 'region', title: t('assets.account.regions'), dataIndex: 'region' },
@@ -170,8 +170,17 @@ function formatTags(tags: Record<string, string> | undefined) {
 async function loadAccounts() {
   loadingAccounts.value = true
   try {
-    const result = await accountApi.list({ page: 1, size: 100 })
-    accountOptions.value = result.items.map(account => ({ label: account.name, value: account.id }))
+    const accounts: Array<{ id: number; name: string }> = []
+    let page = 1
+    let total = 0
+    do {
+      const result = await accountApi.list({ page, size: 100 })
+      accounts.push(...result.items)
+      total = result.total
+      page += 1
+      if (result.items.length === 0) break
+    } while (accounts.length < total)
+    accountOptions.value = accounts.map(account => ({ label: account.name, value: account.id }))
   } catch (error) { showLoadError(error) } finally { loadingAccounts.value = false }
 }
 onMounted(() => {

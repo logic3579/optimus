@@ -7,7 +7,7 @@
       <a-input-number v-else v-model:value="accountID" data-testid="account-id" :min="1" :precision="0" :placeholder="t('assets.account.title')" style="width: 150px" @change="onAccountChange" />
       <a-input v-model:value="regionInput" data-testid="region" allow-clear :placeholder="t('assets.account.regions')" style="width: 150px" @press-enter="onRegionSubmit" @change="onRegionInputChange" />
       <a-input v-model:value="engineInput" data-testid="engine" allow-clear :placeholder="t('assets.resource.database.engine')" style="width: 140px" @press-enter="onEngineSubmit" @change="onEngineInputChange" />
-      <a-select v-model:value="statusFilter" data-testid="status" allow-clear :placeholder="t('assets.resource.database.status')" :options="statusOptions" style="width: 150px" @change="onStatusChange" />
+      <a-input v-model:value="statusInput" data-testid="status" allow-clear :placeholder="t('assets.resource.database.status')" style="width: 150px" @press-enter="onStatusSubmit" @change="onStatusInputChange" />
       <a-checkbox :checked="includeDeleted" @change="onIncludeDeletedChange">{{ t('assets.resource.common.include_deleted') }}</a-checkbox>
     </div>
     <a-table :columns="columns" :data-source="table.items.value" :loading="table.loading.value" :pagination="false" row-key="id">
@@ -44,11 +44,10 @@ const searchInput = ref('')
 const accountID = ref<number>()
 const regionInput = ref('')
 const engineInput = ref('')
-const statusFilter = ref<string>()
+const statusInput = ref('')
 const includeDeleted = ref(false)
 const accountOptions = ref<Array<{ label: string; value: number }>>([])
 const loadingAccounts = ref(false)
-const statusOptions = ['available', 'backing-up', 'creating', 'deleting', 'failed', 'maintenance', 'rebooting', 'starting', 'stopped', 'stopping'].map(value => ({ value, label: value }))
 const columns = computed(() => [
   { key: 'account', title: t('assets.account.title'), dataIndex: 'cloud_account_name' },
   { key: 'region', title: t('assets.account.regions'), dataIndex: 'region' },
@@ -76,7 +75,8 @@ async function onRegionSubmit() { await runTableAction(() => table.setFilters({ 
 async function onRegionInputChange(event: Event) { if ((event.target as HTMLInputElement | null)?.value === '') await runTableAction(() => table.setFilters({ region: undefined })) }
 async function onEngineSubmit() { await runTableAction(() => table.setFilters({ engine: clean(engineInput.value) })) }
 async function onEngineInputChange(event: Event) { if ((event.target as HTMLInputElement | null)?.value === '') await runTableAction(() => table.setFilters({ engine: undefined })) }
-async function onStatusChange(value: string | undefined) { await runTableAction(() => table.setFilters({ status: value })) }
+async function onStatusSubmit() { await runTableAction(() => table.setFilters({ status: clean(statusInput.value) })) }
+async function onStatusInputChange(event: Event) { if ((event.target as HTMLInputElement | null)?.value === '') await runTableAction(() => table.setFilters({ status: undefined })) }
 async function onIncludeDeletedChange(event: { target?: { checked?: boolean } }) { includeDeleted.value = Boolean(event.target?.checked); await runTableAction(() => table.setFilters({ include_deleted: includeDeleted.value || undefined })) }
 async function onPageChange(page: number) { await runTableAction(() => table.setPage(page)) }
 async function onPageSizeChange(_: number, size: number) { await runTableAction(() => table.setPageSize(size)) }
@@ -84,8 +84,17 @@ function statusColor(status: string) { return ({ available: 'green', creating: '
 async function loadAccounts() {
   loadingAccounts.value = true
   try {
-    const result = await accountApi.list({ page: 1, size: 100 })
-    accountOptions.value = result.items.map(account => ({ label: account.name, value: account.id }))
+    const accounts: Array<{ id: number; name: string }> = []
+    let page = 1
+    let total = 0
+    do {
+      const result = await accountApi.list({ page, size: 100 })
+      accounts.push(...result.items)
+      total = result.total
+      page += 1
+      if (result.items.length === 0) break
+    } while (accounts.length < total)
+    accountOptions.value = accounts.map(account => ({ label: account.name, value: account.id }))
   } catch (error) { showLoadError(error) } finally { loadingAccounts.value = false }
 }
 onMounted(() => {

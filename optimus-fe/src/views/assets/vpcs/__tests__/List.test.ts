@@ -14,7 +14,7 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 const ATable = defineComponent({
   props: ['dataSource', 'customRow'],
   setup(props) { return () => props.dataSource?.length
-    ? h('button', { class: 'row', onClick: () => props.customRow?.(props.dataSource[0]).onClick() })
+    ? h('div', { class: 'row', ...props.customRow?.(props.dataSource[0]) })
     : h('span') },
 })
 const stubs = {
@@ -33,5 +33,10 @@ describe('Assets VPC list', () => {
     await vi.waitFor(() => expect(wrapper.find('.row').exists()).toBe(true))
     await wrapper.find('.row').trigger('click')
     expect(push).toHaveBeenCalledWith('/assets/vpcs/19')
+    push.mockClear()
+    await wrapper.find('.row').trigger('keydown', { key: 'Enter' })
+    expect(push).toHaveBeenCalledWith('/assets/vpcs/19')
+    expect(wrapper.find('.row').attributes('role')).toBe('link')
+    expect(wrapper.find('.row').attributes('tabindex')).toBe('0')
   })
 })
