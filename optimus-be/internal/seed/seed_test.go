@@ -222,7 +222,7 @@ func TestRun_SeedsAssetsMenuTree(t *testing.T) {
 		permission                  *string
 		sortOrder                   int
 	}{
-		{"assets", "menu.assets", "/assets", "", &resourceRead, 5},
+		{"assets", "menu.assets_group", "/assets", "", &resourceRead, 5},
 		{"assets.cloud_accounts", "menu.assets.cloud_accounts", "/assets/cloud-accounts", "assets/cloud-accounts/List", &accountRead, 1},
 		{"assets.instances", "menu.assets.instances", "/assets/instances", "assets/instances/List", &resourceRead, 2},
 		{"assets.vpcs", "menu.assets.vpcs", "/assets/vpcs", "assets/vpcs/List", &resourceRead, 3},

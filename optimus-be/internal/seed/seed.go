@@ -155,7 +155,7 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 		}},
 		// P4 assets uses the same automatic role grants as the other modules:
 		// admin receives every permission and viewer receives every read permission.
-		{Code: "assets", Name: "menu.assets", Path: "/assets", Component: "", Icon: "cloud-server", PermissionCode: sp("assets:resource:read"), ChildSortStart: 1, Children: []spec{
+		{Code: "assets", Name: "menu.assets_group", Path: "/assets", Component: "", Icon: "cloud-server", PermissionCode: sp("assets:resource:read"), ChildSortStart: 1, Children: []spec{
 			{Code: "assets.cloud_accounts", Name: "menu.assets.cloud_accounts", Path: "/assets/cloud-accounts", Component: "assets/cloud-accounts/List", PermissionCode: sp("assets:account:read")},
 			{Code: "assets.instances", Name: "menu.assets.instances", Path: "/assets/instances", Component: "assets/instances/List", PermissionCode: sp("assets:resource:read")},
 			{Code: "assets.vpcs", Name: "menu.assets.vpcs", Path: "/assets/vpcs", Component: "assets/vpcs/List", PermissionCode: sp("assets:resource:read")},
