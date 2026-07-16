@@ -12,12 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"optimus-be/internal/infra/db"
-	"optimus-be/internal/infra/response"
 	"optimus-be/internal/models"
 	assetsync "optimus-be/internal/modules/assets/sync"
 	"optimus-be/internal/modules/assets/sync/runs"
@@ -96,6 +94,10 @@ func TestAssetsSyncEngineIntegration(t *testing.T) {
 		for _, run := range foundRuns {
 			require.Equal(t, "success", run.Status)
 		}
+		require.Equal(t, []string{"instance", "network", "database"}, []string{
+			foundRuns[0].ResourceType, foundRuns[1].ResourceType, foundRuns[2].ResourceType,
+		})
+		require.EqualValues(t, 3, foundRuns[0].ItemsSeen)
 		var alive int64
 		require.NoError(t, gdb.Model(&models.AWSInstance{}).Where("cloud_account_id = ?", account.ID).Count(&alive).Error)
 		require.EqualValues(t, 3, alive)
@@ -114,6 +116,10 @@ func TestAssetsSyncEngineIntegration(t *testing.T) {
 	})
 
 	t.Run("failed fetch records failure without deleting existing rows", func(t *testing.T) {
+		existing := models.AWSInstance{
+			CloudAccountID: account.ID, Region: "us-east-1", InstanceID: "i-existing", LastSeenAt: time.Now(),
+		}
+		require.NoError(t, gdb.Create(&existing).Error)
 		fetcher.setError(errors.New("simulated upstream failure"))
 		require.NoError(t, engine.RunAccount(context.Background(), account.ID, "cron", nil))
 
@@ -121,7 +127,7 @@ func TestAssetsSyncEngineIntegration(t *testing.T) {
 		require.NoError(t, gdb.Where("cloud_account_id = ? AND resource_type = ?", account.ID, "instance").Order("id DESC").First(&latest).Error)
 		require.Equal(t, "failed", latest.Status)
 		var alive int64
-		require.NoError(t, gdb.Model(&models.AWSInstance{}).Where("cloud_account_id = ? AND instance_id = ?", account.ID, "i-x").Count(&alive).Error)
+		require.NoError(t, gdb.Model(&models.AWSInstance{}).Where("cloud_account_id = ? AND instance_id = ?", account.ID, "i-existing").Count(&alive).Error)
 		require.EqualValues(t, 1, alive)
 	})
 
@@ -144,24 +150,14 @@ func TestAssetsSyncEngineIntegration(t *testing.T) {
 }
 
 func TestAssetsManualSyncHTTPQueuesAndEventuallyRuns(t *testing.T) {
-	var engine *assetsync.Engine
-	r, gdb := setupServerWithAssetsTrigger(t, func(c *gin.Context, accountID uint64) {
-		if !engine.TryLock(accountID) {
-			response.Success(c, gin.H{"queued": false})
-			return
-		}
-		go func() {
-			defer engine.Unlock(accountID)
-			_ = engine.RunAccountLocked(context.Background(), accountID, "manual", nil)
-		}()
-		response.Success(c, gin.H{"queued": true, "started_at": time.Now().UTC()})
+	fetcher := &integrationFetcher{}
+	fetcher.setInstances(models.AWSInstance{InstanceID: "i-manual"})
+	r, gdb := setupServerWithAssetsWiring(t, &assetsTestWiring{
+		Factory: integrationClientFactory{}, Fetcher: fetcher, Consumer: integrationCloudKeyConsumer{},
 	})
 	token := login(t, r, "admin", "S3cret-Pass!")
 	key := dbtest.SeedCloudKey(t, gdb, "assets-manual-key")
 	account := dbtest.SeedCloudAccount(t, gdb, key.ID, "assets-manual-account", "us-east-1")
-	fetcher := &integrationFetcher{}
-	fetcher.setInstances(models.AWSInstance{InstanceID: "i-manual"})
-	engine = newIntegrationEngine(gdb, fetcher)
 
 	rec := assetsRequest(t, r, token, http.MethodPost, fmt.Sprintf("/api/v1/assets/cloud-accounts/%d/sync", account.ID), nil)
 	require.Equalf(t, http.StatusOK, rec.Code, "manual sync failed: %s", rec.Body.String())
@@ -169,7 +165,14 @@ func TestAssetsManualSyncHTTPQueuesAndEventuallyRuns(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		var count int64
-		err := gdb.Model(&models.AssetsSyncRun{}).Where("cloud_account_id = ? AND trigger = ?", account.ID, "manual").Count(&count).Error
+		err := gdb.Model(&models.AssetsSyncRun{}).
+			Where("cloud_account_id = ? AND trigger = ? AND status = ? AND finished_at IS NOT NULL", account.ID, "manual", "success").
+			Count(&count).Error
 		return err == nil && count == 3
 	}, 2*time.Second, 20*time.Millisecond)
+	var auditCount int64
+	require.NoError(t, gdb.Model(&models.AuditLog{}).
+		Where("action = ? AND target_id = ?", "assets.cloud_account.sync_trigger", fmt.Sprint(account.ID)).
+		Count(&auditCount).Error)
+	require.EqualValues(t, 1, auditCount)
 }

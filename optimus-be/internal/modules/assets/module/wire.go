@@ -26,7 +26,6 @@ import (
 	"optimus-be/internal/modules/assets/sync/runs"
 	"optimus-be/internal/modules/assets/vpc"
 	"optimus-be/internal/modules/audit"
-	"optimus-be/internal/modules/credentials"
 	"optimus-be/internal/modules/credentials/cloudkey"
 	"optimus-be/internal/modules/rbac"
 )
@@ -37,9 +36,11 @@ type Input struct {
 	DB                  *gorm.DB
 	Config              config.AssetsConfig
 	Audit               *audit.Recorder
-	CredentialsConsumer credentials.Consumer
+	CredentialsConsumer assetsync.CloudKeyConsumer
 	CloudKeyService     *cloudkey.Service
 	Logger              *slog.Logger
+	ClientFactory       assetsync.ClientFactory
+	Fetcher             assetsync.Fetcher
 }
 
 type Module struct {
@@ -61,15 +62,23 @@ func Wire(rootCtx context.Context, in Input) *Module {
 	moduleCtx, cancel := context.WithCancel(rootCtx)
 	accountService := account.NewService(account.NewRepo(in.DB), in.Audit, in.CloudKeyService)
 	runsRepo := runs.NewRepo(in.DB)
-	engine := assetsync.NewEngine(
-		in.DB,
-		runsRepo,
-		assetsync.ClientFactoryFunc(awsclient.For),
-		&assetsync.CompositeFetcher{
+	factory := in.ClientFactory
+	if factory == nil {
+		factory = assetsync.ClientFactoryFunc(awsclient.For)
+	}
+	fetcher := in.Fetcher
+	if fetcher == nil {
+		fetcher = &assetsync.CompositeFetcher{
 			Instance: assetsync.EC2Fetcher{},
 			Network:  assetsync.VPCFetcher{},
 			Database: assetsync.RDSFetcher{},
-		},
+		}
+	}
+	engine := assetsync.NewEngine(
+		in.DB,
+		runsRepo,
+		factory,
+		fetcher,
 		in.CredentialsConsumer,
 		normalizeRequestTimeout(in.Config.AWSRequestTimeout),
 	)
