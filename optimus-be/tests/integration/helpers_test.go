@@ -34,8 +34,12 @@ import (
 	"optimus-be/internal/infra/permissions"
 	"optimus-be/internal/infra/ratelimit"
 	"optimus-be/internal/models"
+	"optimus-be/internal/modules/assets/account"
+	"optimus-be/internal/modules/assets/account/inuse"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/auth"
+	"optimus-be/internal/modules/credentials"
+	"optimus-be/internal/modules/credentials/vault"
 	"optimus-be/internal/modules/health"
 	"optimus-be/internal/modules/menu"
 	"optimus-be/internal/modules/permission"
@@ -72,6 +76,13 @@ func bodyMap(t *testing.T, r *httptest.ResponseRecorder) map[string]any {
 // The seeded admin password is replaced with the deterministic value
 // "S3cret-Pass!" so tests can log in without parsing the random initial pw.
 func setupServer(t *testing.T) (*gin.Engine, *gorm.DB) {
+	return setupServerWithAssetsTrigger(t, nil)
+}
+
+// setupServerWithAssetsTrigger extends the common E2E server with the P1
+// cloud-key and P4 cloud-account surfaces. Tests may provide the manual-sync
+// callback so no real AWS client is needed.
+func setupServerWithAssetsTrigger(t *testing.T, trigger func(*gin.Context, uint64)) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
 	t.Cleanup(teardown)
@@ -123,6 +134,21 @@ func setupServer(t *testing.T) (*gin.Engine, *gorm.DB) {
 
 	auditSvc := audit.NewService(audit.NewRepo(gdb))
 	mountAudit(protected, audit.NewHandler(auditSvc), cache)
+
+	cipher, err := vault.NewCipher(bytes.Repeat([]byte{0x42}, vault.KeyLen))
+	require.NoError(t, err)
+	credentialsModule := credentials.New(gdb, cipher, auditRec)
+	credentialsModule.MountRoutes(protected, cache)
+
+	accountService := account.NewService(account.NewRepo(gdb), auditRec, credentialsModule.CloudKey)
+	accountHandler := account.NewHandler(accountService)
+	if trigger != nil {
+		accountHandler.SetTriggerSync(trigger)
+	}
+	accountHandler.Mount(protected.Group("/assets"), func(code string) gin.HandlerFunc {
+		return middleware.RequirePermission(cache, code)
+	})
+	credentialsModule.CloudKey.SetAccountsInUseCounter(inuse.New(gdb))
 
 	return r, gdb
 }
