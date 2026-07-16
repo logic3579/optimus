@@ -245,6 +245,8 @@
       "common": {
         "include_deleted": "包含已删除",
         "deleted_badge": "已删除",
+        "tags": "标签",
+        "last_seen_at": "最后发现时间",
         "no_data": "暂无数据"
       }
     },

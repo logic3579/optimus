@@ -245,6 +245,8 @@
       "common": {
         "include_deleted": "Include deleted",
         "deleted_badge": "Deleted",
+        "tags": "Tags",
+        "last_seen_at": "Last seen",
         "no_data": "No data"
       }
     },
