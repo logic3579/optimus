@@ -83,6 +83,26 @@ func TestRepoListFiltersOrdersPaginatesAndJoinsSoftDeletedAccount(t *testing.T) 
 	require.Equal(t, tied.ID, items[0].ID)
 	require.Equal(t, "first-account", items[0].CloudAccountName)
 
+	filterCases := []struct {
+		name   string
+		filter ListFilter
+		wantID uint64
+	}{
+		{name: "account", filter: ListFilter{AccountID: second.ID, Page: 1, Size: 20}, wantID: rows[3].ID},
+		{name: "resource type", filter: ListFilter{ResourceType: "network", Page: 1, Size: 20}, wantID: rows[2].ID},
+		{name: "status", filter: ListFilter{Status: "failed", Page: 1, Size: 20}, wantID: rows[2].ID},
+		{name: "started after", filter: ListFilter{StartedAfter: &rows[3].StartedAt, Page: 1, Size: 20}, wantID: rows[3].ID},
+	}
+	for _, test := range filterCases {
+		t.Run(test.name, func(t *testing.T) {
+			filtered, filteredTotal, listErr := repo.List(context.Background(), test.filter)
+			require.NoError(t, listErr)
+			require.EqualValues(t, 1, filteredTotal)
+			require.Len(t, filtered, 1)
+			require.Equal(t, test.wantID, filtered[0].ID)
+		})
+	}
+
 	items, total, err = repo.List(context.Background(), ListFilter{AccountID: first.ID, Page: 1, Size: 20})
 	require.NoError(t, err)
 	require.EqualValues(t, 4, total)

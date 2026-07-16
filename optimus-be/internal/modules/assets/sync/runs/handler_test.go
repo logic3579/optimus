@@ -45,6 +45,8 @@ func TestHandlerListInvalidQueryUsesValidationEnvelope(t *testing.T) {
 	router.GET("/sync-runs", NewHandler(NewService(&stubListRepo{})).List)
 	for _, path := range []string{
 		"/sync-runs?page=not-a-number",
+		"/sync-runs?page=0",
+		"/sync-runs?size=0",
 		"/sync-runs?account_id=9223372036854775808",
 		"/sync-runs?resource_type=bucket",
 		"/sync-runs?started_after=not-a-date",

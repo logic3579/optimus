@@ -24,8 +24,8 @@ type ListQuery struct {
 	ResourceType string `form:"resource_type"`
 	Status       string `form:"status"`
 	StartedAfter string `form:"started_after"`
-	Page         int    `form:"page"`
-	Size         int    `form:"size"`
+	Page         int    `form:"page,default=1" binding:"min=1"`
+	Size         int    `form:"size,default=20" binding:"min=1,max=200"`
 }
 
 // ListFilter is the validated repository input. StartedAfter is parsed once by
