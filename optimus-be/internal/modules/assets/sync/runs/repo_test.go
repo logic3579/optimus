@@ -42,6 +42,8 @@ func TestRepoInsertFinishAndPrune(t *testing.T) {
 	require.Equal(t, "success", row.Status)
 	require.EqualValues(t, 2, row.ItemsSeen)
 	require.EqualValues(t, 1, row.ItemsSoftDeleted)
+	require.Error(t, repo.Finish(context.Background(), id, FinishRequest{Status: "failed"}))
+	require.Error(t, repo.Finish(context.Background(), id+999, FinishRequest{Status: "failed"}))
 
 	require.NoError(t, gdb.Model(&row).Update("started_at", time.Now().AddDate(0, 0, -31)).Error)
 	pruned, err := repo.Prune(context.Background(), 30)

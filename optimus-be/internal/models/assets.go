@@ -52,7 +52,7 @@ type AWSVPC struct {
 	Region         string         `gorm:"size:32;not null"`
 	VPCID          string         `gorm:"column:vpc_id;size:32;not null"`
 	Name           string         `gorm:"type:text;not null;default:''"`
-	CIDRBlock      *string        `gorm:"type:cidr"`
+	CIDRBlock      *string        `gorm:"column:cidr_block;type:cidr"`
 	IsDefault      bool           `gorm:"not null;default:false"`
 	State          string         `gorm:"size:16;not null;default:''"`
 	Tags           datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
@@ -70,7 +70,7 @@ type AWSSubnet struct {
 	Region           string         `gorm:"size:32;not null"`
 	SubnetID         string         `gorm:"column:subnet_id;size:32;not null"`
 	VPCID            string         `gorm:"column:vpc_id;size:32;not null"`
-	CIDRBlock        *string        `gorm:"type:cidr"`
+	CIDRBlock        *string        `gorm:"column:cidr_block;type:cidr"`
 	AvailabilityZone string         `gorm:"size:32;not null;default:''"`
 	Name             string         `gorm:"type:text;not null;default:''"`
 	Tags             datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`

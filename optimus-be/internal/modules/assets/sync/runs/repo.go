@@ -2,6 +2,7 @@ package runs
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -10,6 +11,8 @@ import (
 )
 
 type Repo struct{ db *gorm.DB }
+
+var ErrRunNotRunning = errors.New("sync run is missing or no longer running")
 
 func NewRepo(db *gorm.DB) *Repo { return &Repo{db: db} }
 
@@ -47,7 +50,8 @@ type FinishRequest struct {
 
 func (r *Repo) Finish(ctx context.Context, id uint64, req FinishRequest) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).Model(&models.AssetsSyncRun{}).Where("id = ?", id).
+	result := r.db.WithContext(ctx).Model(&models.AssetsSyncRun{}).
+		Where("id = ? AND status = ?", id, "running").
 		Updates(map[string]any{
 			"finished_at":       &now,
 			"status":            req.Status,
@@ -55,7 +59,14 @@ func (r *Repo) Finish(ctx context.Context, id uint64, req FinishRequest) error {
 			"items_softdeleted": req.ItemsSoftDeleted,
 			"error":             req.Error,
 			"error_code":        req.ErrorCode,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return ErrRunNotRunning
+	}
+	return nil
 }
 
 func (r *Repo) Prune(ctx context.Context, olderThanDays int) (int64, error) {

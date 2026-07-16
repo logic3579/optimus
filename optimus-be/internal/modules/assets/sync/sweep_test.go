@@ -5,6 +5,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -51,6 +52,26 @@ func TestUpsertInstancesSoftDeletesMissingAndRevivesReturnedRows(t *testing.T) {
 	require.Equal(t, "running", revived.State)
 }
 
+func TestUpsertInstancesBatchesLargeAuthoritativeSweep(t *testing.T) {
+	gdb, account := setupSweepDB(t)
+	started := time.Now().UTC()
+	items := make([]models.AWSInstance, 5000)
+	for i := range items {
+		items[i].InstanceID = fmt.Sprintf("i-%06d", i)
+	}
+
+	deleted, err := UpsertInstances(context.Background(), gdb, account.ID, "us-east-1", started, items)
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+	var alive int64
+	require.NoError(t, gdb.Model(&models.AWSInstance{}).Where("cloud_account_id = ?", account.ID).Count(&alive).Error)
+	require.EqualValues(t, len(items), alive)
+
+	deleted, err = UpsertInstances(context.Background(), gdb, account.ID, "us-east-1", started.Add(time.Second), nil)
+	require.NoError(t, err)
+	require.EqualValues(t, len(items), deleted)
+}
+
 func TestUpsertVPCsAndSubnetsIsOneAtomicSweep(t *testing.T) {
 	gdb, account := setupSweepDB(t)
 	started := time.Now().UTC()
@@ -71,6 +92,32 @@ func TestUpsertVPCsAndSubnetsIsOneAtomicSweep(t *testing.T) {
 	require.Zero(t, count)
 }
 
+func TestUpsertVPCsAndSubnetsSoftDeletesAndRevivesTogether(t *testing.T) {
+	gdb, account := setupSweepDB(t)
+	first := time.Now().UTC()
+	_, _, err := UpsertVPCsAndSubnets(context.Background(), gdb, account.ID, "us-east-1", first,
+		[]models.AWSVPC{{VPCID: "vpc-a"}, {VPCID: "vpc-b"}},
+		[]models.AWSSubnet{{SubnetID: "subnet-a", VPCID: "vpc-a"}, {SubnetID: "subnet-b", VPCID: "vpc-b"}})
+	require.NoError(t, err)
+
+	vpcDeleted, subnetDeleted, err := UpsertVPCsAndSubnets(context.Background(), gdb, account.ID, "us-east-1", first.Add(time.Second),
+		[]models.AWSVPC{{VPCID: "vpc-a"}}, []models.AWSSubnet{{SubnetID: "subnet-a", VPCID: "vpc-a"}})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, vpcDeleted)
+	require.EqualValues(t, 1, subnetDeleted)
+
+	vpcDeleted, subnetDeleted, err = UpsertVPCsAndSubnets(context.Background(), gdb, account.ID, "us-east-1", first.Add(2*time.Second),
+		[]models.AWSVPC{{VPCID: "vpc-b"}}, []models.AWSSubnet{{SubnetID: "subnet-b", VPCID: "vpc-b"}})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, vpcDeleted)
+	require.EqualValues(t, 1, subnetDeleted)
+	var alive int64
+	require.NoError(t, gdb.Model(&models.AWSVPC{}).Where("vpc_id = ?", "vpc-b").Count(&alive).Error)
+	require.EqualValues(t, 1, alive)
+	require.NoError(t, gdb.Model(&models.AWSSubnet{}).Where("subnet_id = ?", "subnet-b").Count(&alive).Error)
+	require.EqualValues(t, 1, alive)
+}
+
 func TestUpsertDatabasesSoftDeletesMissing(t *testing.T) {
 	gdb, account := setupSweepDB(t)
 	first := time.Now().UTC()
@@ -81,6 +128,28 @@ func TestUpsertDatabasesSoftDeletesMissing(t *testing.T) {
 	deleted, err := UpsertDatabases(context.Background(), gdb, account.ID, "us-east-1", first.Add(time.Second), []models.AWSDatabase{{DBInstanceID: "db-a"}})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, deleted)
+	deleted, err = UpsertDatabases(context.Background(), gdb, account.ID, "us-east-1", first.Add(2*time.Second), []models.AWSDatabase{{DBInstanceID: "db-b"}})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+	var alive int64
+	require.NoError(t, gdb.Model(&models.AWSDatabase{}).Where("db_instance_id = ?", "db-b").Count(&alive).Error)
+	require.EqualValues(t, 1, alive)
+}
+
+func TestNetworkPersistenceSkipsWhenAccountIsIneligible(t *testing.T) {
+	gdb, account := setupSweepDB(t)
+	require.NoError(t, gdb.Model(&models.CloudAccount{}).Where("id = ?", account.ID).Update("enabled", false).Error)
+
+	vpcDeleted, subnetDeleted, err := UpsertVPCsAndSubnets(context.Background(), gdb, account.ID, "us-east-1", time.Now().UTC(),
+		[]models.AWSVPC{{VPCID: "vpc-new"}}, []models.AWSSubnet{{SubnetID: "subnet-new", VPCID: "vpc-new"}})
+	require.ErrorIs(t, err, ErrSweepIneligible)
+	require.Zero(t, vpcDeleted)
+	require.Zero(t, subnetDeleted)
+	var count int64
+	require.NoError(t, gdb.Unscoped().Model(&models.AWSVPC{}).Where("vpc_id = ?", "vpc-new").Count(&count).Error)
+	require.Zero(t, count)
+	require.NoError(t, gdb.Unscoped().Model(&models.AWSSubnet{}).Where("subnet_id = ?", "subnet-new").Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestAuthoritativePersistenceSkipsWhenAccountBecomesIneligible(t *testing.T) {

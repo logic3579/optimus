@@ -17,6 +17,8 @@ import (
 // skipped; no resource rows are changed.
 var ErrSweepIneligible = errors.New("asset sweep target is no longer eligible")
 
+const sweepBatchSize = 500
+
 func UpsertInstances(ctx context.Context, db *gorm.DB, accountID uint64, region string, sweepStart time.Time, items []models.AWSInstance) (int64, error) {
 	var softDeleted int64
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -31,7 +33,7 @@ func UpsertInstances(ctx context.Context, db *gorm.DB, accountID uint64, region 
 			items[i].DeletedAt = gorm.DeletedAt{}
 		}
 		if len(items) > 0 {
-			if err := tx.Clauses(instanceConflict()).Create(&items).Error; err != nil {
+			if err := tx.Clauses(instanceConflict()).CreateInBatches(&items, sweepBatchSize).Error; err != nil {
 				return err
 			}
 		}
@@ -64,12 +66,12 @@ func UpsertVPCsAndSubnets(ctx context.Context, db *gorm.DB, accountID uint64, re
 			subnets[i].DeletedAt = gorm.DeletedAt{}
 		}
 		if len(vpcs) > 0 {
-			if err := tx.Clauses(vpcConflict()).Create(&vpcs).Error; err != nil {
+			if err := tx.Clauses(vpcConflict()).CreateInBatches(&vpcs, sweepBatchSize).Error; err != nil {
 				return err
 			}
 		}
 		if len(subnets) > 0 {
-			if err := tx.Clauses(subnetConflict()).Create(&subnets).Error; err != nil {
+			if err := tx.Clauses(subnetConflict()).CreateInBatches(&subnets, sweepBatchSize).Error; err != nil {
 				return err
 			}
 		}
@@ -101,7 +103,7 @@ func UpsertDatabases(ctx context.Context, db *gorm.DB, accountID uint64, region 
 			items[i].DeletedAt = gorm.DeletedAt{}
 		}
 		if len(items) > 0 {
-			if err := tx.Clauses(databaseConflict()).Create(&items).Error; err != nil {
+			if err := tx.Clauses(databaseConflict()).CreateInBatches(&items, sweepBatchSize).Error; err != nil {
 				return err
 			}
 		}
