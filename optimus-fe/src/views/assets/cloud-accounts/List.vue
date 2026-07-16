@@ -15,6 +15,8 @@
       <a-input-search
         v-model:value="searchInput"
         allow-clear
+        :aria-label="t('assets.account.name')"
+        :placeholder="t('assets.account.name')"
         style="width: 280px;"
         @search="onSearch"
         @change="onSearchInputChange"
@@ -22,6 +24,8 @@
       <a-select
         v-model:value="enabledFilter"
         allow-clear
+        :aria-label="t('assets.account.enabled')"
+        :placeholder="t('assets.account.enabled')"
         style="width: 140px;"
         :options="enabledOptions"
         @change="onEnabledChange"
@@ -50,17 +54,20 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a
+            <a-button
               v-permission="'assets:account:write'"
               :data-testid="`sync-${record.id}`"
-              :class="{ disabled: store.syncInFlight[record.id] }"
-              @click="!store.syncInFlight[record.id] && syncNow(record)"
-            >{{ t('assets.account.actions.sync_now') }}</a>
-            <a
+              type="link"
+              :disabled="store.syncInFlight[record.id]"
+              :aria-label="t('assets.account.actions.sync_now')"
+              @click="syncNow(record)"
+            >{{ t('assets.account.actions.sync_now') }}</a-button>
+            <a-button
               v-permission="'assets:account:write'"
               :data-testid="`edit-${record.id}`"
+              type="link"
               @click="openEdit(record)"
-            >{{ t('assets.account.actions.edit') }}</a>
+            >{{ t('assets.account.actions.edit') }}</a-button>
             <a-popconfirm :title="t('assets.account.delete_confirm', { name: record.name })" @confirm="remove(record)">
               <a
                 v-permission="'assets:account:delete'"
@@ -80,8 +87,8 @@
       :page-size="table.pageSize.value"
       :total="table.total.value"
       show-size-changer
-      @change="table.setPage"
-      @show-size-change="(_: number, size: number) => table.setPageSize(size)"
+      @change="onPageChange"
+      @show-size-change="onPageSizeChange"
     />
 
     <Form :open="formOpen" :editing="editing" @close="formOpen = false" @saved="onSaved" />
@@ -130,32 +137,49 @@ const columns = computed(() => [
   { key: 'actions', title: '', width: 240 },
 ])
 
-function onSearch(value: string) { void table.setFilters({ q: value || undefined }) }
-function onSearchInputChange(event: Event) {
-  const target = event.target as HTMLInputElement | null
-  if (target?.value === '') void table.setFilters({ q: undefined })
+function showError(error: unknown) {
+  message.error(isBizError(error) ? error.message : t('network.error'))
 }
-function onEnabledChange(value: boolean | undefined) { void table.setFilters({ enabled: value }) }
+async function runTableAction(action: () => Promise<unknown>) {
+  try {
+    await action()
+  } catch (error) {
+    showError(error)
+  }
+}
+async function reloadTable() { await runTableAction(() => table.reload()) }
+async function onSearch(value: string) { await runTableAction(() => table.setFilters({ q: value || undefined })) }
+async function onSearchInputChange(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  if (target?.value === '') await runTableAction(() => table.setFilters({ q: undefined }))
+}
+async function onEnabledChange(value: boolean | undefined) {
+  await runTableAction(() => table.setFilters({ enabled: value }))
+}
+async function onPageChange(page: number) { await runTableAction(() => table.setPage(page)) }
+async function onPageSizeChange(_: number, size: number) {
+  await runTableAction(() => table.setPageSize(size))
+}
 function openCreate() { editing.value = null; formOpen.value = true }
 async function openEdit(account: CloudAccountSummary) {
   try {
     editing.value = await accountApi.get(account.id)
     formOpen.value = true
   } catch (error) {
-    message.error(isBizError(error) ? error.message : t('network.error'))
+    showError(error)
   }
 }
-async function onSaved() { formOpen.value = false; await table.reload() }
+async function onSaved() { formOpen.value = false; await reloadTable() }
 
 async function syncNow(account: CloudAccountSummary) {
+  if (store.syncInFlight[account.id]) return
   store.markSyncStarted(account.id)
+  window.setTimeout(() => store.clearSyncStarted(account.id), 30_000)
   try {
     await accountApi.triggerSync(account.id)
     message.success(t('assets.account.sync_queued'))
   } catch (error) {
-    message.error(isBizError(error) ? error.message : t('network.error'))
-  } finally {
-    window.setTimeout(() => store.clearSyncStarted(account.id), 30_000)
+    showError(error)
   }
 }
 
@@ -165,7 +189,7 @@ async function remove(account: CloudAccountSummary) {
     message.success(t('assets.account.cascaded_resources', { count: result.cascaded_resources_count }))
     await table.reload()
   } catch (error) {
-    message.error(isBizError(error) ? error.message : t('network.error'))
+    showError(error)
   }
 }
 function statusColor(status: string) {
@@ -173,11 +197,10 @@ function statusColor(status: string) {
 }
 function formatTime(value: string) { return new Date(value).toLocaleString() }
 
-onMounted(() => { void table.reload() })
+onMounted(reloadTable)
 </script>
 
 <style scoped lang="scss">
 .filter-row { display: flex; gap: 12px; align-items: center; }
 .danger { color: var(--ant-color-error, #ff4d4f); }
-.disabled { color: rgba(0, 0, 0, 0.25); cursor: not-allowed; }
 </style>

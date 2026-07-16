@@ -1,5 +1,5 @@
 /* eslint-disable vue/one-component-per-file, vue/require-prop-types */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import Form from '../Form.vue'
@@ -29,17 +29,18 @@ const AModal = {
   emits: ['ok', 'cancel'],
   template: '<div v-if="open"><slot/><button class="modal-ok" @click="$emit(\'ok\')">ok</button></div>',
 }
+const validate = vi.fn().mockResolvedValue(undefined)
 const AForm = defineComponent({
   props: ['model', 'rules'],
   setup(_, { expose, slots }) {
-    expose({ validate: vi.fn().mockResolvedValue(undefined), resetFields: vi.fn() })
+    expose({ validate, resetFields: vi.fn() })
     return () => h('form', slots.default?.())
   },
 })
 const AInput = defineComponent({
-  name: 'AInput', props: ['value'], emits: ['update:value'],
+  name: 'AInput', props: ['value', 'disabled'], emits: ['update:value'],
   setup(props, { emit }) {
-    return () => h('input', { class: 'name-input', value: props.value,
+    return () => h('input', { class: 'name-input', value: props.value, disabled: props.disabled,
       onInput: (event: Event) => emit('update:value', (event.target as HTMLInputElement).value) })
   },
 })
@@ -65,6 +66,8 @@ const stubs = {
 }
 
 describe('CloudAccount Form', () => {
+  beforeEach(() => { validate.mockReset(); validate.mockResolvedValue(undefined) })
+
   it('loads AWS cloud keys and sends the complete create payload', async () => {
     const apis = makeApis()
     const wrapper = mount(Form, {
@@ -112,5 +115,39 @@ describe('CloudAccount Form', () => {
     expect(apis.account.update).toHaveBeenCalledWith(7, {
       name: 'renamed', enabled_regions: ['ap-southeast-1'], enabled: true, description: 'old desc',
     })
+  })
+
+  it('shows the immutable AWS provider and does not call the API when validation fails', async () => {
+    validate.mockRejectedValueOnce(new Error('invalid'))
+    const apis = makeApis()
+    const wrapper = mount(Form, {
+      props: { open: true, editing: null },
+      global: { provide: { assetsAccountApi: apis.account, cloudKeyApi: apis.cloudKey }, stubs },
+    })
+    await nextTick()
+    const provider = wrapper.findAll('input').find(input => input.element.value === 'AWS')
+    expect(provider?.attributes('disabled')).toBeDefined()
+    await wrapper.find('.modal-ok').trigger('click')
+    await nextTick()
+    expect(apis.account.create).not.toHaveBeenCalled()
+    expect(wrapper.findComponent(AModal).props('confirmLoading')).toBe(false)
+  })
+
+  it('locks before validation so a double click submits only once', async () => {
+    let resolveCreate!: (value: { id: number }) => void
+    const apis = makeApis()
+    apis.account.create.mockImplementationOnce(() => new Promise(resolve => { resolveCreate = resolve }))
+    const wrapper = mount(Form, {
+      props: { open: true, editing: null },
+      global: { provide: { assetsAccountApi: apis.account, cloudKeyApi: apis.cloudKey }, stubs },
+    })
+    await nextTick()
+    await wrapper.find('.modal-ok').trigger('click')
+    await wrapper.find('.modal-ok').trigger('click')
+    await nextTick()
+    expect(validate).toHaveBeenCalledTimes(1)
+    expect(apis.account.create).toHaveBeenCalledTimes(1)
+    resolveCreate({ id: 1 })
+    await nextTick(); await nextTick()
   })
 })

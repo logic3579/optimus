@@ -11,6 +11,9 @@
       <a-form-item :label="t('assets.account.name')" name="name">
         <a-input v-model:value="form.name" :maxlength="128" />
       </a-form-item>
+      <a-form-item :label="t('assets.account.provider')">
+        <a-input value="AWS" disabled />
+      </a-form-item>
       <a-form-item :label="t('assets.account.cloudkey')" name="cloudkey_id">
         <a-select
           v-model:value="form.cloudkey_id"
@@ -104,12 +107,14 @@ watch(() => props.open, open => {
 watch(() => props.editing, () => { if (props.open) resetForm() })
 
 async function onOk() {
+  if (submitting.value) return
+  submitting.value = true
   try {
     await formRef.value?.validate()
   } catch {
+    submitting.value = false
     return
   }
-  submitting.value = true
   try {
     if (props.editing) {
       const request: UpdateCloudAccountRequest = {
