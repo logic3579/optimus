@@ -127,6 +127,7 @@ func TestRepo_ListFiltersPaginationAndDeleted(t *testing.T) {
 	for _, row := range rows {
 		require.NoError(t, r.Create(ctx, row))
 	}
+	require.NoError(t, r.Update(ctx, rows[1].ID, map[string]any{"enabled": false}))
 	require.NoError(t, r.SoftDelete(ctx, rows[2].ID))
 	enabled := true
 	items, total, err := r.List(ctx, ListQuery{Q: "prod", Provider: "aws", Enabled: &enabled, Page: 1, Size: 1})
