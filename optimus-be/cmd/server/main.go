@@ -259,16 +259,21 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	logger.Info("shutting down")
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	httpShutdownCtx, cancelHTTPShutdown := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	if err := srv.Shutdown(httpShutdownCtx); err != nil {
 		logger.Error("shutdown", "err", err)
 	}
+	cancelHTTPShutdown()
+
 	cancelAssets()
-	if err := assetsModule.Shutdown(ctx); err != nil {
-		logger.Error("assets shutdown", "err", err)
-	}
-	if sqlDB, _ := gdb.DB(); sqlDB != nil {
+	assetsShutdownCtx, cancelAssetsShutdown := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	assetsShutdownErr := assetsModule.Shutdown(assetsShutdownCtx)
+	cancelAssetsShutdown()
+	if assetsShutdownErr != nil {
+		// Do not close the DB underneath workers that did not drain. Returning
+		// from main is the forced-shutdown path and lets the process reclaim it.
+		logger.Error("assets shutdown", "err", assetsShutdownErr)
+	} else if sqlDB, _ := gdb.DB(); sqlDB != nil {
 		_ = sqlDB.Close()
 	}
 	logger.Info("stopped")
