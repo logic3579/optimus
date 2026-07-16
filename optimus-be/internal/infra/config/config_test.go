@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -17,6 +18,22 @@ func TestLoad_DefaultsFromYAML(t *testing.T) {
 	require.Equal(t, 15*time.Second, cfg.Server.ReadTimeout)
 	require.Equal(t, "info", cfg.Log.Level)
 	require.Equal(t, []string{"zh-CN", "en-US"}, cfg.I18n.Supported)
+	require.Equal(t, "*/15 * * * *", cfg.Assets.SyncCron)
+	require.Equal(t, 30*time.Second, cfg.Assets.SyncStartupDelay)
+	require.Equal(t, 90, cfg.Assets.SyncRunRetentionDays)
+	require.Equal(t, 30*time.Second, cfg.Assets.AWSRequestTimeout)
+}
+
+func TestLoad_AssetsDefaultsWhenBlockIsOmitted(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  port: 8080\n"), 0o600))
+
+	cfg, err := config.Load(path)
+	require.NoError(t, err)
+	require.Equal(t, "*/15 * * * *", cfg.Assets.SyncCron)
+	require.Equal(t, 30*time.Second, cfg.Assets.SyncStartupDelay)
+	require.Equal(t, 90, cfg.Assets.SyncRunRetentionDays)
+	require.Equal(t, 30*time.Second, cfg.Assets.AWSRequestTimeout)
 }
 
 func TestLoad_EnvOverride(t *testing.T) {

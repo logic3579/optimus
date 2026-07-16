@@ -19,6 +19,7 @@ type Config struct {
 	I18n     I18nConfig      `mapstructure:"i18n"`
 	Boot     BootstrapConfig `mapstructure:"bootstrap"`
 	Vault    VaultConfig     `mapstructure:"vault"`
+	Assets   AssetsConfig    `mapstructure:"assets"`
 }
 
 type ServerConfig struct {
@@ -82,12 +83,23 @@ type VaultConfig struct {
 	MasterKeyFile string `mapstructure:"master_key_file"`
 }
 
+type AssetsConfig struct {
+	SyncCron             string        `mapstructure:"sync_cron"`
+	SyncStartupDelay     time.Duration `mapstructure:"sync_startup_delay"`
+	SyncRunRetentionDays int           `mapstructure:"sync_run_retention_days"`
+	AWSRequestTimeout    time.Duration `mapstructure:"aws_request_timeout"`
+}
+
 func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
 	v.SetEnvPrefix("OPTIMUS")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
+	v.SetDefault("assets.sync_cron", "*/15 * * * *")
+	v.SetDefault("assets.sync_startup_delay", 30*time.Second)
+	v.SetDefault("assets.sync_run_retention_days", 90)
+	v.SetDefault("assets.aws_request_timeout", 30*time.Second)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
