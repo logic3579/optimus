@@ -50,6 +50,8 @@ type Engine struct {
 	locks    sync.Map
 }
 
+const syncRunFinishTimeout = 5 * time.Second
+
 func NewEngine(db *gorm.DB, runRepo *runs.Repo, factory ClientFactory, fetcher Fetcher, consumer CloudKeyConsumer, timeout time.Duration) *Engine {
 	return &Engine{db: db, runs: runRepo, factory: factory, fetcher: fetcher, consumer: consumer, timeout: timeout}
 }
@@ -66,15 +68,20 @@ func (e *Engine) RunAll(ctx context.Context, trigger string) error {
 	if err := e.db.WithContext(ctx).Where("enabled = ?", true).Find(&accounts).Error; err != nil {
 		return safeDatabaseError()
 	}
+	var accountErrors []error
 	for i := range accounts {
 		if err := ctx.Err(); err != nil {
-			return err
+			accountErrors = append(accountErrors, err)
+			break
 		}
-		// A failed account cannot prevent the remaining eligible accounts from
-		// receiving their scheduled sweep.
-		_ = e.RunAccount(ctx, accounts[i].ID, trigger, nil)
+		if err := e.RunAccount(ctx, accounts[i].ID, trigger, nil); err != nil {
+			// A failed account cannot prevent the remaining eligible accounts from
+			// receiving their scheduled sweep, but the scheduler must still be
+			// told that this RunAll invocation was incomplete.
+			accountErrors = append(accountErrors, fmt.Errorf("cloud account %d: %w", accounts[i].ID, err))
+		}
 	}
-	return nil
+	return errors.Join(accountErrors...)
 }
 
 func (e *Engine) RunAccount(ctx context.Context, accountID uint64, trigger string, triggeredBy *uint64) error {
@@ -106,7 +113,13 @@ func (e *Engine) RunAccountLocked(ctx context.Context, accountID uint64, trigger
 		if err := e.sweepInstances(ctx, account, region, trigger, triggeredBy); err != nil {
 			return err
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := e.sweepNetwork(ctx, account, region, trigger, triggeredBy); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if err := e.sweepDatabases(ctx, account, region, trigger, triggeredBy); err != nil {
@@ -208,15 +221,51 @@ func (e *Engine) insertRun(ctx context.Context, accountID uint64, region, resour
 }
 
 func (e *Engine) finishRun(ctx context.Context, runID uint64, request runs.FinishRequest) error {
-	if err := e.runs.Finish(ctx, runID, request); err != nil {
+	// The request/fetch context commonly carries the cancellation that caused
+	// the sweep to fail. Finalization gets a small independent budget so a run
+	// does not remain "running" forever after cancellation or timeout.
+	base := context.Background()
+	if ctx != nil {
+		base = context.WithoutCancel(ctx)
+	}
+	finishCtx, cancel := context.WithTimeout(base, syncRunFinishTimeout)
+	defer cancel()
+	if err := e.runs.Finish(finishCtx, runID, request); err != nil {
 		return safeDatabaseError()
 	}
 	return nil
 }
 
 func (e *Engine) finishUpstreamFailure(ctx context.Context, runID uint64, cause error) error {
-	code, _, message := awsclient.MapError(cause)
+	code, message := safeSyncRunError(cause)
 	return e.finishRun(ctx, runID, runs.FinishRequest{Status: "failed", Error: message, ErrorCode: int32(code)})
+}
+
+func safeSyncRunError(cause error) (apperr.Code, string) {
+	if biz, ok := apperr.AsBiz(cause); ok {
+		switch biz.Code {
+		case errs.CodeAssetsRegionInvalid:
+			return biz.Code, "AWS region is invalid"
+		case errs.CodeAssetsProviderUnsupported:
+			return biz.Code, "cloud provider not supported"
+		case errs.CodeAssetsCloudKeyNotFound:
+			return biz.Code, "cloud key not found"
+		case errs.CodeAssetsAWSUnauthorized:
+			return biz.Code, "AWS credentials invalid or expired"
+		case errs.CodeAssetsAWSForbidden:
+			return biz.Code, "AWS API access denied"
+		case errs.CodeAssetsAWSUnreachable:
+			return biz.Code, "AWS API unreachable"
+		case errs.CodeAssetsAWSThrottled:
+			return biz.Code, "AWS API request throttled"
+		case errs.CodeAssetsAWSOther:
+			return biz.Code, "AWS API request failed"
+		case errs.CodeAssetsAWSConfig:
+			return biz.Code, "AWS SDK configuration failed"
+		}
+	}
+	code, _, message := awsclient.MapError(cause)
+	return code, message
 }
 
 func (e *Engine) finishPersistence(ctx context.Context, runID uint64, cause error) error {

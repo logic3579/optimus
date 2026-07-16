@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	apperr "optimus-be/internal/infra/errors"
+	"optimus-be/internal/modules/assets/errs"
 	"optimus-be/internal/modules/credentials"
 )
 
@@ -69,6 +72,15 @@ func TestSaturatingCountsNeverWrap(t *testing.T) {
 	require.Equal(t, int32(0), saturatingInt32(-1))
 	require.Equal(t, int32(math.MaxInt32), saturatingInt32(math.MaxInt64))
 	require.Equal(t, int64(math.MaxInt64), saturatingAdd(math.MaxInt64-2, 10))
+}
+
+func TestSafeSyncRunErrorPreservesWhitelistedCodeWithoutCauseText(t *testing.T) {
+	cause := apperr.Wrap(errors.New("secret-config-cause"), errs.CodeAssetsAWSConfig, errs.KeyAWSConfig, "unsafe caller message")
+	code, message := safeSyncRunError(cause)
+	require.Equal(t, errs.CodeAssetsAWSConfig, code)
+	require.Equal(t, "AWS SDK configuration failed", message)
+	require.NotContains(t, message, "secret-config-cause")
+	require.NotContains(t, message, "unsafe caller message")
 }
 
 func TestEngineTryLockGatesConcurrentRuns(t *testing.T) {

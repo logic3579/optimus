@@ -20,6 +20,7 @@ func TestStartSchedulerRegistersJobsAndStopsAfterCancellation(t *testing.T) {
 	}, &Engine{}, logger)
 	require.NotNil(t, scheduler)
 	require.Len(t, scheduler.Entries(), 2)
+	require.Equal(t, time.UTC, scheduler.Location())
 	cancel()
 }
 

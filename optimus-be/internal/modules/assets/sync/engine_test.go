@@ -15,7 +15,9 @@ import (
 	"gorm.io/gorm"
 
 	"optimus-be/internal/infra/db"
+	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
+	"optimus-be/internal/modules/assets/errs"
 	"optimus-be/internal/modules/assets/sync/runs"
 	"optimus-be/internal/modules/credentials"
 	"optimus-be/tests/dbtest"
@@ -27,9 +29,13 @@ type fakeFetcher struct {
 	disableOnCall bool
 	instances     []models.AWSInstance
 	instanceErr   error
+	cancel        context.CancelFunc
 }
 
 func (f *fakeFetcher) FetchInstances(context.Context, *Clients) ([]models.AWSInstance, error) {
+	if f.cancel != nil {
+		f.cancel()
+	}
 	if f.disableOnCall {
 		if err := f.db.Model(&models.CloudAccount{}).Where("id = ?", f.accountID).Update("enabled", false).Error; err != nil {
 			return nil, err
@@ -61,10 +67,16 @@ func (c *countingConsumer) GetCloudKey(_ context.Context, _ uint64, purpose stri
 	return key, nil
 }
 
-type countingFactory struct{ calls int }
+type countingFactory struct {
+	calls int
+	err   error
+}
 
 func (f *countingFactory) For(context.Context, *credentials.CloudKey, string, time.Duration) (*Clients, error) {
 	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
 	return &Clients{}, nil
 }
 
@@ -143,4 +155,55 @@ func TestEngineLockedRunWritesOneSkippedRowWithoutCredentialAudit(t *testing.T) 
 	require.Len(t, rows, 1)
 	require.Equal(t, "skipped", rows[0].Status)
 	require.Empty(t, consumer.purposes)
+}
+
+func TestEngineCancellationFinalizesRunningRunAsFailed(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	fetcher := &fakeFetcher{instanceErr: context.Canceled, cancel: cancel}
+	gdb, account, engine, _, _ := setupEngine(t, fetcher)
+
+	err := engine.RunAccount(ctx, account.ID, "cron", nil)
+	require.ErrorIs(t, err, context.Canceled)
+
+	var run models.AssetsSyncRun
+	require.NoError(t, gdb.Where("resource_type = ?", "instance").First(&run).Error)
+	require.Equal(t, "failed", run.Status)
+	require.NotNil(t, run.FinishedAt)
+	var running int64
+	require.NoError(t, gdb.Model(&models.AssetsSyncRun{}).Where("status = ?", "running").Count(&running).Error)
+	require.Zero(t, running)
+}
+
+func TestEngineFactoryConfigErrorKeepsSafe43107Code(t *testing.T) {
+	gdb, account, engine, _, factory := setupEngine(t, &fakeFetcher{})
+	factory.err = apperr.Wrap(errors.New("secret-config-cause"), errs.CodeAssetsAWSConfig, errs.KeyAWSConfig, "failed to load AWS SDK configuration")
+
+	require.NoError(t, engine.RunAccount(context.Background(), account.ID, "cron", nil))
+	var found []models.AssetsSyncRun
+	require.NoError(t, gdb.Order("id").Find(&found).Error)
+	require.Len(t, found, 3)
+	for _, run := range found {
+		require.Equal(t, "failed", run.Status)
+		require.EqualValues(t, errs.CodeAssetsAWSConfig, run.ErrorCode)
+		require.NotContains(t, run.Error, "secret-config-cause")
+	}
+}
+
+func TestEngineRunAllContinuesAfterAccountErrorAndReturnsAggregate(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "..", "migrations"))
+	t.Cleanup(teardown)
+	key := dbtest.SeedCloudKey(t, gdb, "run-all-key-"+t.Name())
+	broken := dbtest.SeedCloudAccount(t, gdb, key.ID, "run-all-broken-"+t.Name(), strings.Repeat("r", 33))
+	healthy := dbtest.SeedCloudAccount(t, gdb, key.ID, "run-all-healthy-"+t.Name(), "us-east-1")
+	consumer := &countingConsumer{}
+	engine := NewEngine(gdb, runs.NewRepo(gdb), &countingFactory{}, &fakeFetcher{}, consumer, time.Second)
+
+	err := engine.RunAll(context.Background(), "cron")
+	require.Error(t, err)
+	var healthyRuns int64
+	require.NoError(t, gdb.Model(&models.AssetsSyncRun{}).Where("cloud_account_id = ? AND status = ?", healthy.ID, "success").Count(&healthyRuns).Error)
+	require.EqualValues(t, 3, healthyRuns)
+	var brokenRuns int64
+	require.NoError(t, gdb.Model(&models.AssetsSyncRun{}).Where("cloud_account_id = ?", broken.ID).Count(&brokenRuns).Error)
+	require.Zero(t, brokenRuns)
 }

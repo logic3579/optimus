@@ -19,7 +19,7 @@ func StartScheduler(ctx context.Context, cfg Config, engine *Engine, logger *slo
 	if logger == nil {
 		logger = slog.Default()
 	}
-	scheduler := cron.New()
+	scheduler := cron.New(cron.WithLocation(time.UTC))
 	if _, err := scheduler.AddFunc(cfg.SyncCron, func() {
 		if err := engine.RunAll(ctx, "cron"); err != nil {
 			logger.Error("assets.sync.cron.failed")
