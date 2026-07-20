@@ -112,9 +112,9 @@ var All = []Permission{
 
 	// P5 observability domain
 	{Code: PermObservabilityDatasourceRead, Name: "perm.observability.datasource.read", Category: "observability", Description: "Read observability data sources"},
-	{Code: PermObservabilityDatasourceWrite, Name: "perm.observability.datasource.write", Category: "observability", Description: "Create or update observability data sources"},
+	{Code: PermObservabilityDatasourceWrite, Name: "perm.observability.datasource.write", Category: "observability", Description: "Create, update, and test observability data sources"},
 	{Code: PermObservabilityDatasourceDelete, Name: "perm.observability.datasource.delete", Category: "observability", Description: "Delete observability data sources"},
-	{Code: PermObservabilityMetricRead, Name: "perm.observability.metric.read", Category: "observability", Description: "Run metric queries and read metric metadata"},
+	{Code: PermObservabilityMetricRead, Name: "perm.observability.metric.read", Category: "observability", Description: "Execute metric queries and view built-in dashboards"},
 	{Code: PermObservabilityDashboardRead, Name: "perm.observability.dashboard.read", Category: "observability", Description: "Read observability dashboards"},
 	{Code: PermObservabilityDashboardWrite, Name: "perm.observability.dashboard.write", Category: "observability", Description: "Create or update observability dashboards"},
 	{Code: PermObservabilityDashboardDelete, Name: "perm.observability.dashboard.delete", Category: "observability", Description: "Delete observability dashboards"},
