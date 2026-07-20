@@ -8,7 +8,7 @@ export interface InstantBatch{datasource_id:number;time?:string;enrich_assets:bo
 export interface RangeBatch{datasource_id:number;start:string;end:string;step:string;enrich_assets:boolean;queries:Query[]}
 export interface Sample{timestamp:number;value:string}
 export interface Series{labels:Record<string,string>;samples:Sample[]}
-export interface NormalizedResult{result_type:'vector'|'matrix'|'scalar'|'string';series:Series[];scalar?:Sample;text?:string;warnings?:string[]}
+export interface NormalizedResult{result_type:'vector'|'matrix'|'scalar'|'string';series?:Series[];scalar?:Sample;text?:string;warnings?:string[]}
 export interface ItemError{code:number;message:string;message_key?:string}
 export interface QueryItemResult{ref_id:string;result?:NormalizedResult;error?:ItemError}
 export interface AssetSummary{instance_id:string;name?:string;account_id:number;account_name?:string;region:string;instance_type?:string;state?:string;private_ip:string;public_ip?:string;vpc_id?:string;subnet_id?:string}
