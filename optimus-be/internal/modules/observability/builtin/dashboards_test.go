@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -80,5 +81,24 @@ func TestRenderVariablesEscapesAndRejectsUnsafeValues(t *testing.T) {
 	out, err := Render(d, map[string]string{"namespace": "prod-app", "workload": "api_v2"})
 	if err != nil || len(out.Panels) == 0 {
 		t.Fatalf("render: %v", err)
+	}
+}
+
+func TestRenderRegexVariablesAreQuotedAsLiterals(t *testing.T) {
+	nodes, _ := Get("kubernetes-nodes")
+	rendered, err := Render(nodes, map[string]string{"node": "prod.node"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rendered.Panels[0].PromQL, `node=~"prod\\.node"`) {
+		t.Fatalf("node matcher was not quoted: %s", rendered.Panels[0].PromQL)
+	}
+	workloads, _ := Get("kubernetes-workloads")
+	rendered, err = Render(workloads, map[string]string{"namespace": "prod.ns", "workload": "api.v2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rendered.Panels[0].PromQL, `namespace="prod.ns"`) || !strings.Contains(rendered.Panels[0].PromQL, `pod=~"api\\.v2.*"`) {
+		t.Fatalf("workload matchers were not rendered literally: %s", rendered.Panels[0].PromQL)
 	}
 }

@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"github.com/gin-gonic/gin"
+	"net/http"
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/infra/response"
@@ -17,6 +18,8 @@ type serviceAPI interface {
 	Delete(context.Context, uint64, string, string, uint64) error
 }
 type Handler struct{ svc serviceAPI }
+
+const maxRequestBodyBytes int64 = 1 << 20
 
 func NewHandler(s *Service) *Handler { return &Handler{svc: s} }
 func (h *Handler) Mount(g *gin.RouterGroup, permission func(string) gin.HandlerFunc) {
@@ -90,6 +93,7 @@ func (h *Handler) Get(c *gin.Context) {
 // @Success 200 {object} response.Envelope{data=Detail}
 // @Router /observability/dashboards [post]
 func (h *Handler) Create(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBodyBytes)
 	var req SaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, invalidPanel("invalid request"))
@@ -117,6 +121,7 @@ func (h *Handler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBodyBytes)
 	var req SaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, invalidPanel("invalid request"))

@@ -1,7 +1,12 @@
 package dashboard
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -28,5 +33,26 @@ func TestMountUsesExactPermissions(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing routes=%v", want)
+	}
+}
+
+func TestCreateRejectsOversizedBodyWithDashboardError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/dashboards", NewHandler(nil).Create)
+	body := bytes.Repeat([]byte("x"), int(maxRequestBodyBytes)+1)
+	req := httptest.NewRequest(http.MethodPost, "/dashboards", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var envelope struct {
+		Code       int    `json:"code"`
+		MessageKey string `json:"message_key"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode %q: %v", w.Body.String(), err)
+	}
+	if envelope.Code != 44203 || envelope.MessageKey != "observability.dashboard.invalid_panel" || strings.Contains(w.Body.String(), "request body too large") {
+		t.Fatalf("unexpected response: %s", w.Body.String())
 	}
 }

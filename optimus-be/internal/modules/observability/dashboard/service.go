@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,9 +62,12 @@ func validateSave(r SaveRequest) error {
 	default:
 		return invalidPanel("invalid time range")
 	}
+	if len(r.Panels) > 100 {
+		return invalidPanel("too many panels")
+	}
 	orders := map[int]bool{}
 	for _, p := range r.Panels {
-		if p.DatasourceID == 0 || strings.TrimSpace(p.Title) == "" || len(strings.TrimSpace(p.Title)) > 128 || strings.TrimSpace(p.PromQL) == "" || len(p.PromQL) > 8192 || len(p.Legend) > 128 {
+		if p.DatasourceID == 0 || p.DatasourceID > math.MaxInt64 || strings.TrimSpace(p.Title) == "" || len(strings.TrimSpace(p.Title)) > 128 || strings.TrimSpace(p.PromQL) == "" || len(p.PromQL) > 8192 || len(p.Legend) > 128 {
 			return invalidPanel("invalid panel")
 		}
 		if p.PanelType != "time_series" && p.PanelType != "stat" && p.PanelType != "table" {
@@ -75,7 +79,7 @@ func validateSave(r SaveRequest) error {
 		if p.Width != 6 && p.Width != 12 {
 			return invalidPanel("invalid panel width")
 		}
-		if p.SortOrder < 0 || orders[p.SortOrder] {
+		if p.SortOrder < 0 || int64(p.SortOrder) > math.MaxInt32 || orders[p.SortOrder] {
 			return invalidPanel("invalid panel order")
 		}
 		orders[p.SortOrder] = true

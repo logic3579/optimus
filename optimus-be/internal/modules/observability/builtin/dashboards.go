@@ -15,6 +15,7 @@ type Variable struct {
 	Name     string `json:"name"`
 	Label    string `json:"label"`
 	Required bool   `json:"required"`
+	Regex    bool   `json:"-"`
 }
 type Panel struct {
 	RefID     string `json:"ref_id"`
@@ -44,12 +45,12 @@ var definitions = []Dashboard{
 		p("pods-phase", "observability.panel.pods_phase", "table", `sum by (phase) (kube_pod_status_phase)`, `none`, 3, 6),
 		p("restart-rate", "observability.panel.restart_rate", "time_series", `sum(rate(kube_pod_container_status_restarts_total[5m]))`, `requests_per_second`, 4, 12),
 	}},
-	{Code: "kubernetes-nodes", TitleKey: "observability.builtin.kubernetes_nodes", Variables: []Variable{{Name: "node", Label: "node"}}, Panels: []Panel{
+	{Code: "kubernetes-nodes", TitleKey: "observability.builtin.kubernetes_nodes", Variables: []Variable{{Name: "node", Label: "node", Regex: true}}, Panels: []Panel{
 		p("node-cpu", "observability.panel.node_cpu", "time_series", `sum by (node) (rate(container_cpu_usage_seconds_total{node=~"${node}",container!=""}[5m]))`, `cores`, 0, 6),
 		p("node-memory", "observability.panel.node_memory", "time_series", `sum by (node) (container_memory_working_set_bytes{node=~"${node}",container!=""})`, `bytes`, 1, 6),
 		p("node-ready", "observability.panel.node_ready", "table", `kube_node_status_condition{node=~"${node}",condition="Ready",status="true"}`, `none`, 2, 12),
 	}},
-	{Code: "kubernetes-workloads", TitleKey: "observability.builtin.kubernetes_workloads", Variables: []Variable{{Name: "namespace", Label: "namespace", Required: true}, {Name: "workload", Label: "workload"}}, Panels: []Panel{
+	{Code: "kubernetes-workloads", TitleKey: "observability.builtin.kubernetes_workloads", Variables: []Variable{{Name: "namespace", Label: "namespace", Required: true}, {Name: "workload", Label: "workload", Regex: true}}, Panels: []Panel{
 		p("workload-cpu", "observability.panel.workload_cpu", "time_series", `sum by (namespace,pod) (rate(container_cpu_usage_seconds_total{namespace="${namespace}",pod=~"${workload}.*",container!=""}[5m]))`, `cores`, 0, 6),
 		p("workload-memory", "observability.panel.workload_memory", "time_series", `sum by (namespace,pod) (container_memory_working_set_bytes{namespace="${namespace}",pod=~"${workload}.*",container!=""})`, `bytes`, 1, 6),
 		p("workload-restarts", "observability.panel.workload_restarts", "time_series", `sum by (namespace,pod) (rate(kube_pod_container_status_restarts_total{namespace="${namespace}",pod=~"${workload}.*"}[5m]))`, `requests_per_second`, 2, 12),
@@ -103,7 +104,11 @@ func Render(d Dashboard, values map[string]string) (Dashboard, error) {
 	for i := range out.Panels {
 		q := out.Panels[i].PromQL
 		for _, v := range d.Variables {
-			q = strings.ReplaceAll(q, "${"+v.Name+"}", promEscape(values[v.Name]))
+			value := values[v.Name]
+			if v.Regex {
+				value = regexp.QuoteMeta(value)
+			}
+			q = strings.ReplaceAll(q, "${"+v.Name+"}", promEscape(value))
 		}
 		out.Panels[i].PromQL = q
 	}
