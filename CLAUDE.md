@@ -114,6 +114,36 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 
 **Cluster picker** (`components/layout/ClusterPicker.vue` mounted in `AppHeader.vue`): selected cluster ID lives in the `k8s` Pinia store; every k8s page reads from it. Pages that need it but find it unset should show a "select a cluster" hint, not auto-redirect.
 
+## Architecture — assets (P4)
+
+**`assets` module** (`internal/modules/assets/`): AWS-only, read-only cloud
+resource discovery. `cloud_accounts` binds a P1 cloud key to
+`enabled_regions`; sweeps populate `aws_instances`, `aws_vpcs` together with
+`aws_subnets`, and `aws_databases`. Missing resources are soft-deleted only
+after an authoritative successful sweep; VPC and subnet persistence share one
+transaction.
+
+**Syncing** (`sync/`): a per-account in-memory lock gates cron and manual
+work. `POST /api/v1/assets/cloud-accounts/{id}/sync` records its audit event,
+starts a bounded detached worker, and returns immediately. The cron scheduler
+uses `OPTIMUS_ASSETS_SYNC_CRON`, applies the configured startup delay, and
+prunes `assets_sync_runs` after the configured retention period.
+
+**Cloud credentials and consumers**: all sweeps obtain cloud keys only through
+`credentials.Consumer` and discard fresh AWS clients after each sweep.
+`assets.Consumer` in `consume.go` is the non-HTTP seam for later phases to
+look up instances by private IP, instance ID, or VPC. It returns the
+`ErrAssetsInstanceNotFound` sentinel for absent matches.
+
+**P1 cloud-key protection**: `credentials/cloudkey.Service` accepts an
+optional, nil-safe assets in-use counter. When it is wired at server startup,
+deleting a referenced cloud key fails with `43001`.
+
+**Configuration**: `OPTIMUS_ASSETS_SYNC_CRON`,
+`OPTIMUS_ASSETS_SYNC_STARTUP_DELAY`,
+`OPTIMUS_ASSETS_SYNC_RUN_RETENTION_DAYS`, and
+`OPTIMUS_ASSETS_AWS_REQUEST_TIMEOUT`.
+
 ## Conventions worth knowing
 
 - **bun everywhere on the frontend** — never npm/pnpm/yarn. CI uses `bun install --frozen-lockfile`.
