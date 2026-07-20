@@ -116,7 +116,12 @@ func TestClientMapsFailures(t *testing.T) {
 		requireBizCode(t, err, apperr.CodeObservabilityQueryInvalidResponse)
 	})
 	t.Run("timeout", func(t *testing.T) {
-		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-r.Context().Done():
+			case <-time.After(250 * time.Millisecond):
+			}
+		}))
 		defer s.Close()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 		defer cancel()

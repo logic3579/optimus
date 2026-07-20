@@ -62,3 +62,34 @@ func TestHTTPStatus_AssetsDomainCodes(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPStatus_ObservabilityDomainCodes(t *testing.T) {
+	tests := []struct {
+		name string
+		code apperr.Code
+		want int
+	}{
+		{"data source not found", apperr.CodeObservabilityDatasourceNotFound, 404},
+		{"data source name taken", apperr.CodeObservabilityDatasourceNameTaken, 409},
+		{"data source in use", apperr.CodeObservabilityDatasourceInUse, 409},
+		{"invalid data source URL", apperr.CodeObservabilityDatasourceInvalidURL, 400},
+		{"data source auth mismatch", apperr.CodeObservabilityDatasourceAuthMismatch, 400},
+		{"invalid data source TLS", apperr.CodeObservabilityDatasourceInvalidTLS, 400},
+		{"query destination denied", apperr.CodeObservabilityQueryDestinationDenied, 403},
+		{"query upstream unreachable", apperr.CodeObservabilityQueryUpstreamUnreachable, 502},
+		{"query upstream timeout", apperr.CodeObservabilityQueryUpstreamTimeout, 504},
+		{"query upstream rejected", apperr.CodeObservabilityQueryUpstreamRejected, 502},
+		{"query invalid response", apperr.CodeObservabilityQueryInvalidResponse, 502},
+		{"query limit exceeded", apperr.CodeObservabilityQueryLimitExceeded, 400},
+		{"query invalid request", apperr.CodeObservabilityQueryInvalidRequest, 400},
+		{"dashboard not found", apperr.CodeObservabilityDashboardNotFound, 404},
+		{"dashboard name taken", apperr.CodeObservabilityDashboardNameTaken, 409},
+		{"dashboard invalid panel", apperr.CodeObservabilityDashboardInvalidPanel, 400},
+		{"dashboard builtin not found", apperr.CodeObservabilityDashboardBuiltinNotFound, 404},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, apperr.HTTPStatus(tt.code))
+		})
+	}
+}

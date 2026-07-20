@@ -49,6 +49,29 @@ func HTTPStatus(c Code) int {
 		return 429
 	case c == CodeAssetsCloudAccountInUse || c == CodeAssetsSyncBusy:
 		return 409
+	case c == CodeObservabilityDatasourceNotFound ||
+		c == CodeObservabilityDashboardNotFound ||
+		c == CodeObservabilityDashboardBuiltinNotFound:
+		return 404
+	case c == CodeObservabilityDatasourceNameTaken ||
+		c == CodeObservabilityDatasourceInUse ||
+		c == CodeObservabilityDashboardNameTaken:
+		return 409
+	case c == CodeObservabilityQueryDestinationDenied:
+		return 403
+	case c == CodeObservabilityQueryUpstreamTimeout:
+		return 504
+	case c == CodeObservabilityQueryUpstreamUnreachable ||
+		c == CodeObservabilityQueryUpstreamRejected ||
+		c == CodeObservabilityQueryInvalidResponse:
+		return 502
+	case c == CodeObservabilityDatasourceInvalidURL ||
+		c == CodeObservabilityDatasourceAuthMismatch ||
+		c == CodeObservabilityDatasourceInvalidTLS ||
+		c == CodeObservabilityQueryLimitExceeded ||
+		c == CodeObservabilityQueryInvalidRequest ||
+		c == CodeObservabilityDashboardInvalidPanel:
+		return 400
 	case c == CodeAssetsCloudAccountNotFound || c == CodeAssetsVPCNotFound:
 		return 404
 	case c == CodeAssetsCloudAccountNameConflict ||
