@@ -39,6 +39,7 @@ import (
 	"optimus-be/internal/modules/health"
 	"optimus-be/internal/modules/k8s"
 	"optimus-be/internal/modules/menu"
+	observabilitymodule "optimus-be/internal/modules/observability/module"
 	"optimus-be/internal/modules/permission"
 	"optimus-be/internal/modules/rbac"
 	"optimus-be/internal/modules/role"
@@ -238,7 +239,13 @@ func main() {
 	})
 	credsModule.CloudKey.SetAccountsInUseCounter(assetsModule.InUseCounter)
 	assetsModule.MountRoutes(protected, permCache)
-	_ = assetsModule.Consumer
+	observabilityModule, err := observabilitymodule.Wire(observabilitymodule.Input{DB: gdb, Credentials: credsModule.Consumer, Audit: auditRec, Config: cfg.Observability, Assets: assetsModule.Consumer})
+	if err != nil {
+		fail("wire observability", err)
+	}
+	credsModule.HTTP.SetInUseCounter(observabilityModule.CredentialUsage)
+	k8sModule.SetObservabilityCounter(observabilityModule.ClusterUsage)
+	observabilityModule.MountRoutes(protected, permCache)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
