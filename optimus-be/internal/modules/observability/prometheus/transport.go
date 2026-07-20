@@ -70,8 +70,9 @@ func (f *TransportFactory) New(base *url.URL, tlsOpt TLSOptions, auth Auth) (*ht
 		baseHost: baseHost,
 		active:   make(map[*http.Transport]struct{}),
 	}
+	origin := newOriginBinding(validatedBase)
 	return &http.Client{
-		Transport: &authRoundTripper{next: transport, header: header},
+		Transport: &authRoundTripper{next: transport, header: header, origin: origin},
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -164,15 +165,63 @@ func (r *cleanupReadCloser) Close() error {
 type authRoundTripper struct {
 	next   http.RoundTripper
 	header string
+	origin originBinding
 }
 
 func (r *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if !r.origin.allows(req.URL) {
+		return nil, deniedDestination()
+	}
 	clone := req.Clone(req.Context())
 	clone.Header = req.Header.Clone()
 	if r.header != "" {
 		clone.Header.Set("Authorization", r.header)
 	}
 	return r.next.RoundTrip(clone)
+}
+
+type originBinding struct {
+	scheme string
+	host   string
+	port   string
+	prefix string
+}
+
+func newOriginBinding(base *url.URL) originBinding {
+	prefix := strings.TrimSuffix(base.Path, "/")
+	if prefix == "" {
+		prefix = "/"
+	}
+	return originBinding{
+		scheme: base.Scheme,
+		host:   strings.ToLower(base.Hostname()),
+		port:   effectivePort(base),
+		prefix: prefix,
+	}
+}
+
+func (o originBinding) allows(target *url.URL) bool {
+	if target == nil || target.User != nil || target.Fragment != "" ||
+		strings.HasSuffix(target.Host, ":") ||
+		target.Scheme != o.scheme || strings.ToLower(target.Hostname()) != o.host ||
+		effectivePort(target) != o.port || !validPort(target) || !safeEscapedPath(target) {
+		return false
+	}
+	path := target.Path
+	if path == "" {
+		path = "/"
+	}
+	return o.prefix == "/" || path == o.prefix || strings.HasPrefix(path, o.prefix+"/")
+}
+
+func effectivePort(target *url.URL) string {
+	if port := target.Port(); port != "" {
+		return port
+	}
+	if target.Scheme == "https" {
+		return "443"
+	}
+	return "80"
 }
 
 func (r *authRoundTripper) CloseIdleConnections() {

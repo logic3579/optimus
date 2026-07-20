@@ -116,6 +116,54 @@ func TestTransportAuthenticationAndRedaction(t *testing.T) {
 	}
 }
 
+func TestTransportRejectsRequestsOutsideConfiguredOriginBeforeAuth(t *testing.T) {
+	policy, err := NewPolicy(nil, &staticResolver{addrs: parseAddrs(t, "8.8.8.8")})
+	require.NoError(t, err)
+	base, err := policy.ParseBaseURL("https://prom.example.com:443/prom")
+	require.NoError(t, err)
+	client, err := NewTransportFactory(policy, nil).New(base, TLSOptions{}, Auth{Type: "bearer", Secret: []byte("secret")})
+	require.NoError(t, err)
+	var downstreamCalls atomic.Int32
+	var acceptedAuth string
+	client.Transport.(*authRoundTripper).next = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		downstreamCalls.Add(1)
+		acceptedAuth = req.Header.Get("Authorization")
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok")), Request: req}, nil
+	})
+
+	rejected := []string{
+		"http://prom.example.com/prom/api/v1/query",
+		"https://prom.example.com:444/prom/api/v1/query",
+		"https://prom.example.com:/prom/api/v1/query",
+		"https://PROM.example.com./prom/api/v1/query",
+		"https://other.example.com/prom/api/v1/query",
+		"https://prom.example.com/prometheus/api/v1/query",
+		"https://prom.example.com/prom/%2e%2e/secret",
+		"https://prom.example.com/prom/%252e%252e/secret",
+		"https://prom.example.com/prom/%2Fsecret",
+	}
+	for _, raw := range rejected {
+		t.Run(raw, func(t *testing.T) {
+			before := downstreamCalls.Load()
+			target, err := url.Parse(raw)
+			require.NoError(t, err)
+			req := &http.Request{Method: http.MethodGet, URL: target, Header: make(http.Header)}
+			_, err = client.Do(req)
+			requireBizCode(t, err, apperr.CodeObservabilityQueryDestinationDenied)
+			require.Equal(t, before, downstreamCalls.Load())
+			require.Empty(t, req.Header.Get("Authorization"))
+		})
+	}
+
+	req, err := http.NewRequest(http.MethodGet, "https://prom.example.com/prom/api/v1/query", nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, int32(1), downstreamCalls.Load())
+	require.Equal(t, "Bearer secret", acceptedAuth)
+}
+
 func TestTransportDisablesRedirects(t *testing.T) {
 	policy, err := NewPolicy(nil, &staticResolver{addrs: parseAddrs(t, "8.8.8.8")})
 	require.NoError(t, err)
@@ -318,9 +366,11 @@ func generatedCertificatePEM(t *testing.T, isCA bool, usage x509.KeyUsage) []byt
 }
 
 func TestAuthRoundTripperDoesNotLeakHeaderInErrors(t *testing.T) {
+	base, err := url.Parse("https://example.com")
+	require.NoError(t, err)
 	rt := &authRoundTripper{next: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok")), Request: req}, nil
-	}), header: "Bearer secret"}
+	}), header: "Bearer secret", origin: newOriginBinding(base)}
 	req := &http.Request{Method: http.MethodGet, URL: &url.URL{Scheme: "https", Host: "example.com"}, Header: make(http.Header)}
 	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)

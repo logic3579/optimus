@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 
 	apperr "optimus-be/internal/infra/errors"
@@ -28,8 +29,9 @@ var permanentlyDeniedPrefixes = mustPrefixes(
 	"0.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
 	"192.0.0.0/24", "192.0.2.0/24", "198.18.0.0/15", "198.51.100.0/24",
 	"203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
-	"::/128", "::1/128", "100::/64", "2001:2::/48", "2001:10::/28", "2001:20::/28",
-	"2001:db8::/32", "fe80::/10", "fec0::/10", "ff00::/8",
+	"::/96", "64:ff9b::/96", "64:ff9b:1::/48", "100::/64", "2001::/32",
+	"2001:2::/48", "2001:10::/28", "2001:20::/28", "2001:db8::/32", "2002::/16",
+	"fe80::/10", "fec0::/10", "ff00::/8",
 )
 
 var metadataPrefixes = mustPrefixes("169.254.169.254/32", "fd00:ec2::254/128")
@@ -56,7 +58,38 @@ func ParseBaseURL(raw string) (*url.URL, error) {
 		parsed.User != nil || parsed.Fragment != "" || parsed.RawQuery != "" || parsed.Hostname() == "" {
 		return nil, apperr.New(apperr.CodeObservabilityDatasourceInvalidURL, invalidURLKey, "invalid observability data source URL")
 	}
+	if strings.HasSuffix(parsed.Host, ":") || !validPort(parsed) || !safeEscapedPath(parsed) {
+		return nil, apperr.New(apperr.CodeObservabilityDatasourceInvalidURL, invalidURLKey, "invalid observability data source URL")
+	}
 	return parsed, nil
+}
+
+func validPort(parsed *url.URL) bool {
+	port := parsed.Port()
+	if port == "" {
+		return true
+	}
+	value, err := strconv.Atoi(port)
+	return err == nil && value >= 1 && value <= 65535
+}
+
+func safeEscapedPath(parsed *url.URL) bool {
+	if strings.Contains(parsed.Path, "\\") {
+		return false
+	}
+	for _, rawSegment := range strings.Split(parsed.EscapedPath(), "/") {
+		for range len(rawSegment) + 1 {
+			segment, err := url.PathUnescape(rawSegment)
+			if err != nil || segment == "." || segment == ".." || strings.ContainsAny(segment, "/\\") {
+				return false
+			}
+			if segment == rawSegment {
+				break
+			}
+			rawSegment = segment
+		}
+	}
+	return true
 }
 
 func (p *Policy) ParseBaseURL(raw string) (*url.URL, error) { return ParseBaseURL(raw) }

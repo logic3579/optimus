@@ -30,6 +30,8 @@ func TestPolicyParseBaseURL(t *testing.T) {
 	for _, raw := range []string{
 		"file:///etc/passwd", "ftp://prom.example.com", "https://user:pass@prom.example.com",
 		"https://prom.example.com?x=1", "https://prom.example.com/#frag", "https:///prefix",
+		"https://prom.example.com:", "https://prom.example.com:0", "https://prom.example.com:65536",
+		"https://prom.example.com:not-a-port",
 	} {
 		t.Run(raw, func(t *testing.T) {
 			_, err := p.ParseBaseURL(raw)
@@ -66,6 +68,14 @@ func TestPolicyResolveAllowedClassifiesEveryAnswer(t *testing.T) {
 		{"ipv6 benchmark", []string{"2001:2::1"}, nil, false},
 		{"ipv6 orchid", []string{"2001:20::1"}, nil, false},
 		{"ipv6 deprecated site local", []string{"fec0::1"}, nil, false},
+		{"NAT64 encoded private", []string{"64:ff9b::a00:1"}, []string{"64:ff9b::/96"}, false},
+		{"deprecated IPv4-compatible private", []string{"::a00:1"}, []string{"::/0"}, false},
+		{"deprecated IPv4-compatible metadata", []string{"::a9fe:a9fe"}, []string{"::/0"}, false},
+		{"NAT64 encoded metadata", []string{"64:ff9b::a9fe:a9fe"}, []string{"::/0"}, false},
+		{"local NAT64 encoded private", []string{"64:ff9b:1::a00:1"}, []string{"::/0"}, false},
+		{"6to4 encoded private", []string{"2002:a00:1::"}, []string{"::/0"}, false},
+		{"6to4 encoded metadata", []string{"2002:a9fe:a9fe::"}, []string{"::/0"}, false},
+		{"Teredo denied", []string{"2001:0:4136:e378:8000:63bf:3fff:fdd2"}, nil, false},
 		{"private denied", []string{"10.2.3.4"}, nil, false},
 		{"private allowed", []string{"10.2.3.4"}, []string{"10.2.3.0/24"}, true},
 		{"ULA denied", []string{"fd12::4"}, nil, false},
