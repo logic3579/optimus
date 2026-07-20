@@ -70,7 +70,22 @@
     "42203": "目标回退 revision 不存在。",
     "42204": "Release 仍存在，请先卸载。",
     "42205": "values YAML 不合法。",
-    "42299": "Helm 错误。"
+    "42299": "Helm 错误。",
+    "43001": "云密钥被云账号引用，无法删除",
+    "43002": "云账号不存在",
+    "43003": "云账号名称已存在",
+    "43004": "区域格式无效",
+    "43005": "暂不支持的云厂商",
+    "43006": "云账号已停用，无法触发同步",
+    "43008": "引用的云密钥不存在",
+    "43009": "VPC 不存在",
+    "43101": "该账号已有同步任务进行中",
+    "43102": "AWS 凭证无效或已过期",
+    "43103": "AWS API 访问被拒绝（IAM 权限不足）",
+    "43104": "无法连接 AWS API",
+    "43105": "AWS API 限流",
+    "43106": "AWS API 调用失败",
+    "43107": "AWS SDK 配置加载失败"
   },
   "network": {
     "error": "网络错误，请稍后再试"
@@ -103,6 +118,14 @@
     "apps": {
       "applications": "应用列表",
       "chart_repos": "Chart 仓库"
+    },
+    "assets_group": "资产管理",
+    "assets": {
+      "cloud_accounts": "云账号",
+      "instances": "EC2 实例",
+      "vpcs": "VPC",
+      "databases": "RDS 数据库",
+      "sync_runs": "同步运行记录"
     }
   },
   "perm": {
@@ -132,6 +155,11 @@
       "release":     { "install": "安装 release", "upgrade": "升级 release", "rollback": "回退 release", "uninstall": "卸载 release" },
       "repo":        { "read": "查看 Chart 仓库", "write": "管理 Chart 仓库", "delete": "删除 Chart 仓库" }
     },
+    "assets": {
+      "account": { "read": "云账号查看", "write": "云账号管理", "delete": "云账号删除" },
+      "resource": { "read": "云资源查看" },
+      "sync": { "read": "同步记录查看" }
+    },
     "category": {
       "system": "系统管理",
       "credentials": "凭证管理",
@@ -140,6 +168,122 @@
       "observability": "可观测性",
       "cicd": "CI/CD",
       "applications": "应用管理"
+    }
+  },
+  "assets": {
+    "menu": {
+      "cloud_accounts": "云账号",
+      "instances": "EC2 实例",
+      "vpcs": "VPC",
+      "databases": "RDS 数据库",
+      "sync_runs": "同步运行记录"
+    },
+    "account": {
+      "title": "云账号",
+      "name": "名称",
+      "provider": "云厂商",
+      "cloudkey": "云密钥",
+      "regions": "区域",
+      "enabled": "启用",
+      "description": "描述",
+      "last_sync_at": "上次同步",
+      "last_sync_status": "上次状态",
+      "actions": {
+        "create": "新增云账号",
+        "edit": "编辑",
+        "delete": "删除",
+        "sync_now": "立即同步"
+      },
+      "sync_queued": "已加入同步队列",
+      "delete_confirm": "确认删除云账号「{name}」？删除将级联软删该账号下所有发现的资源。",
+      "cascaded_resources": "已级联软删 {count} 条资源记录"
+    },
+    "resource": {
+      "instance": {
+        "title": "EC2 实例",
+        "instance_id": "实例 ID",
+        "name": "名称",
+        "type": "实例类型",
+        "state": "状态",
+        "private_ip": "私网 IP",
+        "public_ip": "公网 IP",
+        "vpc": "VPC",
+        "subnet": "子网",
+        "az": "可用区",
+        "launch_time": "启动时间",
+        "tags": "标签"
+      },
+      "vpc": {
+        "title": "VPC",
+        "vpc_id": "VPC ID",
+        "name": "名称",
+        "cidr": "CIDR",
+        "is_default": "默认",
+        "state": "状态",
+        "subnet_count": "子网数",
+        "view_subnets": "查看子网"
+      },
+      "subnet": {
+        "title": "子网",
+        "subnet_id": "子网 ID",
+        "cidr": "CIDR",
+        "az": "可用区"
+      },
+      "database": {
+        "title": "RDS 数据库",
+        "db_instance_id": "实例标识",
+        "engine": "引擎",
+        "version": "版本",
+        "class": "规格",
+        "status": "状态",
+        "endpoint": "端点",
+        "port": "端口",
+        "multi_az": "多可用区",
+        "publicly_accessible": "公网可达",
+        "storage_gb": "存储 GB"
+      },
+      "common": {
+        "include_deleted": "包含已删除",
+        "deleted_badge": "已删除",
+        "tags": "标签",
+        "last_seen_at": "最后发现时间",
+        "no_data": "暂无数据"
+      }
+    },
+    "sync": {
+      "title": "同步运行记录",
+      "started_at": "开始时间",
+      "finished_at": "结束时间",
+      "duration": "时长",
+      "resource_type": "资源类型",
+      "status": "状态",
+      "items_seen": "扫描条数",
+      "items_softdeleted": "软删条数",
+      "error": "错误",
+      "trigger": "触发方式",
+      "triggered_by": "触发用户",
+      "filter": {
+        "started_after": "开始时间晚于",
+        "account": "云账号",
+        "resource_type": "资源类型",
+        "status": "状态"
+      },
+      "run_status": {
+        "running": "运行中",
+        "success": "成功",
+        "failed": "失败",
+        "skipped": "跳过"
+      },
+      "resource_types": {
+        "instance": "实例",
+        "network": "网络",
+        "database": "数据库"
+      },
+      "triggers": {
+        "cron": "定时",
+        "manual": "手动",
+        "test": "测试"
+      }
     }
   },
   "form": {

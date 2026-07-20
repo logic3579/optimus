@@ -17,6 +17,16 @@ Auto-generated from `optimus-be/internal/infra/permissions/codes.go`. Run `make 
 | `apps:repo:read` | `perm.apps.repo.read` | Read chart repositories |
 | `apps:repo:write` | `perm.apps.repo.write` | Create/update chart repositories |
 
+## assets
+
+| Code | Name (i18n) | Description |
+|---|---|---|
+| `assets:account:delete` | `perm.assets.account.delete` | Delete cloud accounts |
+| `assets:account:read` | `perm.assets.account.read` | Read cloud accounts |
+| `assets:account:write` | `perm.assets.account.write` | Create/update cloud accounts and trigger manual syncs |
+| `assets:resource:read` | `perm.assets.resource.read` | Read cloud resources |
+| `assets:sync:read` | `perm.assets.sync.read` | Read asset sync runs |
+
 ## credentials
 
 | Code | Name (i18n) | Description |

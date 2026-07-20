@@ -32,6 +32,9 @@ import { makeYamlApi } from '@/api/k8s/yaml'
 import { makeAppsRepoApi } from '@/api/apps/repo'
 import { makeAppsApplicationApi } from '@/api/apps/application'
 import { makeAppsReleaseApi } from '@/api/apps/release'
+import { makeAssetsAccountApi } from '@/api/assets/account'
+import { makeAssetsResourceApi } from '@/api/assets/resource'
+import { makeAssetsSyncApi } from '@/api/assets/sync'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useAppStore } from '@/stores/app'
@@ -78,6 +81,9 @@ app.provide('yamlApi', makeYamlApi(client))
 app.provide('appsRepoApi', makeAppsRepoApi(client))
 app.provide('appsApplicationApi', makeAppsApplicationApi(client))
 app.provide('appsReleaseApi', makeAppsReleaseApi(client))
+app.provide('assetsAccountApi', makeAssetsAccountApi(client))
+app.provide('assetsResourceApi', makeAssetsResourceApi(client))
+app.provide('assetsSyncApi', makeAssetsSyncApi(client))
 
 installGuards(router, meApi)
 app.use(router)

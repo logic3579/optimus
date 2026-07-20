@@ -46,3 +46,9 @@ bootstrap:
 vault:
   master_key: ""
   master_key_file: ""
+
+assets:
+  sync_cron: "*/15 * * * *"
+  sync_startup_delay: 30s
+  sync_run_retention_days: 90
+  aws_request_timeout: 30s

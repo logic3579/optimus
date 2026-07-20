@@ -31,6 +31,7 @@ import (
 	appsmodule "optimus-be/internal/modules/apps/module"
 	"optimus-be/internal/modules/apps/release"
 	apprepo "optimus-be/internal/modules/apps/repo"
+	assetsmodule "optimus-be/internal/modules/assets/module"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/auth"
 	"optimus-be/internal/modules/credentials"
@@ -224,6 +225,21 @@ func main() {
 	appsModule := appsmodule.New(appsRepoSvc, appsAppSvc, appsRelSvc)
 	appsModule.MountRoutes(protected, permCache)
 
+	// P4 assets: cloud-account CRUD, AWS discovery, read-only inventory,
+	// sync-run history, scheduler, and the Go-only Consumer seam for P5/P6.
+	assetsCtx, cancelAssets := context.WithCancel(context.Background())
+	assetsModule := assetsmodule.Wire(assetsCtx, assetsmodule.Input{
+		DB:                  gdb,
+		Config:              cfg.Assets,
+		Audit:               auditRec,
+		CredentialsConsumer: credsModule.Consumer,
+		CloudKeyService:     credsModule.CloudKey,
+		Logger:              logger,
+	})
+	credsModule.CloudKey.SetAccountsInUseCounter(assetsModule.InUseCounter)
+	assetsModule.MountRoutes(protected, permCache)
+	_ = assetsModule.Consumer
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 		Handler:      r,
@@ -243,12 +259,21 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	logger.Info("shutting down")
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	httpShutdownCtx, cancelHTTPShutdown := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	if err := srv.Shutdown(httpShutdownCtx); err != nil {
 		logger.Error("shutdown", "err", err)
 	}
-	if sqlDB, _ := gdb.DB(); sqlDB != nil {
+	cancelHTTPShutdown()
+
+	cancelAssets()
+	assetsShutdownCtx, cancelAssetsShutdown := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	assetsShutdownErr := assetsModule.Shutdown(assetsShutdownCtx)
+	cancelAssetsShutdown()
+	if assetsShutdownErr != nil {
+		// Do not close the DB underneath workers that did not drain. Returning
+		// from main is the forced-shutdown path and lets the process reclaim it.
+		logger.Error("assets shutdown", "err", assetsShutdownErr)
+	} else if sqlDB, _ := gdb.DB(); sqlDB != nil {
 		_ = sqlDB.Close()
 	}
 	logger.Info("stopped")

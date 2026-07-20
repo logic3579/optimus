@@ -13,6 +13,19 @@ Monorepo with two deployable apps plus shared deployment assets:
 - `docs/api/swagger.json` and `docs/permissions.md` — **generated artifacts**, checked in. CI (`make swagger-diff` / `make perm-check`) fails if they drift from source.
 - `docker-compose.yml` (repo root) — local Postgres + Adminer only. Production stack lives in `deploy/`.
 
+## Current project phase
+
+As of 2026-07-20, P0-P4 are implemented. P4 Assets completed its 25-task
+plan and was pushed to `origin/dev` at `d667316`; the user owns the manual PR
+or merge from `dev` to `main`. At this checkpoint `origin/main` remains
+`b6d6555` (P3), and no P5/P6 design or implementation plan has been approved.
+
+For P4 maintenance, read the P4 design and plan before changing behavior and
+run `optimus-be/scripts/p4-smoke.md` with a disposable read-only AWS
+credential before release sign-off. The next new delivery should start with
+the Superpowers brainstorming workflow for P5, then an approved design and
+task-by-task plan; do not infer P5 scope from the P4 `assets.Consumer` seam.
+
 ## Daily commands
 
 ### Backend (run from `optimus-be/`)
@@ -114,6 +127,36 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 
 **Cluster picker** (`components/layout/ClusterPicker.vue` mounted in `AppHeader.vue`): selected cluster ID lives in the `k8s` Pinia store; every k8s page reads from it. Pages that need it but find it unset should show a "select a cluster" hint, not auto-redirect.
 
+## Architecture — assets (P4)
+
+**`assets` module** (`internal/modules/assets/`): AWS-only, read-only cloud
+resource discovery. `cloud_accounts` binds a P1 cloud key to
+`enabled_regions`; sweeps populate `aws_instances`, `aws_vpcs` together with
+`aws_subnets`, and `aws_databases`. Missing resources are soft-deleted only
+after an authoritative successful sweep; VPC and subnet persistence share one
+transaction.
+
+**Syncing** (`sync/`): a per-account in-memory lock gates cron and manual
+work. `POST /api/v1/assets/cloud-accounts/{id}/sync` records its audit event,
+starts a bounded detached worker, and returns immediately. The cron scheduler
+uses `OPTIMUS_ASSETS_SYNC_CRON`, applies the configured startup delay, and
+prunes `assets_sync_runs` after the configured retention period.
+
+**Cloud credentials and consumers**: all sweeps obtain cloud keys only through
+`credentials.Consumer` and discard fresh AWS clients after each sweep.
+`assets.Consumer` in `consume.go` is the non-HTTP seam for later phases to
+look up instances by private IP, instance ID, or VPC. It returns the
+`ErrAssetsInstanceNotFound` sentinel for absent matches.
+
+**P1 cloud-key protection**: `credentials/cloudkey.Service` accepts an
+optional, nil-safe assets in-use counter. When it is wired at server startup,
+deleting a referenced cloud key fails with `43001`.
+
+**Configuration**: `OPTIMUS_ASSETS_SYNC_CRON`,
+`OPTIMUS_ASSETS_SYNC_STARTUP_DELAY`,
+`OPTIMUS_ASSETS_SYNC_RUN_RETENTION_DAYS`, and
+`OPTIMUS_ASSETS_AWS_REQUEST_TIMEOUT`.
+
 ## Conventions worth knowing
 
 - **bun everywhere on the frontend** — never npm/pnpm/yarn. CI uses `bun install --frozen-lockfile`.
@@ -124,7 +167,9 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 - **Audit logging**: every mutating service path calls `audit.Recorder.Record(...)`. The recorder is shared so `/me` writes and admin `/users` writes hit the same sink — don't construct a second recorder.
 - **k8s.io/client-go is pinned to v0.30.14** (and apimachinery to v0.30.14) to keep `go.mod`'s go directive at 1.25. `go get k8s.io/client-go@latest` (v0.36+) transitively bumps go to 1.26+. If you ever do bump, also update `deploy/be.Dockerfile` (golang:1.26-alpine) and CI `go-version`.
 - **`helm.sh/helm/v3` is pinned to v3.15.4** (fell back from v3.16.4 because the 3.16 line transitively upgrades `k8s.io/client-go` to v0.31.x, breaking the P2 v0.30.14 invariant). Bumping helm transitively bumps client-go, so any helm upgrade re-runs the P2 compatibility verification. Pin is checked at startup only by `go build`; no runtime assertion.
+- **AWS SDK Go v2 modules** (`github.com/aws/aws-sdk-go-v2`, `.../config`, `.../credentials`, `.../service/ec2`, `.../service/rds`) and **`github.com/robfig/cron/v3`** are pinned for P4 assets and must not raise `go.mod` above Go 1.25; pin an offending submodule back instead of raising the project Go version.
 - **k8s endpoints are read-only by design** — never add write/apply/exec/watch handlers without re-opening the P2 spec. The /data secret reveal endpoint is the only path that returns plaintext secret values; it is RBAC-gated by `k8s:secret:reveal`.
+- **Claude Code uses the repository's local mem0 MCP configuration** — `.mcp.json` launches `uvx mem0-mcp-server`, and `.claude/settings.json` enables the `mem0` server. Keep `MEM0_API_KEY` exported before starting Claude Code. Unless the user explicitly requests another scope, use `user_id = "logic"` for mem0 reads and writes so project memories remain together.
 - **CLAUDE Code skills/superpowers** are configured at `~/.claude/` and `.claude/`; the `.claude/settings.json` here only adjusts permissions/hooks for this repo.
 
 ## Gotchas (local-only)
@@ -141,7 +186,7 @@ Both read the permission list from `useAuthStore().permissions` — never re-fet
 If this is the first time touching this repo on this Mac:
 
 1. **Tools**: `brew install uv bun colima git` then `colima start`.
-2. **mem0 API key**: `export MEM0_API_KEY="..."` (from password manager). Persist in `~/.zshrc`. The `.mcp.json` in this repo auto-loads the mem0 MCP server in Claude Code.
+2. **mem0 API key**: `export MEM0_API_KEY="..."` (from password manager). Persist in `~/.zshrc`. Claude Code auto-loads the repository's `.mcp.json`, which starts `uvx mem0-mcp-server`. Scope mem0 calls to `user_id = "logic"` unless another user is explicitly requested.
 3. **First prompt** in Claude Code:
    > "Read CLAUDE.md, search mem0 for the optimus checkpoint, then `git log dev..main` to confirm what's actually merged. Summarize where the project is and recommend the next step."
 

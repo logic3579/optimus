@@ -49,6 +49,19 @@ type CloudKey struct {
 	SecretAccessKey string
 }
 
+// Wipe minimizes the reachable lifetime of decrypted cloud-key material.
+// Go strings and AWS credential providers may retain copies until garbage
+// collection, so this is best-effort cleanup rather than guaranteed memory
+// zeroization. Name and Region are non-sensitive metadata and remain intact.
+func Wipe(key *CloudKey) {
+	if key == nil {
+		return
+	}
+	key.Provider = ""
+	key.AccessKeyID = ""
+	key.SecretAccessKey = ""
+}
+
 // Consumer is the seam used by downstream sub-projects. `purpose` is a free-form
 // caller-supplied string recorded in audit; for system callers (ctx has no user_id),
 // it must start with "system:".

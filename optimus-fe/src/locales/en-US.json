@@ -70,7 +70,22 @@
     "42203": "Target rollback revision does not exist.",
     "42204": "Release is still installed. Uninstall first.",
     "42205": "Invalid values YAML.",
-    "42299": "Helm error."
+    "42299": "Helm error.",
+    "43001": "Cloud key is referenced by a cloud account; delete blocked",
+    "43002": "Cloud account not found",
+    "43003": "Cloud account name already exists",
+    "43004": "Invalid region format",
+    "43005": "Cloud provider not supported",
+    "43006": "Cloud account is disabled; cannot trigger sync",
+    "43008": "Referenced cloud key not found",
+    "43009": "VPC not found",
+    "43101": "Sync already in progress for this account",
+    "43102": "AWS credentials invalid or expired",
+    "43103": "AWS API access denied (insufficient IAM permissions)",
+    "43104": "Cannot reach the AWS API",
+    "43105": "AWS API throttled",
+    "43106": "AWS API call failed",
+    "43107": "AWS SDK config load failed"
   },
   "network": {
     "error": "Network error, please try again later"
@@ -103,6 +118,14 @@
     "apps": {
       "applications": "Applications",
       "chart_repos": "Chart repos"
+    },
+    "assets_group": "Cloud Assets",
+    "assets": {
+      "cloud_accounts": "Cloud Accounts",
+      "instances": "EC2 Instances",
+      "vpcs": "VPCs",
+      "databases": "RDS Databases",
+      "sync_runs": "Sync Runs"
     }
   },
   "perm": {
@@ -132,6 +155,11 @@
       "release":     { "install": "Install release", "upgrade": "Upgrade release", "rollback": "Rollback release", "uninstall": "Uninstall release" },
       "repo":        { "read": "View chart repositories", "write": "Manage chart repositories", "delete": "Delete chart repositories" }
     },
+    "assets": {
+      "account": { "read": "View cloud accounts", "write": "Manage cloud accounts", "delete": "Delete cloud accounts" },
+      "resource": { "read": "View cloud resources" },
+      "sync": { "read": "View sync runs" }
+    },
     "category": {
       "system": "System",
       "credentials": "Credentials",
@@ -140,6 +168,122 @@
       "observability": "Observability",
       "cicd": "CI/CD",
       "applications": "Applications"
+    }
+  },
+  "assets": {
+    "menu": {
+      "cloud_accounts": "Cloud Accounts",
+      "instances": "EC2 Instances",
+      "vpcs": "VPCs",
+      "databases": "RDS Databases",
+      "sync_runs": "Sync Runs"
+    },
+    "account": {
+      "title": "Cloud Accounts",
+      "name": "Name",
+      "provider": "Cloud provider",
+      "cloudkey": "Cloud key",
+      "regions": "Regions",
+      "enabled": "Enabled",
+      "description": "Description",
+      "last_sync_at": "Last sync",
+      "last_sync_status": "Last status",
+      "actions": {
+        "create": "New cloud account",
+        "edit": "Edit",
+        "delete": "Delete",
+        "sync_now": "Sync now"
+      },
+      "sync_queued": "Added to the sync queue",
+      "delete_confirm": "Delete cloud account \"{name}\"? This cascades soft-delete to all discovered resources under it.",
+      "cascaded_resources": "Cascade soft-deleted {count} resource row(s)"
+    },
+    "resource": {
+      "instance": {
+        "title": "EC2 Instances",
+        "instance_id": "Instance ID",
+        "name": "Name",
+        "type": "Instance type",
+        "state": "State",
+        "private_ip": "Private IP",
+        "public_ip": "Public IP",
+        "vpc": "VPC",
+        "subnet": "Subnet",
+        "az": "Availability zone",
+        "launch_time": "Launch time",
+        "tags": "Tags"
+      },
+      "vpc": {
+        "title": "VPCs",
+        "vpc_id": "VPC ID",
+        "name": "Name",
+        "cidr": "CIDR",
+        "is_default": "Default",
+        "state": "State",
+        "subnet_count": "Subnets",
+        "view_subnets": "View subnets"
+      },
+      "subnet": {
+        "title": "Subnets",
+        "subnet_id": "Subnet ID",
+        "cidr": "CIDR",
+        "az": "Availability zone"
+      },
+      "database": {
+        "title": "RDS Databases",
+        "db_instance_id": "DB instance ID",
+        "engine": "Engine",
+        "version": "Version",
+        "class": "Instance class",
+        "status": "Status",
+        "endpoint": "Endpoint",
+        "port": "Port",
+        "multi_az": "Multi-AZ",
+        "publicly_accessible": "Publicly accessible",
+        "storage_gb": "Storage (GB)"
+      },
+      "common": {
+        "include_deleted": "Include deleted",
+        "deleted_badge": "Deleted",
+        "tags": "Tags",
+        "last_seen_at": "Last seen",
+        "no_data": "No data"
+      }
+    },
+    "sync": {
+      "title": "Sync Runs",
+      "started_at": "Started",
+      "finished_at": "Finished",
+      "duration": "Duration",
+      "resource_type": "Resource type",
+      "status": "Status",
+      "items_seen": "Items seen",
+      "items_softdeleted": "Items soft-deleted",
+      "error": "Error",
+      "trigger": "Trigger",
+      "triggered_by": "Triggered by",
+      "filter": {
+        "started_after": "Started after",
+        "account": "Cloud account",
+        "resource_type": "Resource type",
+        "status": "Status"
+      },
+      "run_status": {
+        "running": "Running",
+        "success": "Success",
+        "failed": "Failed",
+        "skipped": "Skipped"
+      },
+      "resource_types": {
+        "instance": "Instance",
+        "network": "Network",
+        "database": "Database"
+      },
+      "triggers": {
+        "cron": "Scheduled",
+        "manual": "Manual",
+        "test": "Test"
+      }
     }
   },
   "form": {

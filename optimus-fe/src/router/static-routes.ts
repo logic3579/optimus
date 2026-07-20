@@ -62,6 +62,12 @@ export const staticRoutes: RouteRecordRaw[] = [
         name: 'apps.applications.upgrade',
         component: () => import('@/views/apps/applications/Upgrade.vue'),
         meta: { permission: 'apps:release:upgrade' }
+      },
+      {
+        path: 'assets/vpcs/:id(\\d+)',
+        name: 'assets.vpcs.detail',
+        component: () => import('@/views/assets/vpcs/Detail.vue'),
+        meta: { permission: 'assets:resource:read' }
       }
     ]
   },

@@ -34,8 +34,14 @@ import (
 	"optimus-be/internal/infra/permissions"
 	"optimus-be/internal/infra/ratelimit"
 	"optimus-be/internal/models"
+	"optimus-be/internal/modules/assets/account"
+	"optimus-be/internal/modules/assets/account/inuse"
+	assetsmodule "optimus-be/internal/modules/assets/module"
+	assetsync "optimus-be/internal/modules/assets/sync"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/auth"
+	"optimus-be/internal/modules/credentials"
+	"optimus-be/internal/modules/credentials/vault"
 	"optimus-be/internal/modules/health"
 	"optimus-be/internal/modules/menu"
 	"optimus-be/internal/modules/permission"
@@ -72,6 +78,19 @@ func bodyMap(t *testing.T, r *httptest.ResponseRecorder) map[string]any {
 // The seeded admin password is replaced with the deterministic value
 // "S3cret-Pass!" so tests can log in without parsing the random initial pw.
 func setupServer(t *testing.T) (*gin.Engine, *gorm.DB) {
+	return setupServerWithAssetsWiring(t, nil)
+}
+
+type assetsTestWiring struct {
+	Factory  assetsync.ClientFactory
+	Fetcher  assetsync.Fetcher
+	Consumer assetsync.CloudKeyConsumer
+}
+
+// setupServerWithAssetsWiring mounts the production assets module when test
+// AWS dependencies are supplied. The nil path keeps the lighter account-only
+// surface used by unrelated integration tests and account CRUD coverage.
+func setupServerWithAssetsWiring(t *testing.T, assetsDeps *assetsTestWiring) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
 	t.Cleanup(teardown)
@@ -123,6 +142,40 @@ func setupServer(t *testing.T) (*gin.Engine, *gorm.DB) {
 
 	auditSvc := audit.NewService(audit.NewRepo(gdb))
 	mountAudit(protected, audit.NewHandler(auditSvc), cache)
+
+	cipher, err := vault.NewCipher(bytes.Repeat([]byte{0x42}, vault.KeyLen))
+	require.NoError(t, err)
+	credentialsModule := credentials.New(gdb, cipher, auditRec)
+	credentialsModule.MountRoutes(protected, cache)
+
+	if assetsDeps == nil {
+		accountService := account.NewService(account.NewRepo(gdb), auditRec, credentialsModule.CloudKey)
+		accountHandler := account.NewHandler(accountService)
+		accountHandler.Mount(protected.Group("/assets"), func(code string) gin.HandlerFunc {
+			return middleware.RequirePermission(cache, code)
+		})
+		credentialsModule.CloudKey.SetAccountsInUseCounter(inuse.New(gdb))
+	} else {
+		assetsCtx, cancelAssets := context.WithCancel(context.Background())
+		assetsModule := assetsmodule.Wire(assetsCtx, assetsmodule.Input{
+			DB:                  gdb,
+			Config:              config.AssetsConfig{SyncCron: "0 0 1 1 *", SyncStartupDelay: time.Hour, SyncRunRetentionDays: 90, AWSRequestTimeout: time.Second},
+			Audit:               auditRec,
+			CredentialsConsumer: assetsDeps.Consumer,
+			CloudKeyService:     credentialsModule.CloudKey,
+			Logger:              logger,
+			ClientFactory:       assetsDeps.Factory,
+			Fetcher:             assetsDeps.Fetcher,
+		})
+		credentialsModule.CloudKey.SetAccountsInUseCounter(assetsModule.InUseCounter)
+		assetsModule.MountRoutes(protected, cache)
+		t.Cleanup(func() {
+			cancelAssets()
+			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), time.Second)
+			defer cancelShutdown()
+			require.NoError(t, assetsModule.Shutdown(shutdownCtx))
+		})
+	}
 
 	return r, gdb
 }

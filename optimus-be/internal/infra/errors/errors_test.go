@@ -39,3 +39,26 @@ func TestHTTPStatus_DerivedFromCode(t *testing.T) {
 	require.Equal(t, 429, apperr.HTTPStatus(apperr.CodeRateLimited))
 	require.Equal(t, 500, apperr.HTTPStatus(apperr.CodeInternal))
 }
+
+func TestHTTPStatus_AssetsDomainCodes(t *testing.T) {
+	tests := []struct {
+		name string
+		code apperr.Code
+		want int
+	}{
+		{"cloud account in use", apperr.CodeAssetsCloudAccountInUse, 409},
+		{"cloud account not found", apperr.CodeAssetsCloudAccountNotFound, 404},
+		{"cloud account name conflict", apperr.CodeAssetsCloudAccountNameConflict, 422},
+		{"invalid region", apperr.CodeAssetsRegionInvalid, 422},
+		{"unsupported provider", apperr.CodeAssetsProviderUnsupported, 422},
+		{"disabled account", apperr.CodeAssetsCloudAccountDisabled, 422},
+		{"cloud key not found", apperr.CodeAssetsCloudKeyNotFound, 422},
+		{"VPC not found", apperr.CodeAssetsVPCNotFound, 404},
+		{"sync busy", apperr.CodeAssetsSyncBusy, 409},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, apperr.HTTPStatus(tt.code))
+		})
+	}
+}

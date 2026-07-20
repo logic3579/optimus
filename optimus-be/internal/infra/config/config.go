@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/robfig/cron/v3"
 	"github.com/spf13/viper"
 )
 
@@ -19,6 +20,7 @@ type Config struct {
 	I18n     I18nConfig      `mapstructure:"i18n"`
 	Boot     BootstrapConfig `mapstructure:"bootstrap"`
 	Vault    VaultConfig     `mapstructure:"vault"`
+	Assets   AssetsConfig    `mapstructure:"assets"`
 }
 
 type ServerConfig struct {
@@ -82,12 +84,23 @@ type VaultConfig struct {
 	MasterKeyFile string `mapstructure:"master_key_file"`
 }
 
+type AssetsConfig struct {
+	SyncCron             string        `mapstructure:"sync_cron"`
+	SyncStartupDelay     time.Duration `mapstructure:"sync_startup_delay"`
+	SyncRunRetentionDays int           `mapstructure:"sync_run_retention_days"`
+	AWSRequestTimeout    time.Duration `mapstructure:"aws_request_timeout"`
+}
+
 func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
 	v.SetEnvPrefix("OPTIMUS")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
+	v.SetDefault("assets.sync_cron", "*/15 * * * *")
+	v.SetDefault("assets.sync_startup_delay", 30*time.Second)
+	v.SetDefault("assets.sync_run_retention_days", 90)
+	v.SetDefault("assets.aws_request_timeout", 30*time.Second)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
@@ -112,6 +125,21 @@ func (c *Config) ValidateStrict() error {
 	}
 	if c.Database.DSN == "" {
 		return errors.New("database.dsn is required")
+	}
+	if strings.TrimSpace(c.Assets.SyncCron) == "" {
+		return errors.New("assets.sync_cron is required")
+	}
+	if _, err := cron.ParseStandard(c.Assets.SyncCron); err != nil {
+		return fmt.Errorf("assets.sync_cron is invalid: %w", err)
+	}
+	if c.Assets.SyncStartupDelay < 0 {
+		return errors.New("assets.sync_startup_delay must be >= 0")
+	}
+	if c.Assets.SyncRunRetentionDays <= 0 {
+		return errors.New("assets.sync_run_retention_days must be > 0")
+	}
+	if c.Assets.AWSRequestTimeout <= 0 {
+		return errors.New("assets.aws_request_timeout must be > 0")
 	}
 	return nil
 }
