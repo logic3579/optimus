@@ -169,15 +169,28 @@ type authRoundTripper struct {
 }
 
 func (r *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if !r.origin.allows(req.URL) {
+	if !r.origin.allows(req.URL) || !r.origin.allowsHostOverride(req.Host) {
 		return nil, deniedDestination()
 	}
 	clone := req.Clone(req.Context())
 	clone.Header = req.Header.Clone()
+	clone.Host = ""
 	if r.header != "" {
 		clone.Header.Set("Authorization", r.header)
 	}
 	return r.next.RoundTrip(clone)
+}
+
+func (o originBinding) allowsHostOverride(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	target, err := url.Parse(o.scheme + "://" + raw)
+	if err != nil || target.User != nil || target.Path != "" || target.RawQuery != "" ||
+		target.Fragment != "" || strings.HasSuffix(target.Host, ":") || !validPort(target) {
+		return false
+	}
+	return strings.ToLower(target.Hostname()) == o.host && effectivePort(target) == o.port
 }
 
 type originBinding struct {

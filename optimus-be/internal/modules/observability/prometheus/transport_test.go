@@ -164,6 +164,44 @@ func TestTransportRejectsRequestsOutsideConfiguredOriginBeforeAuth(t *testing.T)
 	require.Equal(t, "Bearer secret", acceptedAuth)
 }
 
+func TestTransportRejectsHostOverrideBeforeAuth(t *testing.T) {
+	policy, err := NewPolicy(nil, &staticResolver{addrs: parseAddrs(t, "8.8.8.8")})
+	require.NoError(t, err)
+	base, err := policy.ParseBaseURL("https://prom.example.com:443/prom")
+	require.NoError(t, err)
+	client, err := NewTransportFactory(policy, nil).New(base, TLSOptions{}, Auth{Type: "bearer", Secret: []byte("secret")})
+	require.NoError(t, err)
+	var calls atomic.Int32
+	client.Transport.(*authRoundTripper).next = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		require.Empty(t, req.Host, "equivalent override must be cleared so URL.Host is authoritative")
+		require.Equal(t, "Bearer secret", req.Header.Get("Authorization"))
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok")), Request: req}, nil
+	})
+
+	for _, override := range []string{"evil.example.com", "prom.example.com:444", "prom.example.com.", "user@prom.example.com"} {
+		t.Run(override, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, "https://prom.example.com/prom/api/v1/query", nil)
+			require.NoError(t, err)
+			req.Host = override
+			_, err = client.Do(req)
+			requireBizCode(t, err, apperr.CodeObservabilityQueryDestinationDenied)
+			require.Equal(t, int32(0), calls.Load())
+			require.Empty(t, req.Header.Get("Authorization"))
+		})
+	}
+
+	for _, override := range []string{"prom.example.com", "prom.example.com:443", "PROM.EXAMPLE.COM:443"} {
+		req, err := http.NewRequest(http.MethodGet, "https://prom.example.com/prom/api/v1/query", nil)
+		require.NoError(t, err)
+		req.Host = override
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
+	require.Equal(t, int32(3), calls.Load())
+}
+
 func TestTransportDisablesRedirects(t *testing.T) {
 	policy, err := NewPolicy(nil, &staticResolver{addrs: parseAddrs(t, "8.8.8.8")})
 	require.NoError(t, err)
