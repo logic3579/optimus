@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 type Auth struct {
@@ -56,21 +57,17 @@ func (f *TransportFactory) New(base *url.URL, tlsOpt TLSOptions, auth Auth) (*ht
 		return nil, err
 	}
 	baseHost := strings.ToLower(validatedBase.Hostname())
-	transport := &http.Transport{
+	template := &http.Transport{
 		Proxy:             nil,
 		TLSClientConfig:   tlsConfig,
 		ForceAttemptHTTP2: true,
 	}
-	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-		host, port, err := net.SplitHostPort(address)
-		if err != nil || strings.ToLower(strings.TrimSuffix(host, ".")) != strings.TrimSuffix(baseHost, ".") {
-			return nil, deniedDestination()
-		}
-		addrs, err := f.policy.ResolveAllowed(ctx, host)
-		if err != nil {
-			return nil, err
-		}
-		return f.dial(ctx, network, net.JoinHostPort(addrs[0].String(), port))
+	transport := &requestBoundTransport{
+		template: template,
+		policy:   f.policy,
+		dial:     f.dial,
+		baseHost: baseHost,
+		active:   make(map[*http.Transport]struct{}),
 	}
 	return &http.Client{
 		Transport: &authRoundTripper{next: transport, header: header},
@@ -78,6 +75,56 @@ func (f *TransportFactory) New(base *url.URL, tlsOpt TLSOptions, auth Auth) (*ht
 			return http.ErrUseLastResponse
 		},
 	}, nil
+}
+
+type requestBoundTransport struct {
+	template *http.Transport
+	policy   *Policy
+	dial     dialContextFunc
+	baseHost string
+
+	mu     sync.Mutex
+	active map[*http.Transport]struct{}
+}
+
+func (r *requestBoundTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	transport := r.template.Clone()
+	requestCtx := req.Context()
+	transport.DialContext = func(dialCtx context.Context, network, address string) (net.Conn, error) {
+		ctx, cancel := context.WithCancel(dialCtx)
+		stop := context.AfterFunc(requestCtx, cancel)
+		defer func() {
+			stop()
+			cancel()
+		}()
+		host, port, err := net.SplitHostPort(address)
+		if err != nil || strings.ToLower(strings.TrimSuffix(host, ".")) != strings.TrimSuffix(r.baseHost, ".") {
+			return nil, deniedDestination()
+		}
+		addrs, err := r.policy.ResolveAllowed(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		return r.dial(ctx, network, net.JoinHostPort(addrs[0].String(), port))
+	}
+	r.mu.Lock()
+	r.active[transport] = struct{}{}
+	r.mu.Unlock()
+	defer func() {
+		transport.CloseIdleConnections()
+		r.mu.Lock()
+		delete(r.active, transport)
+		r.mu.Unlock()
+	}()
+	return transport.RoundTrip(req)
+}
+
+func (r *requestBoundTransport) CloseIdleConnections() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for transport := range r.active {
+		transport.CloseIdleConnections()
+	}
 }
 
 type authRoundTripper struct {

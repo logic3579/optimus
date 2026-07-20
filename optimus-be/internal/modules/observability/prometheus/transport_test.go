@@ -59,9 +59,9 @@ func TestTransportDialsValidatedIPAndPreservesSNI(t *testing.T) {
 	require.NoError(t, err)
 	client, err := factory.New(base, TLSOptions{}, Auth{})
 	require.NoError(t, err)
-	tr := client.Transport.(*authRoundTripper).next.(*http.Transport)
-	require.Equal(t, "prom.example.com", tr.TLSClientConfig.ServerName)
-	_, err = tr.DialContext(context.Background(), "tcp", "prom.example.com:9443")
+	tr := client.Transport.(*authRoundTripper).next.(*requestBoundTransport)
+	require.Equal(t, "prom.example.com", tr.template.TLSClientConfig.ServerName)
+	_, err = client.Get(base.String())
 	require.Error(t, err)
 	require.Equal(t, "8.8.8.8:9443", dialAddress)
 }
@@ -76,9 +76,8 @@ func TestTransportRevalidatesEveryConnection(t *testing.T) {
 	require.NoError(t, err)
 	client, err := factory.New(base, TLSOptions{}, Auth{})
 	require.NoError(t, err)
-	tr := client.Transport.(*authRoundTripper).next.(*http.Transport)
-	_, _ = tr.DialContext(context.Background(), "tcp", "prom.example.com:80")
-	_, err = tr.DialContext(context.Background(), "tcp", "prom.example.com:80")
+	_, _ = client.Get(base.String())
+	_, err = client.Get(base.String())
 	requireBizCode(t, err, apperr.CodeObservabilityQueryDestinationDenied)
 	require.Equal(t, 1, dials)
 }
@@ -156,7 +155,8 @@ func (s *closeIdleSpy) RoundTrip(*http.Request) (*http.Response, error) {
 func (s *closeIdleSpy) CloseIdleConnections() { s.calls.Add(1) }
 
 func TestTransportCanceledDialDoesNotContinue(t *testing.T) {
-	policy, err := NewPolicy(nil, &staticResolver{addrs: parseAddrs(t, "8.8.8.8")})
+	resolver := &blockingResolver{started: make(chan struct{}), exited: make(chan struct{})}
+	policy, err := NewPolicy(nil, resolver)
 	require.NoError(t, err)
 	var dials atomic.Int32
 	factory := NewTransportFactory(policy, func(context.Context, string, string) (net.Conn, error) {
@@ -168,12 +168,47 @@ func TestTransportCanceledDialDoesNotContinue(t *testing.T) {
 	client, err := factory.New(base, TLSOptions{}, Auth{})
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base.String(), nil)
 	require.NoError(t, err)
-	_, err = client.Do(req)
-	require.ErrorIs(t, err, context.Canceled)
+	result := make(chan error, 1)
+	go func() {
+		_, requestErr := client.Do(req)
+		result <- requestErr
+	}()
+
+	select {
+	case <-resolver.started:
+	case <-time.After(time.Second):
+		t.Fatal("transport resolution did not start")
+	}
+	cancel()
+	select {
+	case <-resolver.exited:
+	case <-time.After(time.Second):
+		t.Fatal("resolver did not exit after cancellation")
+	}
+	select {
+	case err = <-result:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("request did not return after cancellation")
+	}
 	require.Equal(t, int32(0), dials.Load())
+	require.Equal(t, int32(1), resolver.calls.Load())
+}
+
+type blockingResolver struct {
+	started chan struct{}
+	exited  chan struct{}
+	calls   atomic.Int32
+}
+
+func (r *blockingResolver) LookupNetIP(ctx context.Context, _, _ string) ([]netip.Addr, error) {
+	r.calls.Add(1)
+	close(r.started)
+	<-ctx.Done()
+	close(r.exited)
+	return nil, ctx.Err()
 }
 
 func TestTransportRejectsInvalidAuthAndCA(t *testing.T) {
@@ -244,8 +279,8 @@ func TestTransportTLSOptionsAreApplied(t *testing.T) {
 	require.NoError(t, err)
 	client, err := NewTransportFactory(policy, nil).New(base, TLSOptions{SkipVerify: true}, Auth{})
 	require.NoError(t, err)
-	tr := client.Transport.(*authRoundTripper).next.(*http.Transport)
-	require.True(t, tr.TLSClientConfig.InsecureSkipVerify)
-	require.Equal(t, "prom.example.com", tr.TLSClientConfig.ServerName)
-	require.NotNil(t, (*tls.Config)(tr.TLSClientConfig))
+	tr := client.Transport.(*authRoundTripper).next.(*requestBoundTransport)
+	require.True(t, tr.template.TLSClientConfig.InsecureSkipVerify)
+	require.Equal(t, "prom.example.com", tr.template.TLSClientConfig.ServerName)
+	require.NotNil(t, (*tls.Config)(tr.template.TLSClientConfig))
 }
