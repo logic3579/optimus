@@ -21,8 +21,9 @@ type Resolver interface {
 }
 
 type Policy struct {
-	allowed  []netip.Prefix
-	resolver Resolver
+	allowed             []netip.Prefix
+	resolver            Resolver
+	allowLoopbackDBTest bool
 }
 
 var permanentlyDeniedPrefixes = mustPrefixes(
@@ -120,7 +121,13 @@ func (p *Policy) ResolveAllowed(ctx context.Context, host string) ([]netip.Addr,
 }
 
 func (p *Policy) allowedAddress(addr netip.Addr) bool {
-	if !addr.IsValid() || !addr.IsGlobalUnicast() || containedBy(addr, metadataPrefixes) || containedBy(addr, permanentlyDeniedPrefixes) {
+	if !addr.IsValid() || containedBy(addr, metadataPrefixes) {
+		return false
+	}
+	if addr.IsLoopback() {
+		return p.allowLoopbackDBTest && containedBy(addr, p.allowed)
+	}
+	if !addr.IsGlobalUnicast() || containedBy(addr, permanentlyDeniedPrefixes) {
 		return false
 	}
 	if !addr.IsPrivate() {

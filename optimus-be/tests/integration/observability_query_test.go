@@ -89,14 +89,25 @@ func TestObservabilityQueryHandlerEndToEnd(t *testing.T) {
 	defer upstream.Close()
 	serverURL, err := url.Parse(upstream.URL)
 	require.NoError(t, err)
-	alias := netip.MustParseAddr("10.77.0.9")
-	policy, err := prometheus.NewPolicy([]string{alias.String() + "/32"}, fixedResolver{address: alias})
+	loopback := netip.MustParseAddr(serverURL.Hostname()).Unmap()
+	prefixBits := 128
+	if loopback.Is4() {
+		prefixBits = 32
+	}
+	exactPrefix := netip.PrefixFrom(loopback, prefixBits).String()
+	resolver := fixedResolver{address: loopback}
+	defaultPolicy, err := prometheus.NewPolicy([]string{exactPrefix}, resolver)
+	require.NoError(t, err)
+	_, err = defaultPolicy.ResolveAllowed(t.Context(), serverURL.Hostname())
+	require.Error(t, err, "production policy must reject loopback even when allowlisted")
+	policy, err := prometheus.NewLoopbackPolicyForDBTest(exactPrefix, resolver)
 	require.NoError(t, err)
 	dialer := &net.Dialer{}
-	transport := prometheus.NewTransportFactory(policy, func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return dialer.DialContext(ctx, network, upstream.Listener.Addr().String())
+	transport := prometheus.NewTransportFactory(policy, func(ctx context.Context, network, address string) (net.Conn, error) {
+		require.Equal(t, serverURL.Host, address, "dialer must receive the validated loopback IP and upstream port")
+		return dialer.DialContext(ctx, network, address)
 	})
-	baseURL := "http://prometheus.integration.test:" + serverURL.Port()
+	baseURL := upstream.URL
 	basicID, bearerID := basic.ID, bearer.ID
 	require.NoError(t, gdb.Create(&models.ObservabilityDatasource{Name: "query-basic", BaseURL: baseURL, AuthType: "basic", HTTPCredentialID: &basicID}).Error)
 	require.NoError(t, gdb.Create(&models.ObservabilityDatasource{Name: "query-bearer", BaseURL: baseURL, AuthType: "bearer", HTTPCredentialID: &bearerID}).Error)
@@ -137,7 +148,21 @@ func TestObservabilityQueryHandlerEndToEnd(t *testing.T) {
 	w := doJSON(router, "/observability/query", instant(sources[0].ID, map[string]string{"ref_id": "a", "promql": "basic_one"}, map[string]string{"ref_id": "b", "promql": "basic_two"}))
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	data := bodyMap(t, w)["data"].(map[string]any)
-	require.Len(t, data["results"], 2)
+	instantResults := data["results"].([]any)
+	require.Len(t, instantResults, 2)
+	for i, refID := range []string{"a", "b"} {
+		item := instantResults[i].(map[string]any)
+		require.Equal(t, refID, item["ref_id"])
+		result := item["result"].(map[string]any)
+		require.Equal(t, "vector", result["result_type"])
+		series := result["series"].([]any)
+		require.Len(t, series, 1)
+		require.Equal(t, map[string]any{"job": "api"}, series[0].(map[string]any)["labels"])
+		samples := series[0].(map[string]any)["samples"].([]any)
+		require.Len(t, samples, 1)
+		require.EqualValues(t, 1, samples[0].(map[string]any)["timestamp"])
+		require.Equal(t, "2", samples[0].(map[string]any)["value"])
+	}
 	require.Equal(t, beforeConsume+1, auditActionCount(t, gdb, "credentials.consume.http_credential"), "one credential consume per batch")
 	w = doJSON(router, "/observability/query", instant(sources[1].ID, map[string]string{"ref_id": "bearer", "promql": "bearer_one"}, map[string]string{"ref_id": "bad", "promql": "bad_expression"}))
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
@@ -150,6 +175,15 @@ func TestObservabilityQueryHandlerEndToEnd(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	rangeResult := bodyMap(t, w)["data"].(map[string]any)["results"].([]any)[0].(map[string]any)["result"].(map[string]any)
 	require.Equal(t, "matrix", rangeResult["result_type"])
+	rangeSeries := rangeResult["series"].([]any)
+	require.Len(t, rangeSeries, 1)
+	require.Equal(t, map[string]any{"job": "api"}, rangeSeries[0].(map[string]any)["labels"])
+	rangeSamples := rangeSeries[0].(map[string]any)["samples"].([]any)
+	require.Len(t, rangeSamples, 2)
+	require.EqualValues(t, 1, rangeSamples[0].(map[string]any)["timestamp"])
+	require.Equal(t, "2", rangeSamples[0].(map[string]any)["value"])
+	require.EqualValues(t, 2, rangeSamples[1].(map[string]any)["timestamp"])
+	require.Equal(t, "3", rangeSamples[1].(map[string]any)["value"])
 
 	mu.Lock()
 	require.Equal(t, "Basic bWV0cmljczpiYXNpYy1zZWNyZXQ=", seenAuth["basic_one"])
