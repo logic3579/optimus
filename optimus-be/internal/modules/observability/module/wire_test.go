@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"optimus-be/internal/infra/config"
+	"optimus-be/internal/modules/credentials"
 )
 
 func TestWireRejectsInvalidCIDR(t *testing.T) {
@@ -27,10 +28,12 @@ func TestRouteSnapshotContainsNoAlert(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	m.MountRoutes(r.Group("/api/v1"), nil)
+	credentials.New(&gorm.DB{}, nil, nil).MountRoutes(r.Group("/api/v1"), nil)
 	want := map[string]bool{
 		"GET /api/v1/observability/datasources": true, "POST /api/v1/observability/datasources": true, "GET /api/v1/observability/datasources/:id": true, "PUT /api/v1/observability/datasources/:id": true, "DELETE /api/v1/observability/datasources/:id": true, "POST /api/v1/observability/datasources/:id/test": true,
 		"GET /api/v1/observability/datasources/:id/labels": true, "GET /api/v1/observability/datasources/:id/label-values": true, "POST /api/v1/observability/query": true, "POST /api/v1/observability/query-range": true,
 		"GET /api/v1/observability/dashboards": true, "POST /api/v1/observability/dashboards": true, "GET /api/v1/observability/dashboards/:id": true, "PUT /api/v1/observability/dashboards/:id": true, "DELETE /api/v1/observability/dashboards/:id": true, "GET /api/v1/observability/builtin-dashboards": true, "GET /api/v1/observability/builtin-dashboards/:code": true,
+		"GET /api/v1/credentials/http-credentials": true, "POST /api/v1/credentials/http-credentials": true, "GET /api/v1/credentials/http-credentials/:id": true, "PUT /api/v1/credentials/http-credentials/:id": true, "DELETE /api/v1/credentials/http-credentials/:id": true,
 	}
 	for _, route := range r.Routes() {
 		key := route.Method + " " + route.Path
