@@ -35,6 +35,9 @@ import { makeAppsReleaseApi } from '@/api/apps/release'
 import { makeAssetsAccountApi } from '@/api/assets/account'
 import { makeAssetsResourceApi } from '@/api/assets/resource'
 import { makeAssetsSyncApi } from '@/api/assets/sync'
+import { makeObservabilityDatasourceApi } from '@/api/observability/datasource'
+import { makeObservabilityQueryApi } from '@/api/observability/query'
+import { makeObservabilityDashboardApi } from '@/api/observability/dashboard'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useAppStore } from '@/stores/app'
@@ -84,6 +87,9 @@ app.provide('appsReleaseApi', makeAppsReleaseApi(client))
 app.provide('assetsAccountApi', makeAssetsAccountApi(client))
 app.provide('assetsResourceApi', makeAssetsResourceApi(client))
 app.provide('assetsSyncApi', makeAssetsSyncApi(client))
+app.provide('observabilityDatasourceApi', makeObservabilityDatasourceApi(client))
+app.provide('observabilityQueryApi', makeObservabilityQueryApi(client))
+app.provide('observabilityDashboardApi', makeObservabilityDashboardApi(client))
 
 installGuards(router, meApi)
 app.use(router)
