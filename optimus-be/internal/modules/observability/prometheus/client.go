@@ -124,19 +124,26 @@ func (c *Client) requestEnvelope(ctx context.Context, method, path string, form 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden || resp.StatusCode >= 500 {
 		_, readErr := readBounded(resp.Body, c.maxBody)
 		if readErr != nil {
-			return invalidResponse(readErr)
+			return mapResponseReadError(readErr)
 		}
 		return rejected(fmt.Errorf("Prometheus returned HTTP %d", resp.StatusCode))
 	}
 	data, err := readBounded(resp.Body, c.maxBody)
 	if err != nil {
-		return invalidResponse(err)
+		return mapResponseReadError(err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return rejected(fmt.Errorf("Prometheus returned HTTP %d", resp.StatusCode))
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	if err := dec.Decode(out); err != nil {
+		return invalidResponse(err)
+	}
+	var trailing any
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			err = errors.New("multiple JSON values in Prometheus response")
+		}
 		return invalidResponse(err)
 	}
 	if out.Status != "success" {
@@ -147,6 +154,14 @@ func (c *Client) requestEnvelope(ctx context.Context, method, path string, form 
 	}
 	return nil
 }
+
+func mapResponseReadError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) || isTimeout(err) {
+		return mapClientError(err)
+	}
+	return invalidResponse(err)
+}
+
 func (c *Client) endpoint(path string) (*url.URL, error) {
 	if c == nil || c.base == nil || c.base.Scheme == "" || c.base.Host == "" {
 		return nil, errors.New("invalid Prometheus client base URL")

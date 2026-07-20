@@ -131,6 +131,44 @@ func TestClientMapsFailures(t *testing.T) {
 	})
 }
 
+func TestClientRejectsTrailingJSONContent(t *testing.T) {
+	valid := `{"status":"success","data":{"resultType":"vector","result":[]}}`
+	for _, tc := range []struct {
+		name   string
+		suffix string
+	}{
+		{"trailing garbage", ` garbage`},
+		{"second JSON object", ` {"status":"success","data":[]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := prometheusJSONServer(t, http.StatusOK, valid+tc.suffix)
+			defer s.Close()
+			_, err := NewClient(s.Client(), mustClientURL(t, s.URL), 1<<20, 10).Query(context.Background(), "up", time.Time{})
+			requireBizCode(t, err, apperr.CodeObservabilityQueryInvalidResponse)
+		})
+	}
+}
+
+func TestClientMapsBodyReadDeadlineToTimeout(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, err := io.WriteString(w, `{"status":"success","data":`)
+		require.NoError(t, err)
+		require.NoError(t, http.NewResponseController(w).Flush())
+		select {
+		case <-r.Context().Done():
+		case <-time.After(500 * time.Millisecond):
+		}
+	}))
+	defer s.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	_, err := NewClient(s.Client(), mustClientURL(t, s.URL), 1<<20, 10).Query(ctx, "up", time.Time{})
+	be := requireClientBizCode(t, err, apperr.CodeObservabilityQueryUpstreamTimeout)
+	require.ErrorIs(t, be.Cause, context.DeadlineExceeded)
+}
+
 func TestClientRejectsInvalidNormalizedDTOs(t *testing.T) {
 	labels := make([]string, 129)
 	for i := range labels {
