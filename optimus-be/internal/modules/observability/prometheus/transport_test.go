@@ -1,6 +1,7 @@
 package prometheus
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -195,6 +196,61 @@ func TestTransportCanceledDialDoesNotContinue(t *testing.T) {
 	}
 	require.Equal(t, int32(0), dials.Load())
 	require.Equal(t, int32(1), resolver.calls.Load())
+}
+
+func TestRequestBoundTransportTracksConnectionUntilBodyCleanup(t *testing.T) {
+	policy, err := NewPolicy(nil, &staticResolver{addrs: parseAddrs(t, "8.8.8.8")})
+	require.NoError(t, err)
+	clientSide, serverSide := net.Pipe()
+	serverClosed := make(chan struct{})
+	go func() {
+		defer close(serverClosed)
+		defer func() { _ = serverSide.Close() }()
+		request, readErr := http.ReadRequest(bufio.NewReader(serverSide))
+		if readErr != nil {
+			return
+		}
+		_ = request.Body.Close()
+		_, _ = io.WriteString(serverSide, "HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: keep-alive\r\n\r\ndata")
+		var one [1]byte
+		_, _ = serverSide.Read(one[:])
+	}()
+	var dials atomic.Int32
+	factory := NewTransportFactory(policy, func(context.Context, string, string) (net.Conn, error) {
+		require.Equal(t, int32(1), dials.Add(1))
+		return clientSide, nil
+	})
+	base, err := policy.ParseBaseURL("http://prom.example.com")
+	require.NoError(t, err)
+	client, err := factory.New(base, TLSOptions{}, Auth{})
+	require.NoError(t, err)
+	tracked := client.Transport.(*authRoundTripper).next.(*requestBoundTransport)
+
+	resp, err := client.Get(base.String())
+	require.NoError(t, err)
+	require.Equal(t, 1, tracked.activeCount(), "response transport must remain tracked while body is open")
+
+	client.CloseIdleConnections()
+	require.Equal(t, 1, tracked.activeCount(), "closing idle connections must not remove an active response")
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "data", string(body))
+	require.Eventually(t, func() bool { return tracked.activeCount() == 0 }, time.Second, time.Millisecond)
+
+	require.NoError(t, resp.Body.Close())
+	require.NoError(t, resp.Body.Close(), "double close must be idempotent")
+	select {
+	case <-serverClosed:
+	case <-time.After(time.Second):
+		t.Fatal("connection remained open after response body cleanup")
+	}
+	require.Equal(t, int32(1), dials.Load())
+}
+
+func (r *requestBoundTransport) activeCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.active)
 }
 
 type blockingResolver struct {

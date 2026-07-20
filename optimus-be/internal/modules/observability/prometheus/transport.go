@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -110,13 +111,23 @@ func (r *requestBoundTransport) RoundTrip(req *http.Request) (*http.Response, er
 	r.mu.Lock()
 	r.active[transport] = struct{}{}
 	r.mu.Unlock()
-	defer func() {
+	cleanup := func() {
 		transport.CloseIdleConnections()
 		r.mu.Lock()
 		delete(r.active, transport)
 		r.mu.Unlock()
-	}()
-	return transport.RoundTrip(req)
+	}
+	response, err := transport.RoundTrip(req)
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	if response.Body == nil {
+		cleanup()
+		return response, nil
+	}
+	response.Body = &cleanupReadCloser{body: response.Body, cleanup: cleanup}
+	return response, nil
 }
 
 func (r *requestBoundTransport) CloseIdleConnections() {
@@ -125,6 +136,29 @@ func (r *requestBoundTransport) CloseIdleConnections() {
 	for transport := range r.active {
 		transport.CloseIdleConnections()
 	}
+}
+
+type cleanupReadCloser struct {
+	body    io.ReadCloser
+	cleanup func()
+
+	cleanupOnce sync.Once
+	closeOnce   sync.Once
+	closeErr    error
+}
+
+func (r *cleanupReadCloser) Read(p []byte) (int, error) {
+	n, err := r.body.Read(p)
+	if errors.Is(err, io.EOF) {
+		r.cleanupOnce.Do(r.cleanup)
+	}
+	return n, err
+}
+
+func (r *cleanupReadCloser) Close() error {
+	r.closeOnce.Do(func() { r.closeErr = r.body.Close() })
+	r.cleanupOnce.Do(r.cleanup)
+	return r.closeErr
 }
 
 type authRoundTripper struct {
