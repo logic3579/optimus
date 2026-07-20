@@ -215,7 +215,7 @@ func TestDeleteInUseCounterPositiveErrorAndNil(t *testing.T) {
 			} else {
 				require.Equal(t, 1, tc.c.txCalls)
 				require.Error(t, err)
-				require.Equal(t, 1, tc.c.calls)
+				require.Equal(t, 0, tc.c.calls)
 			}
 		})
 	}

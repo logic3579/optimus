@@ -16,6 +16,16 @@ func (h *Handler) HandleGet() gin.HandlerFunc    { return h.get }
 func (h *Handler) HandleCreate() gin.HandlerFunc { return h.create }
 func (h *Handler) HandleUpdate() gin.HandlerFunc { return h.update }
 func (h *Handler) HandleDelete() gin.HandlerFunc { return h.delete }
+func (h *Handler) Mount(g *gin.RouterGroup, permission func(string) gin.HandlerFunc) {
+	read := g.Group("", permission("credentials:http:read"))
+	read.GET("", h.list)
+	read.GET("/:id", h.get)
+	write := g.Group("", permission("credentials:http:write"))
+	write.POST("", h.create)
+	write.PUT("/:id", h.update)
+	del := g.Group("", permission("credentials:http:delete"))
+	del.DELETE("/:id", h.delete)
+}
 func id(c *gin.Context) (uint64, bool) {
 	v, e := strconv.ParseUint(c.Param("id"), 10, 64)
 	if e != nil || v == 0 {

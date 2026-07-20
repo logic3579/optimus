@@ -80,5 +80,7 @@ func (m *Module) MountRoutes(protected *gin.RouterGroup, cache *rbac.PermissionC
 	mount("ssh-keys", "ssh_key", m.sshHandler)
 	mount("kubeconfigs", "kubeconfig", m.kcHandler)
 	mount("cloud-keys", "cloud_key", m.ckHandler)
-	mount("http-credentials", "http", m.httpHandler)
+	m.httpHandler.Mount(protected.Group("/credentials/http-credentials"), func(code string) gin.HandlerFunc {
+		return middleware.RequirePermission(cache, code)
+	})
 }

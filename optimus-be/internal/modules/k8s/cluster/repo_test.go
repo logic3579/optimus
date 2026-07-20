@@ -6,6 +6,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +18,30 @@ import (
 func newRepo(t *testing.T) (*cluster.Repo, func()) {
 	gdb, td := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "..", "migrations"))
 	return cluster.NewRepo(gdb), td
+}
+
+func TestParentDeleteLockSerializesDatasourceInsert(t *testing.T) {
+	repo, td := newRepo(t)
+	defer td()
+	kcID := setupKubeconfigRow(t, repo)
+	parent := &models.Cluster{Name: "locked", KubeconfigID: kcID, Context: "ctx", Tags: []string{}}
+	require.NoError(t, repo.Create(t.Context(), parent))
+	tx := repo.DB().Begin()
+	require.NoError(t, tx.Error)
+	_, err := repo.GetForUpdate(t.Context(), tx, parent.ID)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
+	defer cancel()
+	id := parent.ID
+	err = repo.DB().WithContext(ctx).Create(&models.ObservabilityDatasource{Name: "blocked-cluster", BaseURL: "https://prom.example", AuthType: "none", ClusterID: &id}).Error
+	require.Error(t, err)
+	require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+	require.NoError(t, tx.Rollback().Error)
+	var children int64
+	require.NoError(t, repo.DB().Model(&models.ObservabilityDatasource{}).Where("cluster_id=?", parent.ID).Count(&children).Error)
+	require.Zero(t, children)
+	_, err = repo.Get(t.Context(), parent.ID)
+	require.NoError(t, err)
 }
 
 func setupKubeconfigRow(t *testing.T, repo *cluster.Repo) uint64 {

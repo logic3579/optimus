@@ -107,8 +107,11 @@ func Wire(in Input) (*Module, error) {
 	return &Module{CredentialUsage: counter, ClusterUsage: counter, datasource: datasource.NewHandler(dsSvc), query: query.NewHandler(qSvc), dashboard: dashboard.NewHandler(dashSvc), builtin: builtin.NewHandler()}, nil
 }
 func (m *Module) MountRoutes(protected *gin.RouterGroup, cache *rbac.PermissionCache) {
-	g := protected.Group("/observability")
 	permission := func(code string) gin.HandlerFunc { return middleware.RequirePermission(cache, code) }
+	m.mountRoutesWithPermission(protected, permission)
+}
+func (m *Module) mountRoutesWithPermission(protected *gin.RouterGroup, permission func(string) gin.HandlerFunc) {
+	g := protected.Group("/observability")
 	m.datasource.Mount(g, permission)
 	m.query.Mount(g, permission)
 	m.dashboard.Mount(g, permission)
