@@ -252,6 +252,7 @@ type fakeAppsCounter struct {
 	n       int
 	err     error
 	txCalls int
+	calls   int
 }
 
 func (f *fakeAppsCounter) CountByClusterIDTx(context.Context, *gorm.DB, uint64) (int, error) {
@@ -260,6 +261,7 @@ func (f *fakeAppsCounter) CountByClusterIDTx(context.Context, *gorm.DB, uint64) 
 }
 
 func (f *fakeAppsCounter) CountByClusterID(_ context.Context, _ uint64) (int, error) {
+	f.calls++
 	return f.n, f.err
 }
 
@@ -272,17 +274,23 @@ func TestService_Delete_RefusedWhenAppsReference(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svc.SetAppsCounter(&fakeAppsCounter{n: 3})
+	blocked := &fakeAppsCounter{n: 3}
+	svc.SetAppsCounter(blocked)
 	err = svc.Delete(ctx, 0, "", "", det.ID)
 	require.Error(t, err)
 	be, ok := apperr.AsBiz(err)
 	require.True(t, ok)
 	require.Equal(t, apperr.CodeAppsApplicationInUse, be.Code)
 	require.Equal(t, "k8s.cluster.in_use_by_apps", be.MessageKey)
+	require.Equal(t, 1, blocked.txCalls)
+	require.Zero(t, blocked.calls)
 
 	// Re-checking with n=0 should allow the delete.
-	svc.SetAppsCounter(&fakeAppsCounter{n: 0})
+	allowed := &fakeAppsCounter{n: 0}
+	svc.SetAppsCounter(allowed)
 	require.NoError(t, svc.Delete(ctx, 0, "", "", det.ID))
+	require.Equal(t, 1, allowed.txCalls)
+	require.Zero(t, allowed.calls)
 }
 
 type fakeObservabilityCounter struct {

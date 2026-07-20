@@ -1,7 +1,9 @@
 package module
 
 import (
+	"context"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -9,10 +11,38 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"optimus-be/internal/infra/config"
+	"optimus-be/internal/modules/assets"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/credentials"
 	"optimus-be/internal/modules/credentials/httpcredential"
 )
+
+type fakeCredentials struct{}
+
+func (*fakeCredentials) GetSSHKey(context.Context, uint64, string) (*credentials.SSHKey, error) {
+	return nil, nil
+}
+func (*fakeCredentials) GetKubeconfig(context.Context, uint64, string) (*credentials.Kubeconfig, error) {
+	return nil, nil
+}
+func (*fakeCredentials) GetCloudKey(context.Context, uint64, string) (*credentials.CloudKey, error) {
+	return nil, nil
+}
+func (*fakeCredentials) GetHTTPCredential(context.Context, uint64, string) (*credentials.HTTPCredential, error) {
+	return nil, nil
+}
+
+type fakeAssets struct{}
+
+func (*fakeAssets) LookupInstanceByPrivateIP(context.Context, netip.Addr) (*assets.Instance, error) {
+	return nil, nil
+}
+func (*fakeAssets) LookupInstanceByID(context.Context, int64, string, string) (*assets.Instance, error) {
+	return nil, nil
+}
+func (*fakeAssets) ListInstancesByVPC(context.Context, int64, string, string) ([]assets.Instance, error) {
+	return nil, nil
+}
 
 func TestWireRejectsInvalidCIDR(t *testing.T) {
 	cfg := testConfig()
@@ -21,6 +51,33 @@ func TestWireRejectsInvalidCIDR(t *testing.T) {
 	in.Config = cfg
 	if _, err := Wire(in); err == nil {
 		t.Fatal("expected invalid CIDR")
+	}
+}
+func TestWireRejectsRequiredTypedNilAndAcceptsTypedNilAssets(t *testing.T) {
+	base := validInput()
+	var db *gorm.DB
+	v := base
+	v.DB = db
+	if _, e := Wire(v); e == nil {
+		t.Fatal("typed nil db")
+	}
+	var c *fakeCredentials
+	v = base
+	v.Credentials = c
+	if _, e := Wire(v); e == nil {
+		t.Fatal("typed nil credentials")
+	}
+	var a *audit.Recorder
+	v = base
+	v.Audit = a
+	if _, e := Wire(v); e == nil {
+		t.Fatal("typed nil audit")
+	}
+	var optional *fakeAssets
+	v = base
+	v.Assets = optional
+	if _, e := Wire(v); e != nil {
+		t.Fatalf("typed nil assets: %v", e)
 	}
 }
 
