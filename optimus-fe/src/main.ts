@@ -41,6 +41,7 @@ import { makeObservabilityDashboardApi } from '@/api/observability/dashboard'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useAppStore } from '@/stores/app'
+import { useObservabilityStore } from '@/stores/observability'
 
 const app = createApp(App)
 const pinia = createAppPinia()
@@ -55,6 +56,7 @@ const client = createApiClient({
   onLogout: () => {
     useAuthStore().reset()
     useMenuStore().reset()
+    useObservabilityStore().reset()
     router.push('/login')
   },
   getLocale: () => useAppStore().locale
