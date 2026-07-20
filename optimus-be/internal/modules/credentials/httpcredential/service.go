@@ -7,6 +7,7 @@ import (
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -17,6 +18,14 @@ type Cipher interface {
 }
 type InUseCounter interface {
 	CountByHTTPCredentialID(context.Context, uint64) (int64, error)
+}
+type txInUseCounter interface {
+	CountByHTTPCredentialIDTx(context.Context, *gorm.DB, uint64) (int64, error)
+}
+type transactionalRepository interface {
+	Transaction(context.Context, func(*gorm.DB) error) error
+	GetForUpdate(context.Context, *gorm.DB, uint64) (*models.HTTPCredential, error)
+	DeleteTx(context.Context, *gorm.DB, uint64) error
 }
 type repository interface {
 	Create(context.Context, *models.HTTPCredential) error
@@ -36,7 +45,13 @@ type Service struct {
 func NewService(r repository, c Cipher, a *audit.Recorder) *Service {
 	return &Service{repo: r, cipher: c, audit: a}
 }
-func (s *Service) SetInUseCounter(c InUseCounter) { s.counter = c }
+func (s *Service) SetInUseCounter(c InUseCounter) {
+	if c == nil || (reflect.ValueOf(c).Kind() == reflect.Pointer && reflect.ValueOf(c).IsNil()) {
+		s.counter = nil
+		return
+	}
+	s.counter = c
+}
 func (s *Service) List(ctx context.Context, q ListQuery) (*ListResponse, error) {
 	rows, n, e := s.repo.List(ctx, q)
 	if e != nil {
@@ -162,6 +177,39 @@ func (s *Service) Update(ctx context.Context, actor uint64, ip, ua string, id ui
 	return s.Get(ctx, id)
 }
 func (s *Service) Delete(ctx context.Context, actor uint64, ip, ua string, id uint64) error {
+	if tr, ok := s.repo.(transactionalRepository); ok {
+		return tr.Transaction(ctx, func(tx *gorm.DB) error {
+			m, e := tr.GetForUpdate(ctx, tx, id)
+			if errors.Is(e, gorm.ErrRecordNotFound) {
+				return notFound()
+			}
+			if e != nil {
+				return e
+			}
+			if s.counter != nil {
+				var n int64
+				var x error
+				if tc, ok := s.counter.(txInUseCounter); ok {
+					n, x = tc.CountByHTTPCredentialIDTx(ctx, tx, id)
+				} else {
+					n, x = s.counter.CountByHTTPCredentialID(ctx, id)
+				}
+				if x != nil {
+					return x
+				}
+				if n > 0 {
+					return apperr.New(apperr.CodeConflict, "credentials.in_use", "credential in use")
+				}
+			}
+			if e = tr.DeleteTx(ctx, tx, id); e != nil {
+				return e
+			}
+			if s.audit != nil {
+				return s.audit.WithTx(tx).Record(ctx, audit.Event{UserID: ptr(actor), Action: "credentials.http_credential.delete", TargetType: "credentials.http_credential", TargetID: strconv.FormatUint(id, 10), Payload: map[string]any{"name": m.Name}, IP: ip, UserAgent: ua})
+			}
+			return nil
+		})
+	}
 	m, e := s.repo.Get(ctx, id)
 	if errors.Is(e, gorm.ErrRecordNotFound) {
 		return notFound()

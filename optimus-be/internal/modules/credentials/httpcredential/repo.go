@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"optimus-be/internal/models"
 )
@@ -14,6 +15,17 @@ import (
 type Repo struct{ db *gorm.DB }
 
 func NewRepo(db *gorm.DB) *Repo { return &Repo{db: db} }
+func (r *Repo) Transaction(ctx context.Context, fn func(*gorm.DB) error) error {
+	return r.db.WithContext(ctx).Transaction(fn)
+}
+func (r *Repo) GetForUpdate(ctx context.Context, tx *gorm.DB, id uint64) (*models.HTTPCredential, error) {
+	var m models.HTTPCredential
+	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&m, id).Error
+	return &m, err
+}
+func (r *Repo) DeleteTx(ctx context.Context, tx *gorm.DB, id uint64) error {
+	return tx.WithContext(ctx).Delete(&models.HTTPCredential{}, id).Error
+}
 func (r *Repo) Create(ctx context.Context, m *models.HTTPCredential) error {
 	return mapWriteError(r.db.WithContext(ctx).Create(m).Error)
 }
