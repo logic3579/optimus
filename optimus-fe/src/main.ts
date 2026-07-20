@@ -20,6 +20,7 @@ import { makeAuditApi } from '@/api/audit'
 import { makeSshKeyApi } from '@/api/credentials/ssh-key'
 import { makeKubeconfigApi } from '@/api/credentials/kubeconfig'
 import { makeCloudKeyApi } from '@/api/credentials/cloud-key'
+import { makeHTTPCredentialApi } from '@/api/credentials/http-credential'
 import { makeClusterApi } from '@/api/k8s/cluster'
 import { makeK8sNamespaceApi } from '@/api/k8s/namespace'
 import { makeK8sNodeApi } from '@/api/k8s/node'
@@ -74,6 +75,7 @@ app.provide('auditApi', makeAuditApi(client))
 app.provide('sshKeyApi', makeSshKeyApi(client))
 app.provide('kubeconfigApi', makeKubeconfigApi(client))
 app.provide('cloudKeyApi', makeCloudKeyApi(client))
+app.provide('httpCredentialApi', makeHTTPCredentialApi(client))
 app.provide('clusterApi', makeClusterApi(client))
 app.provide('k8sNsApi', makeK8sNamespaceApi(client))
 app.provide('k8sNodeApi', makeK8sNodeApi(client))
