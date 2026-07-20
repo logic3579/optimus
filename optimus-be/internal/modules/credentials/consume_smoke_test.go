@@ -177,3 +177,24 @@ func TestSmoke_HTTPCredential_PurposeAndCancellation(t *testing.T) {
 	_, err = c.GetHTTPCredential(ctx, d.ID, "system:query")
 	require.ErrorIs(t, err, context.Canceled)
 }
+
+func TestSmoke_HTTPCredential_BearerRoundTripAndWipe(t *testing.T) {
+	c, _, _, _, svc, td := setup(t)
+	defer td()
+	d, err := svc.Create(t.Context(), 0, "", "", httpcredential.CreateRequest{
+		Name: "prom-bearer", AuthType: "bearer", Secret: "bearer-token",
+	})
+	require.NoError(t, err)
+
+	got, err := c.GetHTTPCredential(t.Context(), d.ID, "system:observability.query")
+	require.NoError(t, err)
+	require.Equal(t, "prom-bearer", got.Name)
+	require.Equal(t, "bearer", got.AuthType)
+	require.Empty(t, got.Username)
+	require.Equal(t, []byte("bearer-token"), got.Secret)
+
+	alias := got.Secret
+	credentials.WipeHTTPCredential(got)
+	require.Nil(t, got.Secret)
+	require.Equal(t, make([]byte, len(alias)), alias)
+}
