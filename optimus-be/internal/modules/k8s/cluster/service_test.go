@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/version"
 
 	"optimus-be/internal/infra/db"
@@ -279,8 +280,14 @@ func TestService_Delete_RefusedWhenAppsReference(t *testing.T) {
 }
 
 type fakeObservabilityCounter struct {
-	n   int64
-	err error
+	n       int64
+	err     error
+	txCalls int
+}
+
+func (f *fakeObservabilityCounter) CountByClusterIDTx(context.Context, *gorm.DB, uint64) (int64, error) {
+	f.txCalls++
+	return f.n, f.err
 }
 
 func (f *fakeObservabilityCounter) CountByClusterID(context.Context, uint64) (int64, error) {
@@ -292,13 +299,15 @@ func TestService_Delete_RefusedWhenObservabilityReferences(t *testing.T) {
 	defer td()
 	det, err := svc.Create(t.Context(), 0, "", "", cluster.CreateRequest{Name: "metrics", KubeconfigID: kcID, Context: "ctx"})
 	require.NoError(t, err)
-	svc.SetObservabilityCounter(&fakeObservabilityCounter{n: 1})
+	counter := &fakeObservabilityCounter{n: 1}
+	svc.SetObservabilityCounter(counter)
 	err = svc.Delete(t.Context(), 0, "", "", det.ID)
 	require.Error(t, err)
 	be, ok := apperr.AsBiz(err)
 	require.True(t, ok)
 	require.Equal(t, apperr.CodeConflict, be.Code)
 	require.Equal(t, "k8s.cluster.in_use_by_observability", be.MessageKey)
+	require.Equal(t, 1, counter.txCalls)
 }
 
 func TestService_Delete(t *testing.T) {

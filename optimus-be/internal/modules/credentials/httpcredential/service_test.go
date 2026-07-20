@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"optimus-be/internal/infra/db"
 	apperr "optimus-be/internal/infra/errors"
@@ -37,9 +38,18 @@ type recordingCipher struct {
 	cancel context.CancelFunc
 }
 type counter struct {
-	n     int64
-	err   error
-	calls int
+	n       int64
+	err     error
+	calls   int
+	txCalls int
+}
+
+func (c *counter) CountByHTTPCredentialIDTx(_ context.Context, tx *gorm.DB, _ uint64) (int64, error) {
+	if tx == nil {
+		return 0, errors.New("nil tx")
+	}
+	c.txCalls++
+	return c.n, c.err
 }
 
 func (c *counter) CountByHTTPCredentialID(context.Context, uint64) (int64, error) {
@@ -199,10 +209,11 @@ func TestDeleteInUseCounterPositiveErrorAndNil(t *testing.T) {
 			defer td()
 			d, _ := s.Create(t.Context(), 0, "", "", httpcredential.CreateRequest{Name: "delete", AuthType: "bearer", Secret: "x"})
 			s.SetInUseCounter(tc.c)
-			err := s.Delete(t.Context(), 7, "1.2.3.4", "agent", d.ID)
+			err := s.Delete(t.Context(), 0, "1.2.3.4", "agent", d.ID)
 			if tc.c == nil {
 				require.NoError(t, err)
 			} else {
+				require.Equal(t, 1, tc.c.txCalls)
 				require.Error(t, err)
 				require.Equal(t, 1, tc.c.calls)
 			}
