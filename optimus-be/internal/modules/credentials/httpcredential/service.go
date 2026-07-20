@@ -151,7 +151,7 @@ func (s *Service) Update(ctx context.Context, actor uint64, ip, ua string, id ui
 		}
 		enc, x := s.cipher.Seal([]byte(*r.Secret))
 		if x != nil {
-			return nil, x
+			return nil, apperr.New(apperr.CodeInternal, "credentials.crypto_seal_failed", "seal failed")
 		}
 		f["secret_ciphertext"] = enc
 	}

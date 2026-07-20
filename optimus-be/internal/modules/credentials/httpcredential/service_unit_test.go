@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 )
 
@@ -35,6 +36,11 @@ type unitCipher struct{ called bool }
 func (c *unitCipher) Seal([]byte) ([]byte, error) { c.called = true; return nil, nil }
 func (*unitCipher) Open([]byte) ([]byte, error)   { return nil, nil }
 
+type failingSealCipher struct{ err error }
+
+func (c failingSealCipher) Seal([]byte) ([]byte, error) { return nil, c.err }
+func (failingSealCipher) Open([]byte) ([]byte, error)   { return nil, nil }
+
 func TestCreatePropagatesFindByNameDatabaseErrorBeforeSeal(t *testing.T) {
 	dbErr := errors.New("database unavailable")
 	c := &unitCipher{}
@@ -49,4 +55,17 @@ func TestUpdatePropagatesFindByNameDatabaseError(t *testing.T) {
 	name := "new"
 	_, err := s.Update(t.Context(), 0, "", "", 1, UpdateRequest{Name: &name})
 	require.ErrorIs(t, err, dbErr)
+}
+
+func TestUpdateNormalizesSealFailure(t *testing.T) {
+	raw := errors.New("raw cipher detail")
+	s := NewService(&errorRepo{get: &models.HTTPCredential{ID: 1, Name: "name", AuthType: "bearer"}}, failingSealCipher{err: raw}, nil)
+	secret := "replacement"
+	_, err := s.Update(t.Context(), 0, "", "", 1, UpdateRequest{Secret: &secret})
+	require.NotErrorIs(t, err, raw)
+	b, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeInternal, b.Code)
+	require.Equal(t, "credentials.crypto_seal_failed", b.MessageKey)
+	require.NotContains(t, b.Error(), "raw cipher detail")
 }

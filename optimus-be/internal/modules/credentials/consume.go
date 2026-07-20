@@ -56,6 +56,7 @@ type HTTPCredential struct {
 	Secret   []byte
 }
 
+// WipeHTTPCredential performs best-effort zeroization of decrypted secret bytes.
 func WipeHTTPCredential(c *HTTPCredential) {
 	if c == nil {
 		return
