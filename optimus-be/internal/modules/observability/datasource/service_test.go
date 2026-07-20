@@ -150,6 +150,35 @@ func TestServiceUpdateValidatesReferencesInMutationTransaction(t *testing.T) {
 	require.Same(t, r.tx, cluster.gotTx)
 }
 
+func TestServicePropagatesCredentialMetadataInfrastructureErrors(t *testing.T) {
+	infraErr := errors.New("metadata database unavailable")
+	credentialID := ptr(uint64(9))
+	for _, tc := range []struct {
+		name string
+		run  func(*Service) error
+	}{
+		{"create", func(s *Service) error {
+			_, err := s.Create(context.Background(), 1, "", "", CreateRequest{Name: "prom", BaseURL: "https://prom.example.com", AuthType: "bearer", HTTPCredentialID: credentialID})
+			return err
+		}},
+		{"update", func(s *Service) error {
+			auth := "bearer"
+			_, err := s.Update(context.Background(), 1, "", "", 7, UpdateRequest{AuthType: &auth, HTTPCredentialID: credentialID})
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &fakeRepo{row: &models.ObservabilityDatasource{ID: 7, Name: "prom", BaseURL: "https://prom.example.com", AuthType: "none"}}
+			s := newTestService(r, &fakeMeta{err: infraErr}, &fakeCluster{ok: true}, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+			err := tc.run(s)
+			require.ErrorIs(t, err, infraErr)
+			if bizErr, ok := apperr.AsBiz(err); ok {
+				require.NotEqual(t, apperr.CodeObservabilityDatasourceAuthMismatch, bizErr.Code)
+			}
+		})
+	}
+}
+
 func TestServiceValidatesURLCAClusterAndUniqueness(t *testing.T) {
 	cases := []struct {
 		name    string

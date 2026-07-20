@@ -138,7 +138,7 @@ func (s *Service) validateRefs(ctx context.Context, tx *gorm.DB, auth string, cr
 		}
 		m, err := s.metadata.GetHTTPMetadataTx(ctx, tx, *credentialID)
 		if err != nil {
-			return authMismatch()
+			return err
 		}
 		if m.AuthType != auth {
 			return authMismatch()
