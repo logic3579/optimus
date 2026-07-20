@@ -38,6 +38,10 @@ func (f *fakeConsumer) GetCloudKey(context.Context, uint64, string) (*credential
 	panic("helmclient: fakeConsumer.GetCloudKey called — not expected")
 }
 
+func (f *fakeConsumer) GetHTTPCredential(context.Context, uint64, string) (*credentials.HTTPCredential, error) {
+	return nil, errors.New("helmclient: fakeConsumer.GetHTTPCredential called unexpectedly")
+}
+
 // fakeClusters implements helmclient.ClusterLookup.
 type fakeClusters struct {
 	c   *cluster.Detail
