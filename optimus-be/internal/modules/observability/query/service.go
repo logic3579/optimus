@@ -78,7 +78,10 @@ func (s *Service) Range(ctx context.Context, actor uint64, req RangeRequest) (*B
 	if req.Start.IsZero() || req.End.IsZero() || span < 0 {
 		return nil, invalid()
 	}
-	if span > s.limits.MaxRange || req.Step < s.limits.MinStep || req.Step <= 0 || int64(span/req.Step)+1 > int64(s.limits.MaxPoints) {
+	if req.Step <= 0 || req.Step < s.limits.MinStep {
+		return nil, invalid()
+	}
+	if span > s.limits.MaxRange || int64(span/req.Step)+1 > int64(s.limits.MaxPoints) {
 		return nil, limit()
 	}
 	return s.run(ctx, actor, req.DatasourceID, "observability.query.range", req.Queries, req.EnrichAssets, func(ctx context.Context, r Runner, q string) (prometheus.Result, error) {

@@ -125,6 +125,13 @@ func TestBatchValidationLimits(t *testing.T) {
 		})
 	}
 }
+
+func TestRangeStepBelowMinimumIsInvalidRequest(t *testing.T) {
+	s, _, _, _ := queryService(&fakeRunner{})
+	now := time.Now()
+	_, err := s.Range(context.Background(), 1, RangeRequest{DatasourceID: 1, Start: now.Add(-time.Hour), End: now, Step: time.Second, Queries: makeQueries(1)})
+	bizCode(t, err, apperr.CodeObservabilityQueryInvalidRequest)
+}
 func makeQueries(n int) []Query {
 	q := make([]Query, n)
 	for i := range q {
@@ -172,6 +179,15 @@ func TestExpressionErrorIsItemButDestinationFailsBatch(t *testing.T) {
 	r.errs = map[string]error{"up": apperr.New(apperr.CodeObservabilityQueryUpstreamRejected, "observability.query.upstream_rejected", "auth rejected")}
 	_, err = s.Instant(context.Background(), 1, InstantRequest{DatasourceID: 1, Queries: makeQueries(1)})
 	bizCode(t, err, apperr.CodeObservabilityQueryUpstreamRejected)
+}
+
+func TestHTTPExpressionErrorDoesNotCancelSibling(t *testing.T) {
+	r := &fakeRunner{errs: map[string]error{"bad": fakeExpressionError{apperr.New(apperr.CodeObservabilityQueryUpstreamRejected, "observability.query.upstream_rejected", "bad query")}}}
+	s, _, _, _ := queryService(r)
+	got, err := s.Instant(context.Background(), 1, InstantRequest{DatasourceID: 1, Queries: []Query{{RefID: "bad", PromQL: "bad"}, {RefID: "good", PromQL: "up"}}})
+	require.NoError(t, err)
+	require.NotNil(t, got.Results[0].Error)
+	require.NotNil(t, got.Results[1].Result)
 }
 
 type fakeExpressionError struct{ error }

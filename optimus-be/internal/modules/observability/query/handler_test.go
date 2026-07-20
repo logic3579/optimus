@@ -15,17 +15,53 @@ import (
 type fakeHandlerService struct {
 	actor uint64
 	label string
+	step  time.Duration
 }
 
 func (f *fakeHandlerService) Instant(_ context.Context, a uint64, _ InstantRequest) (*BatchResult, error) {
 	f.actor = a
 	return &BatchResult{}, nil
 }
-func (f *fakeHandlerService) Range(context.Context, uint64, RangeRequest) (*BatchResult, error) {
+func (f *fakeHandlerService) Range(_ context.Context, _ uint64, req RangeRequest) (*BatchResult, error) {
+	f.step = req.Step
+	if req.Step < 15*time.Second {
+		return nil, invalid()
+	}
 	return &BatchResult{}, nil
 }
 func (f *fakeHandlerService) Labels(context.Context, uint64, uint64) ([]string, error) {
 	return []string{"job"}, nil
+}
+
+func TestRangeStepAcceptsDurationStringsAndRejectsNumbers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name, step string
+		status     int
+		want       time.Duration
+	}{
+		{"fifteen seconds", `"15s"`, 200, 15 * time.Second},
+		{"minute", `"1m"`, 200, time.Minute},
+		{"malformed", `"soon"`, 400, 0},
+		{"number", `60000000000`, 400, 0},
+		{"too small", `"1s"`, 400, time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &fakeHandlerService{}
+			r := gin.New()
+			NewHandler(s).Mount(r.Group("/observability"), func(string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } })
+			body := `{"datasource_id":1,"start":"2026-07-20T00:00:00Z","end":"2026-07-20T01:00:00Z","step":` + tc.step + `,"queries":[{"ref_id":"a","promql":"up"}]}`
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/observability/query-range", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+			require.Equal(t, tc.status, w.Code)
+			require.Equal(t, tc.want, s.step)
+			if tc.status == http.StatusBadRequest {
+				require.Contains(t, w.Body.String(), `"code":44107`)
+			}
+		})
+	}
 }
 func (f *fakeHandlerService) LabelValues(_ context.Context, _ uint64, _ uint64, l string) ([]string, error) {
 	f.label = l

@@ -132,18 +132,19 @@ func (c *Client) requestEnvelope(ctx context.Context, method, path string, form 
 	if err != nil {
 		return mapResponseReadError(err)
 	}
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnprocessableEntity {
+		if err := decodeResponseEnvelope(data, out); err != nil {
+			return invalidResponse(err)
+		}
+		if out.Status != "error" || strings.TrimSpace(out.ErrorType) == "" || strings.TrimSpace(out.Error) == "" {
+			return invalidResponse(errors.New("invalid Prometheus error response"))
+		}
+		return expressionRejected(fmt.Errorf("Prometheus API error type %q", out.ErrorType))
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return rejected(fmt.Errorf("Prometheus returned HTTP %d", resp.StatusCode))
 	}
-	dec := json.NewDecoder(bytes.NewReader(data))
-	if err := dec.Decode(out); err != nil {
-		return invalidResponse(err)
-	}
-	var trailing any
-	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			err = errors.New("multiple JSON values in Prometheus response")
-		}
+	if err := decodeResponseEnvelope(data, out); err != nil {
 		return invalidResponse(err)
 	}
 	if out.Status != "success" {
@@ -151,6 +152,21 @@ func (c *Client) requestEnvelope(ctx context.Context, method, path string, form 
 	}
 	if len(out.Data) == 0 || bytes.Equal(out.Data, []byte("null")) {
 		return invalidResponse(errors.New("missing Prometheus data"))
+	}
+	return nil
+}
+
+func decodeResponseEnvelope(data []byte, out *responseEnvelope) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	if err := dec.Decode(out); err != nil {
+		return err
+	}
+	var trailing any
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			err = errors.New("multiple JSON values in Prometheus response")
+		}
+		return err
 	}
 	return nil
 }

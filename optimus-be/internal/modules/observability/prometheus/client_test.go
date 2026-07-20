@@ -251,13 +251,37 @@ func TestClientMarksOnlyAPIExpressionErrors(t *testing.T) {
 		expression bool
 	}{
 		{"api", http.StatusOK, `{"status":"error","errorType":"bad_data","error":"bad"}`, true},
+		{"bad request expression", http.StatusBadRequest, `{"status":"error","errorType":"bad_data","error":"bad"}`, true},
+		{"unprocessable expression", http.StatusUnprocessableEntity, `{"status":"error","errorType":"execution","error":"bad"}`, true},
 		{"auth", http.StatusUnauthorized, `no`, false},
+		{"other client error", http.StatusNotFound, `{"status":"error","errorType":"bad_data","error":"bad"}`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := prometheusJSONServer(t, tc.status, tc.body)
 			defer s.Close()
 			_, err := NewClient(s.Client(), mustClientURL(t, s.URL), 1024, 10).Query(context.Background(), "up", time.Time{})
 			require.Equal(t, tc.expression, IsExpressionError(err))
+		})
+	}
+}
+
+func TestClientDoesNotMarkMalformedOrOversizedExpressionResponses(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		max  int64
+	}{
+		{"malformed", `{`, 1024},
+		{"multiple json", `{"status":"error"}{"status":"error"}`, 1024},
+		{"missing error", `{"status":"error","errorType":"bad_data"}`, 1024},
+		{"oversized", `{"status":"error","errorType":"bad_data","error":"` + strings.Repeat("x", 100) + `"}`, 32},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := prometheusJSONServer(t, http.StatusBadRequest, tc.body)
+			defer s.Close()
+			_, err := NewClient(s.Client(), mustClientURL(t, s.URL), tc.max, 10).Query(context.Background(), "up", time.Time{})
+			require.False(t, IsExpressionError(err))
+			requireClientBizCode(t, err, apperr.CodeObservabilityQueryInvalidResponse)
 		})
 	}
 }
