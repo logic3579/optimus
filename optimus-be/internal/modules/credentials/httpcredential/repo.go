@@ -2,16 +2,20 @@ package httpcredential
 
 import (
 	"context"
-	"gorm.io/gorm"
-	"optimus-be/internal/models"
+	"errors"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"gorm.io/gorm"
+
+	"optimus-be/internal/models"
 )
 
 type Repo struct{ db *gorm.DB }
 
 func NewRepo(db *gorm.DB) *Repo { return &Repo{db: db} }
 func (r *Repo) Create(ctx context.Context, m *models.HTTPCredential) error {
-	return r.db.WithContext(ctx).Create(m).Error
+	return mapWriteError(r.db.WithContext(ctx).Create(m).Error)
 }
 func (r *Repo) Get(ctx context.Context, id uint64) (*models.HTTPCredential, error) {
 	var m models.HTTPCredential
@@ -46,7 +50,14 @@ func (r *Repo) List(ctx context.Context, q ListQuery) ([]models.HTTPCredential, 
 	return out, n, err
 }
 func (r *Repo) Update(ctx context.Context, id uint64, f map[string]any) error {
-	return r.db.WithContext(ctx).Model(&models.HTTPCredential{}).Where("id = ?", id).Updates(f).Error
+	return mapWriteError(r.db.WithContext(ctx).Model(&models.HTTPCredential{}).Where("id = ?", id).Updates(f).Error)
+}
+func mapWriteError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "credentials_http_name_unique" {
+		return conflict()
+	}
+	return err
 }
 func (r *Repo) Delete(ctx context.Context, id uint64) error {
 	return r.db.WithContext(ctx).Delete(&models.HTTPCredential{}, id).Error

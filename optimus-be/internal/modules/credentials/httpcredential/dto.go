@@ -18,10 +18,10 @@ type Summary struct {
 }
 type Detail = Summary
 type CreateRequest struct {
-	Name     string `json:"name" binding:"required,max=128"`
-	AuthType string `json:"auth_type" binding:"required,oneof=basic bearer"`
-	Username string `json:"username" binding:"max=256"`
-	Secret   string `json:"secret" binding:"required,max=16384"`
+	Name     string  `json:"name" binding:"required,max=128"`
+	AuthType string  `json:"auth_type" binding:"required,oneof=basic bearer"`
+	Username *string `json:"username,omitempty" binding:"omitempty,max=256"`
+	Secret   string  `json:"secret" binding:"required,max=16384"`
 }
 type UpdateRequest struct {
 	Name     *string `json:"name,omitempty" binding:"omitempty,max=128"`

@@ -37,7 +37,7 @@ func TestModule_New_BuildsAllServices(t *testing.T) {
 	require.NotNil(t, m.Consumer)
 }
 
-func TestModule_MountRoutes_RegistersAllNineEndpoints(t *testing.T) {
+func TestModule_MountRoutes_RegistersExactCredentialMethodsAndPaths(t *testing.T) {
 	gdb, td := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
 	defer td()
 	_, err := permissions.Register(t.Context(), gdb, permissions.All)
@@ -67,8 +67,14 @@ func TestModule_MountRoutes_RegistersAllNineEndpoints(t *testing.T) {
 		{"DELETE", "/api/v1/credentials/ssh-keys/1"},
 		{"GET", "/api/v1/credentials/kubeconfigs"},
 		{"POST", "/api/v1/credentials/kubeconfigs"},
+		{"GET", "/api/v1/credentials/kubeconfigs/1"},
+		{"PUT", "/api/v1/credentials/kubeconfigs/1"},
+		{"DELETE", "/api/v1/credentials/kubeconfigs/1"},
 		{"GET", "/api/v1/credentials/cloud-keys"},
 		{"POST", "/api/v1/credentials/cloud-keys"},
+		{"GET", "/api/v1/credentials/cloud-keys/1"},
+		{"PUT", "/api/v1/credentials/cloud-keys/1"},
+		{"DELETE", "/api/v1/credentials/cloud-keys/1"},
 		{"GET", "/api/v1/credentials/http-credentials"},
 		{"POST", "/api/v1/credentials/http-credentials"},
 		{"GET", "/api/v1/credentials/http-credentials/1"},

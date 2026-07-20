@@ -18,14 +18,22 @@ type Cipher interface {
 type InUseCounter interface {
 	CountByHTTPCredentialID(context.Context, uint64) (int64, error)
 }
+type repository interface {
+	Create(context.Context, *models.HTTPCredential) error
+	Get(context.Context, uint64) (*models.HTTPCredential, error)
+	FindByName(context.Context, string) (*models.HTTPCredential, error)
+	List(context.Context, ListQuery) ([]models.HTTPCredential, int64, error)
+	Update(context.Context, uint64, map[string]any) error
+	Delete(context.Context, uint64) error
+}
 type Service struct {
-	repo    *Repo
+	repo    repository
 	cipher  Cipher
 	audit   *audit.Recorder
 	counter InUseCounter
 }
 
-func NewService(r *Repo, c Cipher, a *audit.Recorder) *Service {
+func NewService(r repository, c Cipher, a *audit.Recorder) *Service {
 	return &Service{repo: r, cipher: c, audit: a}
 }
 func (s *Service) SetInUseCounter(c InUseCounter) { s.counter = c }
@@ -57,19 +65,18 @@ func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 	d := Detail(toSummary(*m))
 	return &d, nil
 }
-func validate(auth, name, user, secret string, creating bool) error {
+func validate(auth, name string, user *string, secret string, creating bool) error {
 	name = strings.TrimSpace(name)
-	user = strings.TrimSpace(user)
 	if name == "" || len(name) > 128 {
 		return apperr.New(apperr.CodeValidation, "common.validation", "invalid name")
 	}
 	if auth != "basic" && auth != "bearer" {
 		return apperr.New(apperr.CodeValidation, "common.validation", "invalid auth_type")
 	}
-	if auth == "basic" && user == "" {
+	if auth == "basic" && (user == nil || strings.TrimSpace(*user) == "") {
 		return apperr.New(apperr.CodeValidation, "common.validation", "username required")
 	}
-	if auth == "bearer" && user != "" {
+	if auth == "bearer" && user != nil {
 		return apperr.New(apperr.CodeValidation, "common.validation", "username forbidden")
 	}
 	if creating && (secret == "" || len(secret) > 16384) {
@@ -79,12 +86,13 @@ func validate(auth, name, user, secret string, creating bool) error {
 }
 func (s *Service) Create(ctx context.Context, actor uint64, ip, ua string, r CreateRequest) (*Detail, error) {
 	r.Name = strings.TrimSpace(r.Name)
-	r.Username = strings.TrimSpace(r.Username)
 	if e := validate(r.AuthType, r.Name, r.Username, r.Secret, true); e != nil {
 		return nil, e
 	}
 	if _, e := s.repo.FindByName(ctx, r.Name); e == nil {
 		return nil, conflict()
+	} else if !errors.Is(e, gorm.ErrRecordNotFound) {
+		return nil, e
 	}
 	enc, e := s.cipher.Seal([]byte(r.Secret))
 	if e != nil {
@@ -92,7 +100,8 @@ func (s *Service) Create(ctx context.Context, actor uint64, ip, ua string, r Cre
 	}
 	m := &models.HTTPCredential{Name: r.Name, AuthType: r.AuthType, SecretCiphertext: enc}
 	if r.AuthType == "basic" {
-		m.Username = &r.Username
+		u := strings.TrimSpace(*r.Username)
+		m.Username = &u
 	}
 	if actor != 0 {
 		m.CreatedByUserID = &actor
@@ -122,19 +131,17 @@ func (s *Service) Update(ctx context.Context, actor uint64, ip, ua string, id ui
 			}
 		}
 	}
-	user := ""
-	if m.Username != nil {
-		user = *m.Username
-	}
+	user := m.Username
 	if r.Username != nil {
-		user = strings.TrimSpace(*r.Username)
+		u := strings.TrimSpace(*r.Username)
+		user = &u
 	}
 	if e = validate(m.AuthType, name, user, "", false); e != nil {
 		return nil, e
 	}
 	f := map[string]any{"name": name}
 	if m.AuthType == "basic" {
-		f["username"] = user
+		f["username"] = *user
 	} else {
 		f["username"] = nil
 	}
@@ -205,12 +212,22 @@ func (s *Service) Consume(ctx context.Context, actor *uint64, id uint64, purpose
 	if e != nil {
 		return nil, apperr.New(apperr.CodeInternal, "credentials.crypto_open_failed", "open failed")
 	}
+	defer wipe(secret)
+	if e = ctx.Err(); e != nil {
+		return nil, e
+	}
+	returnedSecret := append([]byte(nil), secret...)
 	u := ""
 	if m.Username != nil {
 		u = *m.Username
 	}
 	s.record(ctx, actor, "credentials.consume.http_credential", id, "", "", map[string]any{"name": m.Name, "purpose": purpose})
-	return &ConsumeRecord{m.Name, m.AuthType, u, secret}, nil
+	return &ConsumeRecord{m.Name, m.AuthType, u, returnedSecret}, nil
+}
+func wipe(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
 }
 func (s *Service) record(ctx context.Context, a *uint64, action string, id uint64, ip, ua string, p any) {
 	if s.audit != nil {

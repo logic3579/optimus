@@ -150,7 +150,8 @@ func TestSmoke_WithActor_ContextPropagates(t *testing.T) {
 func TestSmoke_HTTPCredential_RoundTripAndWipe(t *testing.T) {
 	c, _, _, _, svc, td := setup(t)
 	defer td()
-	d, err := svc.Create(t.Context(), 0, "", "", httpcredential.CreateRequest{Name: "prom-basic", AuthType: "basic", Username: "metrics", Secret: "password"})
+	u := "metrics"
+	d, err := svc.Create(t.Context(), 0, "", "", httpcredential.CreateRequest{Name: "prom-basic", AuthType: "basic", Username: &u, Secret: "password"})
 	require.NoError(t, err)
 	got, err := c.GetHTTPCredential(t.Context(), d.ID, "system:observability.query")
 	require.NoError(t, err)
