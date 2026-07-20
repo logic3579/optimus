@@ -60,3 +60,15 @@ func TestHandlerTestPassesActorAndRequestMetadata(t *testing.T) {
 	require.Equal(t, "192.0.2.4", svc.ip)
 	require.Equal(t, "task6-test", svc.ua)
 }
+
+func TestMountUsesOnlyApprovedDatasourcePermissions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	permissions := make([]string, 0, 3)
+	requirePermission := func(code string) gin.HandlerFunc {
+		permissions = append(permissions, code)
+		return func(c *gin.Context) { c.Next() }
+	}
+	(&Handler{svc: &fakeHandlerService{}}).Mount(gin.New().Group("/observability"), requirePermission)
+	require.ElementsMatch(t, []string{"observability:datasource:read", "observability:datasource:write", "observability:datasource:delete"}, permissions)
+	require.NotContains(t, permissions, "observability:datasource:test")
+}

@@ -5,6 +5,7 @@ package inuse
 import (
 	"context"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"optimus-be/internal/infra/db"
 	"optimus-be/internal/models"
 	"optimus-be/tests/dbtest"
@@ -26,6 +27,13 @@ func TestCountsOnlyActiveDatasourceReferences(t *testing.T) {
 	require.EqualValues(t, 1, n)
 	n, err = c.CountByClusterID(context.Background(), cluster.ID)
 	require.NoError(t, err)
+	require.EqualValues(t, 1, n)
+	dashboard := dbtest.SeedObservabilityDashboard(t, gdb, u.ID)
+	dbtest.SeedObservabilityPanel(t, gdb, dashboard.ID, row.ID, "stat", 12)
+	require.NoError(t, gdb.Transaction(func(tx *gorm.DB) error {
+		n, err = c.CountByDatasourceIDTx(context.Background(), tx, row.ID)
+		return err
+	}))
 	require.EqualValues(t, 1, n)
 	require.NoError(t, gdb.Delete(row).Error)
 	n, err = c.CountByClusterID(context.Background(), cluster.ID)

@@ -28,7 +28,7 @@ type ClusterExistence interface {
 	Exists(context.Context, uint64) (bool, error)
 }
 type PanelUsage interface {
-	CountByDatasourceID(context.Context, uint64) (int64, error)
+	CountByDatasourceIDTx(context.Context, *gorm.DB, uint64) (int64, error)
 }
 type Tester interface {
 	Test(context.Context, Detail, *credentials.HTTPCredential) (map[string]string, error)
@@ -273,7 +273,7 @@ func (s *Service) Delete(ctx context.Context, actor uint64, ip, ua string, id ui
 		if err != nil {
 			return err
 		}
-		n, err := s.panels.CountByDatasourceID(ctx, id)
+		n, err := s.panels.CountByDatasourceIDTx(ctx, tx, id)
 		if err != nil {
 			return err
 		}

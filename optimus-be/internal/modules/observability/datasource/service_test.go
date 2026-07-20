@@ -18,6 +18,7 @@ type fakeRepo struct {
 	row      *models.ObservabilityDatasource
 	conflict bool
 	panels   int64
+	tx       *gorm.DB
 }
 
 func (f *fakeRepo) List(context.Context, ListQuery) ([]Detail, int64, error) { return nil, 0, nil }
@@ -27,7 +28,12 @@ func (f *fakeRepo) GetByID(context.Context, uint64) (*Detail, error) {
 	}
 	return detailFromModel(f.row, "cred", "cluster"), nil
 }
-func (f *fakeRepo) Transaction(ctx context.Context, fn func(*gorm.DB) error) error { return fn(nil) }
+func (f *fakeRepo) Transaction(ctx context.Context, fn func(*gorm.DB) error) error {
+	if f.tx == nil {
+		f.tx = &gorm.DB{}
+	}
+	return fn(f.tx)
+}
 func (f *fakeRepo) FindNameAliveTx(context.Context, *gorm.DB, string, uint64) (bool, error) {
 	return f.conflict, nil
 }
@@ -60,9 +66,15 @@ type fakeCluster struct{ ok bool }
 
 func (f fakeCluster) Exists(context.Context, uint64) (bool, error) { return f.ok, nil }
 
-type fakePanels struct{ n int64 }
+type fakePanels struct {
+	n     int64
+	gotTx *gorm.DB
+}
 
-func (f fakePanels) CountByDatasourceID(context.Context, uint64) (int64, error) { return f.n, nil }
+func (f *fakePanels) CountByDatasourceIDTx(_ context.Context, tx *gorm.DB, _ uint64) (int64, error) {
+	f.gotTx = tx
+	return f.n, nil
+}
 
 type fakeConsumer struct {
 	calls      int
@@ -89,7 +101,7 @@ func (f *fakeAudit) Record(_ context.Context, e audit.Event) error {
 	return nil
 }
 
-func newTestService(r *fakeRepo, m fakeMeta, c fakeCluster, p fakePanels, consumer *fakeConsumer, tester fakeTester, a *fakeAudit) *Service {
+func newTestService(r *fakeRepo, m fakeMeta, c fakeCluster, p *fakePanels, consumer *fakeConsumer, tester fakeTester, a *fakeAudit) *Service {
 	return newServiceForTest(r, m, c, p, consumer, tester, a)
 }
 func code(t *testing.T, err error, want apperr.Code) {
@@ -100,7 +112,7 @@ func code(t *testing.T, err error, want apperr.Code) {
 }
 
 func TestServiceRejectsCredentialAuthMismatch(t *testing.T) {
-	s := newTestService(&fakeRepo{}, fakeMeta{meta: HTTPMetadata{ID: 9, AuthType: "bearer"}}, fakeCluster{ok: true}, fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+	s := newTestService(&fakeRepo{}, fakeMeta{meta: HTTPMetadata{ID: 9, AuthType: "bearer"}}, fakeCluster{ok: true}, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
 	_, err := s.Create(context.Background(), 1, "ip", "ua", CreateRequest{Name: "prom", BaseURL: "https://prom.example.com", AuthType: "basic", HTTPCredentialID: ptr(uint64(9))})
 	code(t, err, apperr.CodeObservabilityDatasourceAuthMismatch)
 }
@@ -120,7 +132,7 @@ func TestServiceValidatesURLCAClusterAndUniqueness(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newTestService(tt.repo, fakeMeta{}, tt.cluster, fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+			s := newTestService(tt.repo, fakeMeta{}, tt.cluster, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
 			_, err := s.Create(context.Background(), 1, "", "", tt.req)
 			code(t, err, tt.want)
 		})
@@ -130,7 +142,7 @@ func TestServiceValidatesURLCAClusterAndUniqueness(t *testing.T) {
 func TestServiceCreateAuditsWithoutCA(t *testing.T) {
 	a := &fakeAudit{}
 	r := &fakeRepo{}
-	s := newTestService(r, fakeMeta{}, fakeCluster{true}, fakePanels{}, &fakeConsumer{}, fakeTester{}, a)
+	s := newTestService(r, fakeMeta{}, fakeCluster{true}, &fakePanels{}, &fakeConsumer{}, fakeTester{}, a)
 	d, err := s.Create(context.Background(), 1, "ip", "ua", CreateRequest{Name: " prom ", BaseURL: " https://example.com/prom ", AuthType: "none", TLSSkipVerify: true, CustomCAPEM: nil})
 	require.NoError(t, err)
 	require.Equal(t, "prom", d.Name)
@@ -140,15 +152,18 @@ func TestServiceCreateAuditsWithoutCA(t *testing.T) {
 }
 
 func TestServiceDeleteRejectsPanelUsage(t *testing.T) {
-	s := newTestService(&fakeRepo{row: &models.ObservabilityDatasource{ID: 1}}, fakeMeta{}, fakeCluster{true}, fakePanels{1}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+	r := &fakeRepo{row: &models.ObservabilityDatasource{ID: 1}}
+	panels := &fakePanels{n: 1}
+	s := newTestService(r, fakeMeta{}, fakeCluster{true}, panels, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
 	code(t, s.Delete(context.Background(), 1, "", "", 1), apperr.CodeObservabilityDatasourceInUse)
+	require.Same(t, r.tx, panels.gotTx)
 }
 
 func TestServiceTestConnectionAuthAndAuditRedaction(t *testing.T) {
 	r := &fakeRepo{row: &models.ObservabilityDatasource{ID: 1, Name: "p", BaseURL: "https://example.com", AuthType: "bearer", HTTPCredentialID: ptr(uint64(9))}}
 	c := &fakeConsumer{credential: &credentials.HTTPCredential{Secret: []byte("topsecret")}}
 	a := &fakeAudit{}
-	s := newTestService(r, fakeMeta{}, fakeCluster{true}, fakePanels{}, c, fakeTester{err: errors.New("raw upstream topsecret")}, a)
+	s := newTestService(r, fakeMeta{}, fakeCluster{true}, &fakePanels{}, c, fakeTester{err: errors.New("raw upstream topsecret")}, a)
 	_, err := s.TestConnection(context.Background(), 1, "ip", "ua", 1)
 	require.Error(t, err)
 	require.Equal(t, 1, c.calls)
@@ -161,7 +176,7 @@ func TestServiceTestConnectionAuthAndAuditRedaction(t *testing.T) {
 func TestServiceTestConnectionNoAuthSkipsConsumer(t *testing.T) {
 	r := &fakeRepo{row: &models.ObservabilityDatasource{ID: 1, BaseURL: "https://example.com", AuthType: "none"}}
 	c := &fakeConsumer{}
-	s := newTestService(r, fakeMeta{}, fakeCluster{true}, fakePanels{}, c, fakeTester{}, &fakeAudit{})
+	s := newTestService(r, fakeMeta{}, fakeCluster{true}, &fakePanels{}, c, fakeTester{}, &fakeAudit{})
 	_, err := s.TestConnection(context.Background(), 1, "", "", 1)
 	require.NoError(t, err)
 	require.Zero(t, c.calls)

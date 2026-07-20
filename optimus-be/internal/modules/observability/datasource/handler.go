@@ -26,11 +26,10 @@ func (h *Handler) Mount(g *gin.RouterGroup, permission func(string) gin.HandlerF
 	read := g.Group("", permission("observability:datasource:read"))
 	read.GET("/datasources", h.List)
 	read.GET("/datasources/:id", h.Get)
-	test := g.Group("", permission("observability:datasource:test"))
-	test.POST("/datasources/:id/test", h.Test)
 	write := g.Group("", permission("observability:datasource:write"))
 	write.POST("/datasources", h.Create)
 	write.PUT("/datasources/:id", h.Update)
+	write.POST("/datasources/:id/test", h.Test)
 	del := g.Group("", permission("observability:datasource:delete"))
 	del.DELETE("/datasources/:id", h.Delete)
 }

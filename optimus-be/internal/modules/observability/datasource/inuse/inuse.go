@@ -31,3 +31,12 @@ func countCluster(ctx context.Context, db *gorm.DB, id uint64) (int64, error) {
 	err := db.WithContext(ctx).Model(&models.ObservabilityDatasource{}).Where("cluster_id=?", id).Count(&n).Error
 	return n, err
 }
+
+// CountByDatasourceIDTx is the deletion guard used after the datasource row is
+// locked. Keeping the lookup on the caller's transaction closes the check/delete
+// race; dashboard panel creation must lock and validate the datasource row too.
+func (c *Counter) CountByDatasourceIDTx(ctx context.Context, tx *gorm.DB, id uint64) (int64, error) {
+	var n int64
+	err := tx.WithContext(ctx).Model(&models.ObservabilityPanel{}).Where("datasource_id = ?", id).Count(&n).Error
+	return n, err
+}
