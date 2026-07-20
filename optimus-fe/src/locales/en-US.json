@@ -85,7 +85,24 @@
     "43104": "Cannot reach the AWS API",
     "43105": "AWS API throttled",
     "43106": "AWS API call failed",
-    "43107": "AWS SDK config load failed"
+    "43107": "AWS SDK config load failed",
+    "44001": "Data source not found.",
+    "44002": "A data source with this name already exists.",
+    "44003": "This data source is still used by a dashboard.",
+    "44004": "The data source URL is invalid.",
+    "44005": "The selected credential does not match the authentication type.",
+    "44006": "The data source TLS configuration is invalid.",
+    "44101": "The data source destination is not allowed.",
+    "44102": "The metrics service could not be reached.",
+    "44103": "The metrics service did not respond in time.",
+    "44104": "The metrics service rejected the request.",
+    "44105": "The metrics service returned an invalid response.",
+    "44106": "The metric query exceeds the allowed limits.",
+    "44107": "The metric query request is invalid.",
+    "44201": "Dashboard not found.",
+    "44202": "A dashboard with this name already exists.",
+    "44203": "The dashboard contains an invalid panel.",
+    "44204": "Built-in dashboard not found."
   },
   "network": {
     "error": "Network error, please try again later"
@@ -139,7 +156,8 @@
     "credentials": {
       "ssh_key":    { "read": "View SSH credentials", "write": "Create/update SSH credentials", "delete": "Delete SSH credentials", "use": "Use SSH credentials" },
       "kubeconfig": { "read": "View kubeconfigs", "write": "Create/update kubeconfigs", "delete": "Delete kubeconfigs", "use": "Use kubeconfigs" },
-      "cloud_key":  { "read": "View cloud keys", "write": "Create/update cloud keys", "delete": "Delete cloud keys", "use": "Use cloud keys" }
+      "cloud_key":  { "read": "View cloud keys", "write": "Create/update cloud keys", "delete": "Delete cloud keys", "use": "Use cloud keys" },
+      "http":       { "read": "View HTTP credentials", "write": "Create/update HTTP credentials", "delete": "Delete HTTP credentials", "use": "Use HTTP credentials" }
     },
     "k8s": {
       "cluster":          { "read": "Read clusters", "write": "Manage clusters" },
@@ -159,6 +177,11 @@
       "account": { "read": "View cloud accounts", "write": "Manage cloud accounts", "delete": "Delete cloud accounts" },
       "resource": { "read": "View cloud resources" },
       "sync": { "read": "View sync runs" }
+    },
+    "observability": {
+      "datasource": { "read": "View data sources", "write": "Create/update data sources", "delete": "Delete data sources" },
+      "metric": { "read": "Query metrics" },
+      "dashboard": { "read": "View dashboards", "write": "Create/update dashboards", "delete": "Delete dashboards" }
     },
     "category": {
       "system": "System",

@@ -5,6 +5,7 @@ package permissions_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,28 @@ import (
 	"optimus-be/internal/infra/permissions"
 	"optimus-be/internal/models"
 )
+
+func TestP5PermissionRegistry(t *testing.T) {
+	want := []string{
+		"credentials:http:read", "credentials:http:write",
+		"credentials:http:delete", "credentials:http:use",
+		"observability:datasource:read", "observability:datasource:write",
+		"observability:datasource:delete", "observability:metric:read",
+		"observability:dashboard:read", "observability:dashboard:write",
+		"observability:dashboard:delete",
+	}
+
+	var got []string
+	for _, permission := range permissions.All {
+		if strings.HasPrefix(permission.Code, "credentials:http:") || strings.HasPrefix(permission.Code, "observability:") {
+			got = append(got, permission.Code)
+		}
+	}
+	require.ElementsMatch(t, want, got)
+	for _, code := range got {
+		require.False(t, strings.HasPrefix(code, "observability:alert:"), code)
+	}
+}
 
 func TestRegister_InsertsAllCodes(t *testing.T) {
 	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))

@@ -93,4 +93,29 @@ const (
 	CodeAssetsAWSThrottled    Code = 43105 // Throttling / RequestLimitExceeded after SDK retries
 	CodeAssetsAWSOther        Code = 43106 // any other API error
 	CodeAssetsAWSConfig       Code = 43107 // config.LoadDefaultConfig failed
+
+	// 44xxx P5 observability domain — data sources, bounded Prometheus queries,
+	// and dashboards. Message keys are observability.<area>.<reason>.
+	// 44001-44099 data sources
+	CodeObservabilityDatasourceNotFound     Code = 44001 // observability.datasource.not_found
+	CodeObservabilityDatasourceNameTaken    Code = 44002 // observability.datasource.name_taken
+	CodeObservabilityDatasourceInUse        Code = 44003 // observability.datasource.in_use
+	CodeObservabilityDatasourceInvalidURL   Code = 44004 // observability.datasource.invalid_url
+	CodeObservabilityDatasourceAuthMismatch Code = 44005 // observability.datasource.auth_mismatch
+	CodeObservabilityDatasourceInvalidTLS   Code = 44006 // observability.datasource.invalid_tls
+
+	// 44101-44199 Prometheus queries
+	CodeObservabilityQueryDestinationDenied   Code = 44101 // observability.query.destination_denied
+	CodeObservabilityQueryUpstreamUnreachable Code = 44102 // observability.query.upstream_unreachable
+	CodeObservabilityQueryUpstreamTimeout     Code = 44103 // observability.query.upstream_timeout
+	CodeObservabilityQueryUpstreamRejected    Code = 44104 // observability.query.upstream_rejected
+	CodeObservabilityQueryInvalidResponse     Code = 44105 // observability.query.invalid_response
+	CodeObservabilityQueryLimitExceeded       Code = 44106 // observability.query.limit_exceeded
+	CodeObservabilityQueryInvalidRequest      Code = 44107 // observability.query.invalid_request
+
+	// 44201-44299 dashboards
+	CodeObservabilityDashboardNotFound        Code = 44201 // observability.dashboard.not_found
+	CodeObservabilityDashboardNameTaken       Code = 44202 // observability.dashboard.name_taken
+	CodeObservabilityDashboardInvalidPanel    Code = 44203 // observability.dashboard.invalid_panel
+	CodeObservabilityDashboardBuiltinNotFound Code = 44204 // observability.dashboard.builtin_not_found
 )

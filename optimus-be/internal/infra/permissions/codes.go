@@ -15,6 +15,21 @@ const (
 	PermAssetsAccountDelete = "assets:account:delete"
 	PermAssetsResourceRead  = "assets:resource:read" // covers instance, vpc, subnet, database
 	PermAssetsSyncRead      = "assets:sync:read"
+
+	// P1 generic HTTP credentials
+	PermCredentialsHTTPRead   = "credentials:http:read"
+	PermCredentialsHTTPWrite  = "credentials:http:write"
+	PermCredentialsHTTPDelete = "credentials:http:delete"
+	PermCredentialsHTTPUse    = "credentials:http:use"
+
+	// P5 observability
+	PermObservabilityDatasourceRead   = "observability:datasource:read"
+	PermObservabilityDatasourceWrite  = "observability:datasource:write"
+	PermObservabilityDatasourceDelete = "observability:datasource:delete"
+	PermObservabilityMetricRead       = "observability:metric:read"
+	PermObservabilityDashboardRead    = "observability:dashboard:read"
+	PermObservabilityDashboardWrite   = "observability:dashboard:write"
+	PermObservabilityDashboardDelete  = "observability:dashboard:delete"
 )
 
 // All P0 permission codes. Future modules append to this list.
@@ -59,6 +74,12 @@ var All = []Permission{
 	{Code: "credentials:cloud_key:delete", Name: "perm.credentials.cloud_key.delete", Category: "credentials", Description: "Delete cloud keys"},
 	{Code: "credentials:cloud_key:use", Name: "perm.credentials.cloud_key.use", Category: "credentials", Description: "Use cloud keys"},
 
+	// credentials: http
+	{Code: PermCredentialsHTTPRead, Name: "perm.credentials.http.read", Category: "credentials", Description: "Read HTTP credentials"},
+	{Code: PermCredentialsHTTPWrite, Name: "perm.credentials.http.write", Category: "credentials", Description: "Create or update HTTP credentials"},
+	{Code: PermCredentialsHTTPDelete, Name: "perm.credentials.http.delete", Category: "credentials", Description: "Delete HTTP credentials"},
+	{Code: PermCredentialsHTTPUse, Name: "perm.credentials.http.use", Category: "credentials", Description: "Use HTTP credentials for authenticated requests"},
+
 	// P2 k8s management
 	{Code: "k8s:cluster:read", Name: "perm.k8s.cluster.read", Category: "k8s", Description: "Read clusters"},
 	{Code: "k8s:cluster:write", Name: "perm.k8s.cluster.write", Category: "k8s", Description: "Create/update/delete clusters"},
@@ -88,6 +109,15 @@ var All = []Permission{
 	{Code: PermAssetsAccountDelete, Name: "perm.assets.account.delete", Category: "assets", Description: "Delete cloud accounts"},
 	{Code: PermAssetsResourceRead, Name: "perm.assets.resource.read", Category: "assets", Description: "Read cloud resources"},
 	{Code: PermAssetsSyncRead, Name: "perm.assets.sync.read", Category: "assets", Description: "Read asset sync runs"},
+
+	// P5 observability domain
+	{Code: PermObservabilityDatasourceRead, Name: "perm.observability.datasource.read", Category: "observability", Description: "Read observability data sources"},
+	{Code: PermObservabilityDatasourceWrite, Name: "perm.observability.datasource.write", Category: "observability", Description: "Create or update observability data sources"},
+	{Code: PermObservabilityDatasourceDelete, Name: "perm.observability.datasource.delete", Category: "observability", Description: "Delete observability data sources"},
+	{Code: PermObservabilityMetricRead, Name: "perm.observability.metric.read", Category: "observability", Description: "Run metric queries and read metric metadata"},
+	{Code: PermObservabilityDashboardRead, Name: "perm.observability.dashboard.read", Category: "observability", Description: "Read observability dashboards"},
+	{Code: PermObservabilityDashboardWrite, Name: "perm.observability.dashboard.write", Category: "observability", Description: "Create or update observability dashboards"},
+	{Code: PermObservabilityDashboardDelete, Name: "perm.observability.dashboard.delete", Category: "observability", Description: "Delete observability dashboards"},
 }
 
 // CodeSet returns a set for O(1) membership testing.
