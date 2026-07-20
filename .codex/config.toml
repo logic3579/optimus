@@ -5,7 +5,7 @@ url = "https://mcp.mem0.ai/mcp"
 bearer_token_env_var = "MEM0_API_KEY"
 startup_timeout_sec = 15
 tool_timeout_sec = 60
-default_tools_approval_mode = "auto"  # auto / prompt / approve
+default_tools_approval_mode = "approve" # auto / prompt / approve
 
 [mcp_servers.context7]
 url = "https://mcp.context7.com/mcp"
