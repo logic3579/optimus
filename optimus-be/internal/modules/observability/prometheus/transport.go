@@ -141,7 +141,11 @@ func makeTLSConfig(serverName string, options TLSOptions) (*tls.Config, error) {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, errors.New("custom CA contains an invalid certificate")
+			return nil, errors.New("custom CA contains an invalid CA certificate")
+		}
+		if !cert.BasicConstraintsValid || !cert.IsCA ||
+			(cert.KeyUsage != 0 && cert.KeyUsage&x509.KeyUsageCertSign == 0) {
+			return nil, errors.New("custom CA contains an invalid CA certificate")
 		}
 		pool.AddCert(cert)
 		count++

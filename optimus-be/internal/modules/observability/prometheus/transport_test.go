@@ -2,15 +2,23 @@ package prometheus
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -116,18 +124,56 @@ func TestTransportDisablesRedirects(t *testing.T) {
 	require.NoError(t, err)
 	client, err := factory.New(base, TLSOptions{}, Auth{})
 	require.NoError(t, err)
-	require.ErrorIs(t, client.CheckRedirect(nil, nil), http.ErrUseLastResponse)
+	var calls atomic.Int32
+	client.Transport.(*authRoundTripper).next = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Header:     http.Header{"Location": []string{"http://169.254.169.254/latest/meta-data"}},
+			Body:       io.NopCloser(strings.NewReader("redirect")),
+			Request:    req,
+		}, nil
+	})
+	resp, err := client.Get(base.String())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
+	require.Equal(t, http.StatusFound, resp.StatusCode)
+	require.Equal(t, int32(1), calls.Load(), "redirect target must not be requested")
 }
 
 func TestTransportAllowsCallerToCloseIdleConnections(t *testing.T) {
+	spy := &closeIdleSpy{}
+	rt := &authRoundTripper{next: spy}
+	rt.CloseIdleConnections()
+	require.Equal(t, int32(1), spy.calls.Load())
+}
+
+type closeIdleSpy struct{ calls atomic.Int32 }
+
+func (s *closeIdleSpy) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("unused")
+}
+func (s *closeIdleSpy) CloseIdleConnections() { s.calls.Add(1) }
+
+func TestTransportCanceledDialDoesNotContinue(t *testing.T) {
 	policy, err := NewPolicy(nil, &staticResolver{addrs: parseAddrs(t, "8.8.8.8")})
 	require.NoError(t, err)
-	base, err := policy.ParseBaseURL("https://prom.example.com")
+	var dials atomic.Int32
+	factory := NewTransportFactory(policy, func(context.Context, string, string) (net.Conn, error) {
+		dials.Add(1)
+		return nil, errors.New("must not dial")
+	})
+	base, err := policy.ParseBaseURL("http://prom.example.com")
 	require.NoError(t, err)
-	client, err := NewTransportFactory(policy, nil).New(base, TLSOptions{}, Auth{})
+	client, err := factory.New(base, TLSOptions{}, Auth{})
 	require.NoError(t, err)
-	_, ok := client.Transport.(interface{ CloseIdleConnections() })
-	require.True(t, ok)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base.String(), nil)
+	require.NoError(t, err)
+	_, err = client.Do(req)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, int32(0), dials.Load())
 }
 
 func TestTransportRejectsInvalidAuthAndCA(t *testing.T) {
@@ -143,6 +189,41 @@ func TestTransportRejectsInvalidAuthAndCA(t *testing.T) {
 	}
 	_, err = factory.New(base, TLSOptions{CustomCAPEM: []byte("not a certificate")}, Auth{})
 	require.Error(t, err)
+}
+
+func TestTransportAcceptsCAAndRejectsLeafCertificate(t *testing.T) {
+	policy, err := NewPolicy(nil, &staticResolver{addrs: parseAddrs(t, "8.8.8.8")})
+	require.NoError(t, err)
+	factory := NewTransportFactory(policy, nil)
+	base, err := policy.ParseBaseURL("https://prom.example.com")
+	require.NoError(t, err)
+
+	caPEM := generatedCertificatePEM(t, true, x509.KeyUsageCertSign|x509.KeyUsageCRLSign)
+	_, err = factory.New(base, TLSOptions{CustomCAPEM: caPEM}, Auth{})
+	require.NoError(t, err)
+
+	leafPEM := generatedCertificatePEM(t, false, x509.KeyUsageDigitalSignature)
+	_, err = factory.New(base, TLSOptions{CustomCAPEM: leafPEM}, Auth{})
+	require.Error(t, err)
+	require.Equal(t, "custom CA contains an invalid CA certificate", err.Error())
+}
+
+func generatedCertificatePEM(t *testing.T, isCA bool, usage x509.KeyUsage) []byte {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber:          new(big.Int).SetInt64(1),
+		Subject:               pkix.Name{CommonName: "test certificate"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		BasicConstraintsValid: true,
+		IsCA:                  isCA,
+		KeyUsage:              usage,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 }
 
 func TestAuthRoundTripperDoesNotLeakHeaderInErrors(t *testing.T) {
