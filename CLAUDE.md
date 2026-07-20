@@ -13,6 +13,19 @@ Monorepo with two deployable apps plus shared deployment assets:
 - `docs/api/swagger.json` and `docs/permissions.md` — **generated artifacts**, checked in. CI (`make swagger-diff` / `make perm-check`) fails if they drift from source.
 - `docker-compose.yml` (repo root) — local Postgres + Adminer only. Production stack lives in `deploy/`.
 
+## Current project phase
+
+As of 2026-07-20, P0-P4 are implemented. P4 Assets completed its 25-task
+plan and was pushed to `origin/dev` at `d667316`; the user owns the manual PR
+or merge from `dev` to `main`. At this checkpoint `origin/main` remains
+`b6d6555` (P3), and no P5/P6 design or implementation plan has been approved.
+
+For P4 maintenance, read the P4 design and plan before changing behavior and
+run `optimus-be/scripts/p4-smoke.md` with a disposable read-only AWS
+credential before release sign-off. The next new delivery should start with
+the Superpowers brainstorming workflow for P5, then an approved design and
+task-by-task plan; do not infer P5 scope from the P4 `assets.Consumer` seam.
+
 ## Daily commands
 
 ### Backend (run from `optimus-be/`)

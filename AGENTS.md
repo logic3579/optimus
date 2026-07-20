@@ -9,17 +9,24 @@ operating contract for new Codex sessions.
 Start every substantial task by reading:
 
 1. `CLAUDE.md`
-2. `docs/superpowers/plans/2026-06-11-p4-assets.md`
-3. `docs/superpowers/specs/2026-06-11-p4-assets-design.md`
+2. The active phase's design and implementation plan under
+   `docs/superpowers/specs/` and `docs/superpowers/plans/`.
+3. For P4 maintenance, `docs/superpowers/plans/2026-06-11-p4-assets.md` and
+   `docs/superpowers/specs/2026-06-11-p4-assets-design.md`.
 
 If mem0 is available, search with `user_id = "logic"` for the latest
 `[CHECKPOINT YYYY-MM-DD]` memory for `optimus` and cross-check it against
 `git status --short --branch` and recent
 `git log --oneline --decorate --max-count=20 --all`.
 
-Current expected project state: P0-P3 are implemented; `dev` contains the P4
-assets design and 25-task implementation plan, but P4 code has not been landed.
-The next implementation entry point is P4 Task 1.
+Current expected project state (2026-07-20): P0-P4 are implemented. P4 Assets
+completed all 25 plan tasks and is pushed to `origin/dev` at `d667316`; it is
+awaiting the user's manual PR or merge into `main`. At this checkpoint,
+`origin/main` is `b6d6555` (P3) and P5/P6 have no approved spec or plan.
+
+The next delivery entry point is P5 discovery: after the P4 merge decision,
+run the Superpowers brainstorming workflow, write a P5 design/spec and
+task-by-task plan, then begin implementation only after they are approved.
 
 ## Project Shape
 
@@ -86,6 +93,10 @@ The most important rules are:
 - Removing regions from a cloud account must explicitly soft-delete resources in
   those removed regions.
 - P4 frontend paths must be lowercase/kebab-case to match Linux production.
+
+P4's manual release checklist is `optimus-be/scripts/p4-smoke.md`. Use it
+against a disposable read-only AWS credential before production sign-off; do
+not add AWS write/manage APIs in P4.
 
 ## Codex Environment Notes
 
