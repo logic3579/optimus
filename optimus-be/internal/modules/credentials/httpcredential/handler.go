@@ -43,7 +43,7 @@ func id(c *gin.Context) (uint64, bool) {
 // @Param page_size query int false "page size (default 20)"
 // @Param q query string false "search by name"
 // @Param auth_type query string false "filter by auth type (basic|bearer)"
-// @Success 200 {object} response.Envelope
+// @Success 200 {object} response.Envelope{data=ListResponse}
 // @Failure 400,401,403 {object} response.Envelope
 // @Router /credentials/http-credentials [get]
 func (h *Handler) list(c *gin.Context) {
@@ -65,7 +65,7 @@ func (h *Handler) list(c *gin.Context) {
 // @Security BearerAuth
 // @Produce json
 // @Param id path int true "credential ID"
-// @Success 200 {object} response.Envelope
+// @Success 200 {object} response.Envelope{data=Detail}
 // @Failure 400,401,403,404 {object} response.Envelope
 // @Router /credentials/http-credentials/{id} [get]
 func (h *Handler) get(c *gin.Context) {
@@ -87,7 +87,7 @@ func (h *Handler) get(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param body body CreateRequest true "credential payload"
-// @Success 200 {object} response.Envelope
+// @Success 200 {object} response.Envelope{data=Detail}
 // @Failure 400,401,403,409 {object} response.Envelope
 // @Router /credentials/http-credentials [post]
 func (h *Handler) create(c *gin.Context) {
@@ -111,7 +111,7 @@ func (h *Handler) create(c *gin.Context) {
 // @Produce json
 // @Param id path int true "credential ID"
 // @Param body body UpdateRequest true "credential payload"
-// @Success 200 {object} response.Envelope
+// @Success 200 {object} response.Envelope{data=Detail}
 // @Failure 400,401,403,404,409 {object} response.Envelope
 // @Router /credentials/http-credentials/{id} [put]
 func (h *Handler) update(c *gin.Context) {

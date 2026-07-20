@@ -518,6 +518,95 @@ definitions:
       secret_access_key:
         type: string
     type: object
+  internal_modules_credentials_httpcredential.Actor:
+    properties:
+      display_name:
+        type: string
+      id:
+        type: integer
+      username:
+        type: string
+    type: object
+  internal_modules_credentials_httpcredential.CreateRequest:
+    properties:
+      auth_type:
+        enum:
+        - basic
+        - bearer
+        type: string
+      name:
+        maxLength: 128
+        type: string
+      secret:
+        maxLength: 16384
+        type: string
+      username:
+        maxLength: 256
+        type: string
+    required:
+    - auth_type
+    - name
+    - secret
+    type: object
+  internal_modules_credentials_httpcredential.Detail:
+    properties:
+      auth_type:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        $ref: '#/definitions/internal_modules_credentials_httpcredential.Actor'
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_modules_credentials_httpcredential.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_modules_credentials_httpcredential.Summary'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_modules_credentials_httpcredential.Summary:
+    properties:
+      auth_type:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        $ref: '#/definitions/internal_modules_credentials_httpcredential.Actor'
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_modules_credentials_httpcredential.UpdateRequest:
+    properties:
+      name:
+        maxLength: 128
+        type: string
+      secret:
+        maxLength: 16384
+        type: string
+      username:
+        maxLength: 256
+        type: string
+    type: object
   internal_modules_credentials_kubeconfig.CreateRequest:
     properties:
       default_namespace:
@@ -680,6 +769,367 @@ definitions:
       sort_order:
         type: integer
     type: object
+  internal_modules_observability_builtin.Dashboard:
+    properties:
+      code:
+        type: string
+      panels:
+        items:
+          $ref: '#/definitions/internal_modules_observability_builtin.Panel'
+        type: array
+      title_key:
+        type: string
+      variables:
+        items:
+          $ref: '#/definitions/internal_modules_observability_builtin.Variable'
+        type: array
+    type: object
+  internal_modules_observability_builtin.Panel:
+    properties:
+      panel_type:
+        type: string
+      promql:
+        type: string
+      ref_id:
+        type: string
+      sort_order:
+        type: integer
+      title_key:
+        type: string
+      unit:
+        type: string
+      width:
+        type: integer
+    type: object
+  internal_modules_observability_builtin.Variable:
+    properties:
+      label:
+        type: string
+      name:
+        type: string
+      required:
+        type: boolean
+    type: object
+  internal_modules_observability_dashboard.Detail:
+    properties:
+      created_at:
+        type: string
+      created_by_user_id:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      panels:
+        items:
+          $ref: '#/definitions/internal_modules_observability_dashboard.Panel'
+        type: array
+      refresh_interval_s:
+        type: integer
+      time_range:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_modules_observability_dashboard.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_modules_observability_dashboard.Detail'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_modules_observability_dashboard.Panel:
+    properties:
+      created_at:
+        type: string
+      dashboard_id:
+        type: integer
+      datasource_id:
+        type: integer
+      id:
+        type: integer
+      legend:
+        type: string
+      panel_type:
+        type: string
+      promql:
+        type: string
+      sort_order:
+        type: integer
+      title:
+        type: string
+      unit:
+        type: string
+      updated_at:
+        type: string
+      width:
+        type: integer
+    type: object
+  internal_modules_observability_dashboard.PanelInput:
+    properties:
+      datasource_id:
+        type: integer
+      legend:
+        maxLength: 128
+        type: string
+      panel_type:
+        type: string
+      promql:
+        maxLength: 8192
+        type: string
+      sort_order:
+        type: integer
+      title:
+        maxLength: 128
+        type: string
+      unit:
+        type: string
+      width:
+        type: integer
+    required:
+    - datasource_id
+    - panel_type
+    - promql
+    - title
+    - unit
+    - width
+    type: object
+  internal_modules_observability_dashboard.SaveRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        type: string
+      panels:
+        items:
+          $ref: '#/definitions/internal_modules_observability_dashboard.PanelInput'
+        type: array
+      refresh_interval_s:
+        type: integer
+      time_range:
+        type: string
+    required:
+    - name
+    - panels
+    - refresh_interval_s
+    - time_range
+    type: object
+  internal_modules_observability_datasource.CreateRequest:
+    properties:
+      auth_type:
+        enum:
+        - none
+        - basic
+        - bearer
+        type: string
+      base_url:
+        type: string
+      cluster_id:
+        type: integer
+      custom_ca_pem:
+        type: string
+      description:
+        maxLength: 4096
+        type: string
+      http_credential_id:
+        type: integer
+      name:
+        maxLength: 128
+        type: string
+      tls_skip_verify:
+        type: boolean
+    required:
+    - auth_type
+    - base_url
+    - name
+    type: object
+  internal_modules_observability_datasource.Detail:
+    properties:
+      auth_type:
+        type: string
+      base_url:
+        type: string
+      cluster:
+        $ref: '#/definitions/internal_modules_observability_datasource.NamedRef'
+      created_at:
+        type: string
+      created_by_user_id:
+        type: integer
+      description:
+        type: string
+      has_custom_ca:
+        type: boolean
+      http_credential:
+        $ref: '#/definitions/internal_modules_observability_datasource.NamedRef'
+      id:
+        type: integer
+      name:
+        type: string
+      tls_skip_verify:
+        type: boolean
+      updated_at:
+        type: string
+    type: object
+  internal_modules_observability_datasource.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_modules_observability_datasource.Detail'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_modules_observability_datasource.NamedRef:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  internal_modules_observability_datasource.TestResponse:
+    properties:
+      reachable:
+        type: boolean
+      version:
+        type: string
+    type: object
+  internal_modules_observability_datasource.UpdateRequest:
+    properties:
+      auth_type:
+        enum:
+        - none
+        - basic
+        - bearer
+        type: string
+      base_url:
+        type: string
+      clear_cluster:
+        type: boolean
+      clear_custom_ca:
+        type: boolean
+      clear_http_credential:
+        type: boolean
+      cluster_id:
+        type: integer
+      custom_ca_pem:
+        type: string
+      description:
+        maxLength: 4096
+        type: string
+      http_credential_id:
+        type: integer
+      name:
+        maxLength: 128
+        type: string
+      tls_skip_verify:
+        type: boolean
+    type: object
+  internal_modules_observability_query.AssetSummary:
+    properties:
+      account_id:
+        type: integer
+      account_name:
+        type: string
+      instance_id:
+        type: string
+      instance_type:
+        type: string
+      name:
+        type: string
+      private_ip:
+        type: string
+      public_ip:
+        type: string
+      region:
+        type: string
+      state:
+        type: string
+      subnet_id:
+        type: string
+      vpc_id:
+        type: string
+    type: object
+  internal_modules_observability_query.BatchResult:
+    properties:
+      asset_context:
+        additionalProperties:
+          $ref: '#/definitions/internal_modules_observability_query.AssetSummary'
+        type: object
+      results:
+        items:
+          $ref: '#/definitions/internal_modules_observability_query.ItemResult'
+        type: array
+    type: object
+  internal_modules_observability_query.InstantRequest:
+    properties:
+      datasource_id:
+        type: integer
+      enrich_assets:
+        type: boolean
+      queries:
+        items:
+          $ref: '#/definitions/internal_modules_observability_query.Query'
+        type: array
+      time:
+        type: string
+    type: object
+  internal_modules_observability_query.ItemError:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+      message_key:
+        type: string
+    type: object
+  internal_modules_observability_query.ItemResult:
+    properties:
+      error:
+        $ref: '#/definitions/internal_modules_observability_query.ItemError'
+      ref_id:
+        type: string
+      result:
+        $ref: '#/definitions/optimus-be_internal_modules_observability_prometheus.Result'
+    type: object
+  internal_modules_observability_query.Query:
+    properties:
+      promql:
+        type: string
+      ref_id:
+        type: string
+    type: object
+  internal_modules_observability_query.RangeRequest:
+    properties:
+      datasource_id:
+        type: integer
+      end:
+        type: string
+      enrich_assets:
+        type: boolean
+      queries:
+        items:
+          $ref: '#/definitions/internal_modules_observability_query.Query'
+        type: array
+      start:
+        type: string
+      step:
+        example: 1m
+        type: string
+    type: object
   internal_modules_rbac.ChangePasswordRequest:
     properties:
       new_password:
@@ -814,6 +1264,41 @@ definitions:
         type: string
       message_key:
         type: string
+    type: object
+  optimus-be_internal_modules_observability_prometheus.Result:
+    properties:
+      result_type:
+        type: string
+      scalar:
+        $ref: '#/definitions/optimus-be_internal_modules_observability_prometheus.Sample'
+      series:
+        items:
+          $ref: '#/definitions/optimus-be_internal_modules_observability_prometheus.Series'
+        type: array
+      text:
+        type: string
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
+  optimus-be_internal_modules_observability_prometheus.Sample:
+    properties:
+      timestamp:
+        type: number
+      value:
+        type: string
+    type: object
+  optimus-be_internal_modules_observability_prometheus.Series:
+    properties:
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      samples:
+        items:
+          $ref: '#/definitions/optimus-be_internal_modules_observability_prometheus.Sample'
+        type: array
     type: object
 host: localhost:8080
 info:
@@ -2187,6 +2672,229 @@ paths:
       summary: Update cloud key
       tags:
       - credentials
+  /credentials/http-credentials:
+    get:
+      parameters:
+      - description: page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: page size (default 20)
+        in: query
+        name: page_size
+        type: integer
+      - description: search by name
+        in: query
+        name: q
+        type: string
+      - description: filter by auth type (basic|bearer)
+        in: query
+        name: auth_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_credentials_httpcredential.ListResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List HTTP credentials
+      tags:
+      - credentials
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: credential payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_credentials_httpcredential.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_credentials_httpcredential.Detail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create HTTP credential
+      tags:
+      - credentials
+  /credentials/http-credentials/{id}:
+    delete:
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete HTTP credential
+      tags:
+      - credentials
+    get:
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_credentials_httpcredential.Detail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get HTTP credential
+      tags:
+      - credentials
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: credential ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: credential payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_credentials_httpcredential.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_credentials_httpcredential.Detail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update HTTP credential
+      tags:
+      - credentials
   /credentials/kubeconfigs:
     get:
       parameters:
@@ -2906,6 +3614,440 @@ paths:
       summary: Update menu
       tags:
       - menus
+  /observability/builtin-dashboards:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_modules_observability_builtin.Dashboard'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List built-in metric dashboards
+      tags:
+      - observability
+  /observability/builtin-dashboards/{code}:
+    get:
+      parameters:
+      - description: built-in dashboard code
+        in: path
+        name: code
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_builtin.Dashboard'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get a built-in metric dashboard
+      tags:
+      - observability
+  /observability/dashboards:
+    get:
+      parameters:
+      - description: name search
+        in: query
+        name: q
+        type: string
+      - default: 1
+        description: page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: page size
+        in: query
+        name: page_size
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_dashboard.ListResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List custom metric dashboards
+      tags:
+      - observability
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: dashboard aggregate
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_observability_dashboard.SaveRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_dashboard.Detail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create a custom metric dashboard
+      tags:
+      - observability
+  /observability/dashboards/{id}:
+    delete:
+      parameters:
+      - description: dashboard ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a custom metric dashboard
+      tags:
+      - observability
+    get:
+      parameters:
+      - description: dashboard ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_dashboard.Detail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get a custom metric dashboard
+      tags:
+      - observability
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: dashboard ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: dashboard aggregate
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_observability_dashboard.SaveRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_dashboard.Detail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Replace a custom metric dashboard
+      tags:
+      - observability
+  /observability/datasources:
+    get:
+      parameters:
+      - description: name search
+        in: query
+        name: q
+        type: string
+      - description: authentication type
+        in: query
+        name: auth_type
+        type: string
+      - description: cluster ID
+        in: query
+        name: cluster_id
+        type: integer
+      - default: 1
+        description: page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: page size
+        in: query
+        name: page_size
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_datasource.ListResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List observability data sources
+      tags:
+      - observability
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: data source
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_observability_datasource.CreateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_datasource.Detail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create observability data source
+      tags:
+      - observability
+  /observability/datasources/{id}:
+    delete:
+      parameters:
+      - description: data source ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete observability data source
+      tags:
+      - observability
+    get:
+      parameters:
+      - description: data source ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_datasource.Detail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get observability data source
+      tags:
+      - observability
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: data source ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: data source
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_observability_datasource.UpdateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_datasource.Detail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update observability data source
+      tags:
+      - observability
+  /observability/datasources/{id}/label-values:
+    get:
+      parameters:
+      - description: data source ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: label name
+        in: query
+        name: label
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  items:
+                    type: string
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List values for a Prometheus label
+      tags:
+      - observability
+  /observability/datasources/{id}/labels:
+    get:
+      parameters:
+      - description: data source ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  items:
+                    type: string
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List Prometheus label names
+      tags:
+      - observability
+  /observability/datasources/{id}/test:
+    post:
+      parameters:
+      - description: data source ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_datasource.TestResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Test observability data source
+      tags:
+      - observability
+  /observability/query:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: query batch
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_observability_query.InstantRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_query.BatchResult'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Run an instant Prometheus query batch
+      tags:
+      - observability
+  /observability/query-range:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: range query batch
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_observability_query.RangeRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_observability_query.BatchResult'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Run a range Prometheus query batch
+      tags:
+      - observability
   /permissions:
     get:
       produces:

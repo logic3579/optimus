@@ -2201,6 +2201,373 @@
                 }
             }
         },
+        "/credentials/http-credentials": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credentials"
+                ],
+                "summary": "List HTTP credentials",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "page (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size (default 20)",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "search by name",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "filter by auth type (basic|bearer)",
+                        "name": "auth_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_credentials_httpcredential.ListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credentials"
+                ],
+                "summary": "Create HTTP credential",
+                "parameters": [
+                    {
+                        "description": "credential payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_credentials_httpcredential.CreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_credentials_httpcredential.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/credentials/http-credentials/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credentials"
+                ],
+                "summary": "Get HTTP credential",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "credential ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_credentials_httpcredential.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credentials"
+                ],
+                "summary": "Update HTTP credential",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "credential ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "credential payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_credentials_httpcredential.UpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_credentials_httpcredential.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credentials"
+                ],
+                "summary": "Delete HTTP credential",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "credential ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/credentials/kubeconfigs": {
             "get": {
                 "security": [
@@ -3349,6 +3716,773 @@
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/builtin-dashboards": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "List built-in metric dashboards",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_modules_observability_builtin.Dashboard"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/builtin-dashboards/{code}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Get a built-in metric dashboard",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "built-in dashboard code",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_builtin.Dashboard"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/dashboards": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "List custom metric dashboards",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_dashboard.ListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Create a custom metric dashboard",
+                "parameters": [
+                    {
+                        "description": "dashboard aggregate",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_observability_dashboard.SaveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_dashboard.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/dashboards/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Get a custom metric dashboard",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "dashboard ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_dashboard.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Replace a custom metric dashboard",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "dashboard ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "dashboard aggregate",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_observability_dashboard.SaveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_dashboard.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Delete a custom metric dashboard",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "dashboard ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/datasources": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "List observability data sources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "authentication type",
+                        "name": "auth_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "cluster ID",
+                        "name": "cluster_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_datasource.ListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Create observability data source",
+                "parameters": [
+                    {
+                        "description": "data source",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_observability_datasource.CreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_datasource.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/datasources/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Get observability data source",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "data source ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_datasource.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Update observability data source",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "data source ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "data source",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_observability_datasource.UpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_datasource.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Delete observability data source",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "data source ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/datasources/{id}/label-values": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "List values for a Prometheus label",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "data source ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "label name",
+                        "name": "label",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/datasources/{id}/labels": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "List Prometheus label names",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "data source ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/datasources/{id}/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Test observability data source",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "data source ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_datasource.TestResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/query": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Run an instant Prometheus query batch",
+                "parameters": [
+                    {
+                        "description": "query batch",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_observability_query.InstantRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_query.BatchResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/observability/query-range": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "Run a range Prometheus query batch",
+                "parameters": [
+                    {
+                        "description": "range query batch",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_observability_query.RangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_observability_query.BatchResult"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -4984,6 +6118,138 @@
                 }
             }
         },
+        "internal_modules_credentials_httpcredential.Actor": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_credentials_httpcredential.CreateRequest": {
+            "type": "object",
+            "required": [
+                "auth_type",
+                "name",
+                "secret"
+            ],
+            "properties": {
+                "auth_type": {
+                    "type": "string",
+                    "enum": [
+                        "basic",
+                        "bearer"
+                    ]
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "secret": {
+                    "type": "string",
+                    "maxLength": 16384
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 256
+                }
+            }
+        },
+        "internal_modules_credentials_httpcredential.Detail": {
+            "type": "object",
+            "properties": {
+                "auth_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "$ref": "#/definitions/internal_modules_credentials_httpcredential.Actor"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_credentials_httpcredential.ListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_credentials_httpcredential.Summary"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_credentials_httpcredential.Summary": {
+            "type": "object",
+            "properties": {
+                "auth_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "$ref": "#/definitions/internal_modules_credentials_httpcredential.Actor"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_credentials_httpcredential.UpdateRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "secret": {
+                    "type": "string",
+                    "maxLength": 16384
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 256
+                }
+            }
+        },
         "internal_modules_credentials_kubeconfig.CreateRequest": {
             "type": "object",
             "required": [
@@ -5213,6 +6479,546 @@
                 }
             }
         },
+        "internal_modules_observability_builtin.Dashboard": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "panels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_builtin.Panel"
+                    }
+                },
+                "title_key": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_builtin.Variable"
+                    }
+                }
+            }
+        },
+        "internal_modules_observability_builtin.Panel": {
+            "type": "object",
+            "properties": {
+                "panel_type": {
+                    "type": "string"
+                },
+                "promql": {
+                    "type": "string"
+                },
+                "ref_id": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "title_key": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_observability_builtin.Variable": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_modules_observability_dashboard.Detail": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_user_id": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "panels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_dashboard.Panel"
+                    }
+                },
+                "refresh_interval_s": {
+                    "type": "integer"
+                },
+                "time_range": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_dashboard.ListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_dashboard.Detail"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_observability_dashboard.Panel": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "dashboard_id": {
+                    "type": "integer"
+                },
+                "datasource_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "legend": {
+                    "type": "string"
+                },
+                "panel_type": {
+                    "type": "string"
+                },
+                "promql": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_observability_dashboard.PanelInput": {
+            "type": "object",
+            "required": [
+                "datasource_id",
+                "panel_type",
+                "promql",
+                "title",
+                "unit",
+                "width"
+            ],
+            "properties": {
+                "datasource_id": {
+                    "type": "integer"
+                },
+                "legend": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "panel_type": {
+                    "type": "string"
+                },
+                "promql": {
+                    "type": "string",
+                    "maxLength": 8192
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_observability_dashboard.SaveRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "panels",
+                "refresh_interval_s",
+                "time_range"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 4096
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "panels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_dashboard.PanelInput"
+                    }
+                },
+                "refresh_interval_s": {
+                    "type": "integer"
+                },
+                "time_range": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_datasource.CreateRequest": {
+            "type": "object",
+            "required": [
+                "auth_type",
+                "base_url",
+                "name"
+            ],
+            "properties": {
+                "auth_type": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "basic",
+                        "bearer"
+                    ]
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "cluster_id": {
+                    "type": "integer"
+                },
+                "custom_ca_pem": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 4096
+                },
+                "http_credential_id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "tls_skip_verify": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_modules_observability_datasource.Detail": {
+            "type": "object",
+            "properties": {
+                "auth_type": {
+                    "type": "string"
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "cluster": {
+                    "$ref": "#/definitions/internal_modules_observability_datasource.NamedRef"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_user_id": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "has_custom_ca": {
+                    "type": "boolean"
+                },
+                "http_credential": {
+                    "$ref": "#/definitions/internal_modules_observability_datasource.NamedRef"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "tls_skip_verify": {
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_datasource.ListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_datasource.Detail"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_observability_datasource.NamedRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_datasource.TestResponse": {
+            "type": "object",
+            "properties": {
+                "reachable": {
+                    "type": "boolean"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_datasource.UpdateRequest": {
+            "type": "object",
+            "properties": {
+                "auth_type": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "basic",
+                        "bearer"
+                    ]
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "clear_cluster": {
+                    "type": "boolean"
+                },
+                "clear_custom_ca": {
+                    "type": "boolean"
+                },
+                "clear_http_credential": {
+                    "type": "boolean"
+                },
+                "cluster_id": {
+                    "type": "integer"
+                },
+                "custom_ca_pem": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 4096
+                },
+                "http_credential_id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "tls_skip_verify": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_modules_observability_query.AssetSummary": {
+            "type": "object",
+            "properties": {
+                "account_id": {
+                    "type": "integer"
+                },
+                "account_name": {
+                    "type": "string"
+                },
+                "instance_id": {
+                    "type": "string"
+                },
+                "instance_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "private_ip": {
+                    "type": "string"
+                },
+                "public_ip": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "subnet_id": {
+                    "type": "string"
+                },
+                "vpc_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_query.BatchResult": {
+            "type": "object",
+            "properties": {
+                "asset_context": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/internal_modules_observability_query.AssetSummary"
+                    }
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_query.ItemResult"
+                    }
+                }
+            }
+        },
+        "internal_modules_observability_query.InstantRequest": {
+            "type": "object",
+            "properties": {
+                "datasource_id": {
+                    "type": "integer"
+                },
+                "enrich_assets": {
+                    "type": "boolean"
+                },
+                "queries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_query.Query"
+                    }
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_query.ItemError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "message_key": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_query.ItemResult": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/internal_modules_observability_query.ItemError"
+                },
+                "ref_id": {
+                    "type": "string"
+                },
+                "result": {
+                    "$ref": "#/definitions/optimus-be_internal_modules_observability_prometheus.Result"
+                }
+            }
+        },
+        "internal_modules_observability_query.Query": {
+            "type": "object",
+            "properties": {
+                "promql": {
+                    "type": "string"
+                },
+                "ref_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_query.RangeRequest": {
+            "type": "object",
+            "properties": {
+                "datasource_id": {
+                    "type": "integer"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "enrich_assets": {
+                    "type": "boolean"
+                },
+                "queries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_observability_query.Query"
+                    }
+                },
+                "start": {
+                    "type": "string"
+                },
+                "step": {
+                    "type": "string",
+                    "example": "1m"
+                }
+            }
+        },
         "internal_modules_rbac.ChangePasswordRequest": {
             "type": "object",
             "required": [
@@ -5403,6 +7209,60 @@
                 },
                 "message_key": {
                     "type": "string"
+                }
+            }
+        },
+        "optimus-be_internal_modules_observability_prometheus.Result": {
+            "type": "object",
+            "properties": {
+                "result_type": {
+                    "type": "string"
+                },
+                "scalar": {
+                    "$ref": "#/definitions/optimus-be_internal_modules_observability_prometheus.Sample"
+                },
+                "series": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/optimus-be_internal_modules_observability_prometheus.Series"
+                    }
+                },
+                "text": {
+                    "type": "string"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "optimus-be_internal_modules_observability_prometheus.Sample": {
+            "type": "object",
+            "properties": {
+                "timestamp": {
+                    "type": "number"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "optimus-be_internal_modules_observability_prometheus.Series": {
+            "type": "object",
+            "properties": {
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "samples": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/optimus-be_internal_modules_observability_prometheus.Sample"
+                    }
                 }
             }
         }

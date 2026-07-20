@@ -51,6 +51,9 @@ func (f clientFactory) build(baseURL, authType string, tlsSkip bool, ca []byte, 
 		return nil, nil, err
 	}
 	auth := prometheus.Auth{Type: authType}
+	if auth.Type == "none" {
+		auth.Type = ""
+	}
 	if secret != nil {
 		auth.Username = secret.Username
 		auth.Secret = secret.Secret

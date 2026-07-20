@@ -236,6 +236,9 @@ func (f PrometheusClientFactory) Build(_ context.Context, d Datasource, secret *
 		return nil, nil, invalid()
 	}
 	auth := prometheus.Auth{Type: d.AuthType}
+	if auth.Type == "none" {
+		auth.Type = ""
+	}
 	if secret != nil {
 		auth.Username = secret.Username
 		auth.Secret = secret.Secret

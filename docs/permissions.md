@@ -35,6 +35,10 @@ Auto-generated from `optimus-be/internal/infra/permissions/codes.go`. Run `make 
 | `credentials:cloud_key:read` | `perm.credentials.cloud_key.read` | Read cloud keys |
 | `credentials:cloud_key:use` | `perm.credentials.cloud_key.use` | Use cloud keys |
 | `credentials:cloud_key:write` | `perm.credentials.cloud_key.write` | Create/update cloud keys |
+| `credentials:http:delete` | `perm.credentials.http.delete` | Delete HTTP credentials |
+| `credentials:http:read` | `perm.credentials.http.read` | Read HTTP credentials |
+| `credentials:http:use` | `perm.credentials.http.use` | Use HTTP credentials for authenticated requests |
+| `credentials:http:write` | `perm.credentials.http.write` | Create or update HTTP credentials |
 | `credentials:kubeconfig:delete` | `perm.credentials.kubeconfig.delete` | Delete kubeconfigs |
 | `credentials:kubeconfig:read` | `perm.credentials.kubeconfig.read` | Read kubeconfigs |
 | `credentials:kubeconfig:use` | `perm.credentials.kubeconfig.use` | Use kubeconfigs |
@@ -57,6 +61,18 @@ Auto-generated from `optimus-be/internal/infra/permissions/codes.go`. Run `make 
 | `k8s:secret:read` | `perm.k8s.secret.read` | Read secret metadata and keys |
 | `k8s:secret:reveal` | `perm.k8s.secret.reveal` | Decode secret data values |
 | `k8s:workload:read` | `perm.k8s.workload.read` | Read workload resources |
+
+## observability
+
+| Code | Name (i18n) | Description |
+|---|---|---|
+| `observability:dashboard:delete` | `perm.observability.dashboard.delete` | Delete observability dashboards |
+| `observability:dashboard:read` | `perm.observability.dashboard.read` | Read observability dashboards |
+| `observability:dashboard:write` | `perm.observability.dashboard.write` | Create or update observability dashboards |
+| `observability:datasource:delete` | `perm.observability.datasource.delete` | Delete observability data sources |
+| `observability:datasource:read` | `perm.observability.datasource.read` | Read observability data sources |
+| `observability:datasource:write` | `perm.observability.datasource.write` | Create, update, and test observability data sources |
+| `observability:metric:read` | `perm.observability.metric.read` | Read metric metadata, execute metric queries, and view built-in dashboards |
 
 ## system
 
