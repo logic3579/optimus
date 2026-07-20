@@ -22,7 +22,7 @@ import (
 	"optimus-be/internal/modules/rbac"
 )
 
-func TestModule_New_BuildsAllThreeServices(t *testing.T) {
+func TestModule_New_BuildsAllServices(t *testing.T) {
 	gdb, td := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
 	defer td()
 	key := make([]byte, 32)
@@ -33,6 +33,7 @@ func TestModule_New_BuildsAllThreeServices(t *testing.T) {
 	require.NotNil(t, m.SSH)
 	require.NotNil(t, m.Kubeconfig)
 	require.NotNil(t, m.CloudKey)
+	require.NotNil(t, m.HTTP)
 	require.NotNil(t, m.Consumer)
 }
 
@@ -68,6 +69,11 @@ func TestModule_MountRoutes_RegistersAllNineEndpoints(t *testing.T) {
 		{"POST", "/api/v1/credentials/kubeconfigs"},
 		{"GET", "/api/v1/credentials/cloud-keys"},
 		{"POST", "/api/v1/credentials/cloud-keys"},
+		{"GET", "/api/v1/credentials/http-credentials"},
+		{"POST", "/api/v1/credentials/http-credentials"},
+		{"GET", "/api/v1/credentials/http-credentials/1"},
+		{"PUT", "/api/v1/credentials/http-credentials/1"},
+		{"DELETE", "/api/v1/credentials/http-credentials/1"},
 	}
 	for _, r2 := range routes {
 		w := httptest.NewRecorder()

@@ -17,6 +17,7 @@ import (
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/credentials"
 	"optimus-be/internal/modules/credentials/cloudkey"
+	"optimus-be/internal/modules/credentials/httpcredential"
 	"optimus-be/internal/modules/credentials/kubeconfig"
 	"optimus-be/internal/modules/credentials/sshkey"
 	"optimus-be/internal/modules/credentials/vault"
@@ -36,7 +37,7 @@ users:
   user: {token: abc}
 `
 
-func setup(t *testing.T) (credentials.Consumer, *sshkey.Service, *kubeconfig.Service, *cloudkey.Service, func()) {
+func setup(t *testing.T) (credentials.Consumer, *sshkey.Service, *kubeconfig.Service, *cloudkey.Service, *httpcredential.Service, func()) {
 	gdb, td := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
@@ -47,7 +48,8 @@ func setup(t *testing.T) (credentials.Consumer, *sshkey.Service, *kubeconfig.Ser
 	ssvc := sshkey.NewService(sshkey.NewRepo(gdb), cipher, rec)
 	ksvc := kubeconfig.NewService(kubeconfig.NewRepo(gdb), cipher, rec)
 	csvc := cloudkey.NewService(cloudkey.NewRepo(gdb), cipher, rec)
-	return credentials.NewConsumer(ssvc, ksvc, csvc), ssvc, ksvc, csvc, td
+	hsvc := httpcredential.NewService(httpcredential.NewRepo(gdb), cipher, rec)
+	return credentials.NewConsumer(ssvc, ksvc, csvc, hsvc), ssvc, ksvc, csvc, hsvc, td
 }
 
 func genPEM(t *testing.T) string {
@@ -60,7 +62,7 @@ func genPEM(t *testing.T) string {
 }
 
 func TestSmoke_SSH_RoundTrip(t *testing.T) {
-	c, ssvc, _, _, td := setup(t)
+	c, ssvc, _, _, _, td := setup(t)
 	defer td()
 	ctx := context.Background()
 	pemStr := genPEM(t)
@@ -78,7 +80,7 @@ func TestSmoke_SSH_RoundTrip(t *testing.T) {
 }
 
 func TestSmoke_Kubeconfig_RoundTrip(t *testing.T) {
-	c, _, ksvc, _, td := setup(t)
+	c, _, ksvc, _, _, td := setup(t)
 	defer td()
 	ctx := context.Background()
 
@@ -95,7 +97,7 @@ func TestSmoke_Kubeconfig_RoundTrip(t *testing.T) {
 }
 
 func TestSmoke_CloudKey_RoundTrip(t *testing.T) {
-	c, _, _, csvc, td := setup(t)
+	c, _, _, csvc, _, td := setup(t)
 	defer td()
 	ctx := context.Background()
 
@@ -114,7 +116,7 @@ func TestSmoke_CloudKey_RoundTrip(t *testing.T) {
 }
 
 func TestSmoke_SystemPurposeEnforced(t *testing.T) {
-	c, _, _, csvc, td := setup(t)
+	c, _, _, csvc, _, td := setup(t)
 	defer td()
 	ctx := context.Background()
 
@@ -129,7 +131,7 @@ func TestSmoke_SystemPurposeEnforced(t *testing.T) {
 }
 
 func TestSmoke_WithActor_ContextPropagates(t *testing.T) {
-	c, _, _, csvc, td := setup(t)
+	c, _, _, csvc, _, td := setup(t)
 	defer td()
 	// Use actorID=0 on Create (no FK to users), but inject an actor in the
 	// ctx for Consume so the non-system purpose check passes.
@@ -143,4 +145,34 @@ func TestSmoke_WithActor_ContextPropagates(t *testing.T) {
 	got, err := c.GetCloudKey(ctxWithActor, d.ID, "any-purpose")
 	require.NoError(t, err)
 	require.Equal(t, "smoke-actor", got.Name)
+}
+
+func TestSmoke_HTTPCredential_RoundTripAndWipe(t *testing.T) {
+	c, _, _, _, svc, td := setup(t)
+	defer td()
+	d, err := svc.Create(t.Context(), 0, "", "", httpcredential.CreateRequest{Name: "prom-basic", AuthType: "basic", Username: "metrics", Secret: "password"})
+	require.NoError(t, err)
+	got, err := c.GetHTTPCredential(t.Context(), d.ID, "system:observability.query")
+	require.NoError(t, err)
+	require.Equal(t, "basic", got.AuthType)
+	require.Equal(t, "metrics", got.Username)
+	require.Equal(t, []byte("password"), got.Secret)
+	alias := got.Secret
+	credentials.WipeHTTPCredential(got)
+	require.Nil(t, got.Secret)
+	require.Equal(t, make([]byte, len(alias)), alias)
+	credentials.WipeHTTPCredential(nil)
+}
+
+func TestSmoke_HTTPCredential_PurposeAndCancellation(t *testing.T) {
+	c, _, _, _, svc, td := setup(t)
+	defer td()
+	d, err := svc.Create(t.Context(), 0, "", "", httpcredential.CreateRequest{Name: "prom-token", AuthType: "bearer", Secret: "token"})
+	require.NoError(t, err)
+	_, err = c.GetHTTPCredential(t.Context(), d.ID, "query")
+	require.Error(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = c.GetHTTPCredential(ctx, d.ID, "system:query")
+	require.ErrorIs(t, err, context.Canceled)
 }
