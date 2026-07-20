@@ -2,6 +2,7 @@ package datasource
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -13,6 +14,17 @@ import (
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/credentials"
 )
+
+func TestDetailCustomCAPEMReturnsCopyAndStaysOutOfJSON(t *testing.T) {
+	d := Detail{customCAPEM: "secret-ca"}
+	first := d.CustomCAPEMCopy()
+	require.Equal(t, []byte("secret-ca"), first)
+	first[0] = 'X'
+	require.Equal(t, []byte("secret-ca"), d.CustomCAPEMCopy())
+	raw, err := json.Marshal(d)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "secret-ca")
+}
 
 type fakeRepo struct {
 	row      *models.ObservabilityDatasource

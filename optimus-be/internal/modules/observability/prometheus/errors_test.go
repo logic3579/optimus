@@ -15,3 +15,14 @@ func TestMapClientErrorUsesStableMessageAndCause(t *testing.T) {
 	require.Equal(t, "observability query upstream unreachable", be.Message)
 	require.ErrorIs(t, be, cause)
 }
+
+func TestExpressionRejectedIsDistinguishableFromHTTPRejected(t *testing.T) {
+	expression := expressionRejected(errors.New("bad expression"))
+	require.True(t, IsExpressionError(expression))
+	be := requireClientBizCode(t, expression, apperr.CodeObservabilityQueryUpstreamRejected)
+	require.Equal(t, "observability query upstream rejected", be.Message)
+
+	httpFailure := rejected(errors.New("HTTP 401"))
+	require.False(t, IsExpressionError(httpFailure))
+	requireClientBizCode(t, httpFailure, apperr.CodeObservabilityQueryUpstreamRejected)
+}

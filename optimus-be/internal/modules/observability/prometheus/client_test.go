@@ -242,3 +242,22 @@ func requireClientBizCode(t *testing.T, err error, code apperr.Code) *apperr.Biz
 	require.Equal(t, code, be.Code)
 	return be
 }
+
+func TestClientMarksOnlyAPIExpressionErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		status     int
+		body       string
+		expression bool
+	}{
+		{"api", http.StatusOK, `{"status":"error","errorType":"bad_data","error":"bad"}`, true},
+		{"auth", http.StatusUnauthorized, `no`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := prometheusJSONServer(t, tc.status, tc.body)
+			defer s.Close()
+			_, err := NewClient(s.Client(), mustClientURL(t, s.URL), 1024, 10).Query(context.Background(), "up", time.Time{})
+			require.Equal(t, tc.expression, IsExpressionError(err))
+		})
+	}
+}

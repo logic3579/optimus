@@ -34,6 +34,21 @@ func isTimeout(err error) bool { var ne net.Error; return errors.As(err, &ne) &&
 func rejected(err error) error {
 	return apperr.Wrap(err, apperr.CodeObservabilityQueryUpstreamRejected, upstreamRejectedKey, "observability query upstream rejected")
 }
+
+type expressionError struct{ err error }
+
+func (e *expressionError) Error() string                   { return e.err.Error() }
+func (e *expressionError) Unwrap() error                   { return e.err }
+func (e *expressionError) PrometheusExpressionError() bool { return true }
+
+func expressionRejected(err error) error { return &expressionError{err: rejected(err)} }
+
+// IsExpressionError reports whether Prometheus accepted the request but
+// rejected the query expression. HTTP/auth and transport failures return false.
+func IsExpressionError(err error) bool {
+	var target interface{ PrometheusExpressionError() bool }
+	return errors.As(err, &target) && target.PrometheusExpressionError()
+}
 func invalidResponse(err error) error {
 	return apperr.Wrap(err, apperr.CodeObservabilityQueryInvalidResponse, invalidResponseKey, "observability query invalid response")
 }

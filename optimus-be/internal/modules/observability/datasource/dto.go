@@ -46,6 +46,16 @@ type Detail struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 	customCAPEM     string
 }
+
+// CustomCAPEMCopy returns request-scoped TLS material without exposing it in
+// the JSON data-source DTO or aliasing internal storage.
+func (d Detail) CustomCAPEMCopy() []byte {
+	if d.customCAPEM == "" {
+		return nil
+	}
+	return []byte(d.customCAPEM)
+}
+
 type ListQuery struct {
 	Page      int     `form:"page,default=1"`
 	PageSize  int     `form:"page_size,default=20"`

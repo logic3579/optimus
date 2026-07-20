@@ -147,7 +147,7 @@ func (c *Client) requestEnvelope(ctx context.Context, method, path string, form 
 		return invalidResponse(err)
 	}
 	if out.Status != "success" {
-		return rejected(fmt.Errorf("Prometheus API error type %q", out.ErrorType))
+		return expressionRejected(fmt.Errorf("Prometheus API error type %q", out.ErrorType))
 	}
 	if len(out.Data) == 0 || bytes.Equal(out.Data, []byte("null")) {
 		return invalidResponse(errors.New("missing Prometheus data"))
