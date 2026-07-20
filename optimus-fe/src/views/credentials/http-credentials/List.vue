@@ -24,8 +24,8 @@
         <template v-else-if="column.key === 'actions'">
           <a-space>
             <a v-permission="'credentials:http:write'" @click="openEdit(record)">{{ $t('credentials.action.edit') }}</a>
-            <a-popconfirm :title="$t('credentials.action.confirm_delete')" @confirm="remove(record)">
-              <a v-permission="'credentials:http:delete'" class="danger">{{ $t('credentials.action.delete') }}</a>
+            <a-popconfirm v-if="has('credentials:http:delete')" :title="$t('credentials.action.confirm_delete')" @confirm="remove(record)">
+              <a class="danger">{{ $t('credentials.action.delete') }}</a>
             </a-popconfirm>
           </a-space>
         </template>
@@ -49,12 +49,14 @@ import { computed, inject, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from '@/hooks/useI18n'
 import { useTable } from '@/hooks/useTable'
+import { usePermission } from '@/hooks/usePermission'
 import PageHeader from '@/components/PageHeader.vue'
 import HttpCredentialEditModal from './components/HttpCredentialEditModal.vue'
 import type { HTTPCredentialApi, HTTPCredentialListParams, HTTPCredentialSummary, HTTPAuthType } from '@/api/credentials/http-credential'
 
 const api = inject<HTTPCredentialApi>('httpCredentialApi')!
 const { t } = useI18n()
+const { has } = usePermission()
 const searchInput = ref('')
 const authType = ref<'' | HTTPAuthType>('')
 const errorMessage = ref('')

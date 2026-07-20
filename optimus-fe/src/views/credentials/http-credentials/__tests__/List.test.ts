@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
 import List from '../List.vue'
 
 vi.mock('@/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -21,10 +22,13 @@ const stubs = {
 }
 
 function mounted(permissions: string[]) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore().setPermissions(permissions)
   const api = { list: vi.fn().mockResolvedValue({ items: [], total: 41 }), get: vi.fn(), remove: vi.fn().mockResolvedValue(undefined) }
   const wrapper = mount(List, {
     global: {
-      plugins: [createPinia()], provide: { httpCredentialApi: api }, stubs,
+      plugins: [pinia], provide: { httpCredentialApi: api }, stubs,
       directives: { permission: { mounted(el: HTMLElement, binding: any) { if (!permissions.includes(binding.value)) el.style.display = 'none' } } },
       mocks: { $t: (key: string) => key },
     },
@@ -37,6 +41,7 @@ describe('HTTP credential list', () => {
   it('gates write/delete controls and confirms delete', async () => {
     const readOnly = mounted(['credentials:http:read']).wrapper
     expect(readOnly.find('[data-testid="create"]').isVisible()).toBe(false)
+    expect(readOnly.find('[data-testid="confirm"]').exists()).toBe(false)
     readOnly.unmount()
     const { wrapper, api } = mounted(['credentials:http:write', 'credentials:http:delete'])
     expect(wrapper.find('[data-testid="create"]').exists()).toBe(true)
