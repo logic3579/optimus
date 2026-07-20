@@ -54,17 +54,25 @@ func (f *fakeRepo) UpdateTx(_ context.Context, _ *gorm.DB, _ uint64, fields map[
 func (f *fakeRepo) SoftDeleteTx(context.Context, *gorm.DB, uint64) (int64, error) { return 1, nil }
 
 type fakeMeta struct {
-	meta HTTPMetadata
-	err  error
+	meta  HTTPMetadata
+	err   error
+	gotTx *gorm.DB
 }
 
-func (f fakeMeta) GetHTTPMetadata(context.Context, uint64) (HTTPMetadata, error) {
+func (f *fakeMeta) GetHTTPMetadataTx(_ context.Context, tx *gorm.DB, _ uint64) (HTTPMetadata, error) {
+	f.gotTx = tx
 	return f.meta, f.err
 }
 
-type fakeCluster struct{ ok bool }
+type fakeCluster struct {
+	ok    bool
+	gotTx *gorm.DB
+}
 
-func (f fakeCluster) Exists(context.Context, uint64) (bool, error) { return f.ok, nil }
+func (f *fakeCluster) ExistsTx(_ context.Context, tx *gorm.DB, _ uint64) (bool, error) {
+	f.gotTx = tx
+	return f.ok, nil
+}
 
 type fakePanels struct {
 	n     int64
@@ -101,7 +109,7 @@ func (f *fakeAudit) Record(_ context.Context, e audit.Event) error {
 	return nil
 }
 
-func newTestService(r *fakeRepo, m fakeMeta, c fakeCluster, p *fakePanels, consumer *fakeConsumer, tester fakeTester, a *fakeAudit) *Service {
+func newTestService(r *fakeRepo, m *fakeMeta, c *fakeCluster, p *fakePanels, consumer *fakeConsumer, tester fakeTester, a *fakeAudit) *Service {
 	return newServiceForTest(r, m, c, p, consumer, tester, a)
 }
 func code(t *testing.T, err error, want apperr.Code) {
@@ -112,27 +120,52 @@ func code(t *testing.T, err error, want apperr.Code) {
 }
 
 func TestServiceRejectsCredentialAuthMismatch(t *testing.T) {
-	s := newTestService(&fakeRepo{}, fakeMeta{meta: HTTPMetadata{ID: 9, AuthType: "bearer"}}, fakeCluster{ok: true}, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+	r := &fakeRepo{}
+	meta := &fakeMeta{meta: HTTPMetadata{ID: 9, AuthType: "bearer"}}
+	s := newTestService(r, meta, &fakeCluster{ok: true}, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
 	_, err := s.Create(context.Background(), 1, "ip", "ua", CreateRequest{Name: "prom", BaseURL: "https://prom.example.com", AuthType: "basic", HTTPCredentialID: ptr(uint64(9))})
 	code(t, err, apperr.CodeObservabilityDatasourceAuthMismatch)
+}
+
+func TestServiceCreateValidatesReferencesInMutationTransaction(t *testing.T) {
+	r := &fakeRepo{}
+	meta := &fakeMeta{meta: HTTPMetadata{ID: 9, AuthType: "basic"}}
+	cluster := &fakeCluster{ok: true}
+	s := newTestService(r, meta, cluster, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+	_, err := s.Create(context.Background(), 1, "", "", CreateRequest{Name: "prom", BaseURL: "https://prom.example.com", AuthType: "basic", HTTPCredentialID: ptr(uint64(9)), ClusterID: ptr(uint64(4))})
+	require.NoError(t, err)
+	require.Same(t, r.tx, meta.gotTx)
+	require.Same(t, r.tx, cluster.gotTx)
+}
+
+func TestServiceUpdateValidatesReferencesInMutationTransaction(t *testing.T) {
+	r := &fakeRepo{row: &models.ObservabilityDatasource{ID: 7, Name: "prom", BaseURL: "https://prom.example.com", AuthType: "none"}}
+	meta := &fakeMeta{meta: HTTPMetadata{ID: 9, AuthType: "bearer"}}
+	cluster := &fakeCluster{ok: true}
+	s := newTestService(r, meta, cluster, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+	auth := "bearer"
+	_, err := s.Update(context.Background(), 1, "", "", 7, UpdateRequest{AuthType: &auth, HTTPCredentialID: ptr(uint64(9)), ClusterID: ptr(uint64(4))})
+	require.NoError(t, err)
+	require.Same(t, r.tx, meta.gotTx)
+	require.Same(t, r.tx, cluster.gotTx)
 }
 
 func TestServiceValidatesURLCAClusterAndUniqueness(t *testing.T) {
 	cases := []struct {
 		name    string
 		repo    *fakeRepo
-		cluster fakeCluster
+		cluster *fakeCluster
 		req     CreateRequest
 		want    apperr.Code
 	}{
-		{"url", &fakeRepo{}, fakeCluster{true}, CreateRequest{Name: "x", BaseURL: "https://u:p@example.com", AuthType: "none"}, apperr.CodeObservabilityDatasourceInvalidURL},
-		{"ca", &fakeRepo{}, fakeCluster{true}, CreateRequest{Name: "x", BaseURL: "https://example.com", AuthType: "none", CustomCAPEM: ptr("-----BEGIN PRIVATE KEY-----\nAA==\n-----END PRIVATE KEY-----")}, apperr.CodeObservabilityDatasourceInvalidTLS},
-		{"cluster", &fakeRepo{}, fakeCluster{false}, CreateRequest{Name: "x", BaseURL: "https://example.com", AuthType: "none", ClusterID: ptr(uint64(3))}, apperr.CodeValidation},
-		{"name", &fakeRepo{conflict: true}, fakeCluster{true}, CreateRequest{Name: "x", BaseURL: "https://example.com", AuthType: "none"}, apperr.CodeObservabilityDatasourceNameTaken},
+		{"url", &fakeRepo{}, &fakeCluster{ok: true}, CreateRequest{Name: "x", BaseURL: "https://u:p@example.com", AuthType: "none"}, apperr.CodeObservabilityDatasourceInvalidURL},
+		{"ca", &fakeRepo{}, &fakeCluster{ok: true}, CreateRequest{Name: "x", BaseURL: "https://example.com", AuthType: "none", CustomCAPEM: ptr("-----BEGIN PRIVATE KEY-----\nAA==\n-----END PRIVATE KEY-----")}, apperr.CodeObservabilityDatasourceInvalidTLS},
+		{"cluster", &fakeRepo{}, &fakeCluster{ok: false}, CreateRequest{Name: "x", BaseURL: "https://example.com", AuthType: "none", ClusterID: ptr(uint64(3))}, apperr.CodeValidation},
+		{"name", &fakeRepo{conflict: true}, &fakeCluster{ok: true}, CreateRequest{Name: "x", BaseURL: "https://example.com", AuthType: "none"}, apperr.CodeObservabilityDatasourceNameTaken},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newTestService(tt.repo, fakeMeta{}, tt.cluster, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+			s := newTestService(tt.repo, &fakeMeta{}, tt.cluster, &fakePanels{}, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
 			_, err := s.Create(context.Background(), 1, "", "", tt.req)
 			code(t, err, tt.want)
 		})
@@ -142,7 +175,7 @@ func TestServiceValidatesURLCAClusterAndUniqueness(t *testing.T) {
 func TestServiceCreateAuditsWithoutCA(t *testing.T) {
 	a := &fakeAudit{}
 	r := &fakeRepo{}
-	s := newTestService(r, fakeMeta{}, fakeCluster{true}, &fakePanels{}, &fakeConsumer{}, fakeTester{}, a)
+	s := newTestService(r, &fakeMeta{}, &fakeCluster{ok: true}, &fakePanels{}, &fakeConsumer{}, fakeTester{}, a)
 	d, err := s.Create(context.Background(), 1, "ip", "ua", CreateRequest{Name: " prom ", BaseURL: " https://example.com/prom ", AuthType: "none", TLSSkipVerify: true, CustomCAPEM: nil})
 	require.NoError(t, err)
 	require.Equal(t, "prom", d.Name)
@@ -154,7 +187,7 @@ func TestServiceCreateAuditsWithoutCA(t *testing.T) {
 func TestServiceDeleteRejectsPanelUsage(t *testing.T) {
 	r := &fakeRepo{row: &models.ObservabilityDatasource{ID: 1}}
 	panels := &fakePanels{n: 1}
-	s := newTestService(r, fakeMeta{}, fakeCluster{true}, panels, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
+	s := newTestService(r, &fakeMeta{}, &fakeCluster{ok: true}, panels, &fakeConsumer{}, fakeTester{}, &fakeAudit{})
 	code(t, s.Delete(context.Background(), 1, "", "", 1), apperr.CodeObservabilityDatasourceInUse)
 	require.Same(t, r.tx, panels.gotTx)
 }
@@ -163,7 +196,7 @@ func TestServiceTestConnectionAuthAndAuditRedaction(t *testing.T) {
 	r := &fakeRepo{row: &models.ObservabilityDatasource{ID: 1, Name: "p", BaseURL: "https://example.com", AuthType: "bearer", HTTPCredentialID: ptr(uint64(9))}}
 	c := &fakeConsumer{credential: &credentials.HTTPCredential{Secret: []byte("topsecret")}}
 	a := &fakeAudit{}
-	s := newTestService(r, fakeMeta{}, fakeCluster{true}, &fakePanels{}, c, fakeTester{err: errors.New("raw upstream topsecret")}, a)
+	s := newTestService(r, &fakeMeta{}, &fakeCluster{ok: true}, &fakePanels{}, c, fakeTester{err: errors.New("raw upstream topsecret")}, a)
 	_, err := s.TestConnection(context.Background(), 1, "ip", "ua", 1)
 	require.Error(t, err)
 	require.Equal(t, 1, c.calls)
@@ -176,7 +209,7 @@ func TestServiceTestConnectionAuthAndAuditRedaction(t *testing.T) {
 func TestServiceTestConnectionNoAuthSkipsConsumer(t *testing.T) {
 	r := &fakeRepo{row: &models.ObservabilityDatasource{ID: 1, BaseURL: "https://example.com", AuthType: "none"}}
 	c := &fakeConsumer{}
-	s := newTestService(r, fakeMeta{}, fakeCluster{true}, &fakePanels{}, c, fakeTester{}, &fakeAudit{})
+	s := newTestService(r, &fakeMeta{}, &fakeCluster{ok: true}, &fakePanels{}, c, fakeTester{}, &fakeAudit{})
 	_, err := s.TestConnection(context.Background(), 1, "", "", 1)
 	require.NoError(t, err)
 	require.Zero(t, c.calls)

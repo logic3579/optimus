@@ -22,10 +22,10 @@ type HTTPMetadata struct {
 	Name, AuthType string
 }
 type CredentialMetadata interface {
-	GetHTTPMetadata(context.Context, uint64) (HTTPMetadata, error)
+	GetHTTPMetadataTx(context.Context, *gorm.DB, uint64) (HTTPMetadata, error)
 }
 type ClusterExistence interface {
-	Exists(context.Context, uint64) (bool, error)
+	ExistsTx(context.Context, *gorm.DB, uint64) (bool, error)
 }
 type PanelUsage interface {
 	CountByDatasourceIDTx(context.Context, *gorm.DB, uint64) (int64, error)
@@ -82,11 +82,14 @@ func (s *Service) Get(ctx context.Context, id uint64) (*Detail, error) {
 	return s.repo.GetByID(ctx, id)
 }
 func (s *Service) Create(ctx context.Context, actor uint64, ip, ua string, req CreateRequest) (*Detail, error) {
-	row, err := s.validateCreate(ctx, actor, req)
+	row, err := s.validateCreate(actor, req)
 	if err != nil {
 		return nil, err
 	}
 	err = s.repo.Transaction(ctx, func(tx *gorm.DB) error {
+		if err := s.validateRefs(ctx, tx, req.AuthType, req.HTTPCredentialID, req.ClusterID); err != nil {
+			return err
+		}
 		conflict, err := s.repo.FindNameAliveTx(ctx, tx, row.Name, 0)
 		if err != nil {
 			return err
@@ -104,7 +107,7 @@ func (s *Service) Create(ctx context.Context, actor uint64, ip, ua string, req C
 	}
 	return s.repo.GetByID(ctx, row.ID)
 }
-func (s *Service) validateCreate(ctx context.Context, actor uint64, req CreateRequest) (*models.ObservabilityDatasource, error) {
+func (s *Service) validateCreate(actor uint64, req CreateRequest) (*models.ObservabilityDatasource, error) {
 	name := strings.TrimSpace(req.Name)
 	base := strings.TrimSpace(req.BaseURL)
 	if name == "" || len(name) > 128 {
@@ -116,13 +119,10 @@ func (s *Service) validateCreate(ctx context.Context, actor uint64, req CreateRe
 	if err := validateCA(req.CustomCAPEM); err != nil {
 		return nil, err
 	}
-	if err := s.validateRefs(ctx, req.AuthType, req.HTTPCredentialID, req.ClusterID); err != nil {
-		return nil, err
-	}
 	uid := actorPtr(actor)
 	return &models.ObservabilityDatasource{Name: name, BaseURL: base, AuthType: req.AuthType, HTTPCredentialID: req.HTTPCredentialID, ClusterID: req.ClusterID, TLSSkipVerify: req.TLSSkipVerify, CustomCAPEM: cleanCA(req.CustomCAPEM), Description: strings.TrimSpace(req.Description), CreatedByUserID: uid}, nil
 }
-func (s *Service) validateRefs(ctx context.Context, auth string, credentialID, clusterID *uint64) error {
+func (s *Service) validateRefs(ctx context.Context, tx *gorm.DB, auth string, credentialID, clusterID *uint64) error {
 	if auth != "none" && auth != "basic" && auth != "bearer" {
 		return validation("invalid auth type")
 	}
@@ -136,7 +136,7 @@ func (s *Service) validateRefs(ctx context.Context, auth string, credentialID, c
 		if s.metadata == nil {
 			return authMismatch()
 		}
-		m, err := s.metadata.GetHTTPMetadata(ctx, *credentialID)
+		m, err := s.metadata.GetHTTPMetadataTx(ctx, tx, *credentialID)
 		if err != nil {
 			return authMismatch()
 		}
@@ -148,7 +148,7 @@ func (s *Service) validateRefs(ctx context.Context, auth string, credentialID, c
 		if s.clusters == nil {
 			return validation("cluster not found")
 		}
-		ok, err := s.clusters.Exists(ctx, *clusterID)
+		ok, err := s.clusters.ExistsTx(ctx, tx, *clusterID)
 		if err != nil {
 			return err
 		}
@@ -204,7 +204,7 @@ func (s *Service) Update(ctx context.Context, actor uint64, ip, ua string, id ui
 		} else if req.ClusterID != nil {
 			cluster = req.ClusterID
 		}
-		if err := s.validateRefs(ctx, auth, cred, cluster); err != nil {
+		if err := s.validateRefs(ctx, tx, auth, cred, cluster); err != nil {
 			return err
 		}
 		if auth != row.AuthType {
@@ -302,7 +302,8 @@ func (s *Service) TestConnection(ctx context.Context, actor uint64, ip, ua strin
 			s.recordTestAudit(ctx, actor, ip, ua, id, err)
 			return nil, err
 		}
-		secret, err = s.consumer.GetHTTPCredential(ctx, d.HTTPCredential.ID, "observability.datasource.test")
+		consumeCtx := credentials.WithActor(ctx, actor)
+		secret, err = s.consumer.GetHTTPCredential(consumeCtx, d.HTTPCredential.ID, "observability.datasource.test")
 		if err != nil {
 			s.recordTestAudit(ctx, actor, ip, ua, id, err)
 			return nil, err

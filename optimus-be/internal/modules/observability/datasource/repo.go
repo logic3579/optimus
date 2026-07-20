@@ -90,6 +90,28 @@ func (r *Repo) GetModelForUpdate(ctx context.Context, tx *gorm.DB, id uint64) (*
 	}
 	return &row, err
 }
+
+// GetHTTPMetadataTx locks the active credential parent against soft deletion
+// until the datasource mutation commits.
+func (r *Repo) GetHTTPMetadataTx(ctx context.Context, tx *gorm.DB, id uint64) (HTTPMetadata, error) {
+	var row models.HTTPCredential
+	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return HTTPMetadata{}, authMismatch()
+	}
+	return HTTPMetadata{ID: row.ID, Name: row.Name, AuthType: row.AuthType}, err
+}
+
+// ExistsTx locks the active cluster parent against soft deletion until the
+// datasource mutation commits.
+func (r *Repo) ExistsTx(ctx context.Context, tx *gorm.DB, id uint64) (bool, error) {
+	var row models.Cluster
+	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
 func (r *Repo) FindNameAliveTx(ctx context.Context, tx *gorm.DB, name string, exclude uint64) (bool, error) {
 	q := tx.WithContext(ctx).Model(&models.ObservabilityDatasource{}).Where("name=?", name)
 	if exclude != 0 {
