@@ -8,6 +8,7 @@ package k8s
 import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"reflect"
 
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/modules/audit"
@@ -82,6 +83,12 @@ func (m *Module) SetAppsCounter(c cluster.AppsApplicationCounter) {
 	m.Cluster.SetAppsCounter(c)
 }
 func (m *Module) SetObservabilityCounter(c cluster.ObservabilityDatasourceCounter) {
+	if c != nil {
+		v := reflect.ValueOf(c)
+		if v.Kind() == reflect.Pointer && v.IsNil() {
+			c = nil
+		}
+	}
 	m.Cluster.SetObservabilityCounter(c)
 }
 

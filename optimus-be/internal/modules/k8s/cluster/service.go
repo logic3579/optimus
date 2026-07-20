@@ -45,6 +45,9 @@ type Prober interface {
 type AppsApplicationCounter interface {
 	CountByClusterID(ctx context.Context, clusterID uint64) (int, error)
 }
+type appsApplicationTxCounter interface {
+	CountByClusterIDTx(context.Context, *gorm.DB, uint64) (int, error)
+}
 type ObservabilityDatasourceCounter interface {
 	CountByClusterID(context.Context, uint64) (int64, error)
 }
@@ -239,7 +242,11 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 			return err
 		}
 		if s.appsCounter != nil {
-			n, e := s.appsCounter.CountByClusterID(ctx, id)
+			counter, ok := s.appsCounter.(appsApplicationTxCounter)
+			if !ok {
+				return errors.New("apps counter must support transactions")
+			}
+			n, e := counter.CountByClusterIDTx(ctx, tx, id)
 			if e != nil {
 				return e
 			}

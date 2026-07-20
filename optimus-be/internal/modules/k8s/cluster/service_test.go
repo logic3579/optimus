@@ -249,8 +249,14 @@ func TestService_Ping_NoProber(t *testing.T) {
 // fakeAppsCounter satisfies cluster.AppsApplicationCounter for the P3
 // delete-refused test. n is the count returned for any cluster id.
 type fakeAppsCounter struct {
-	n   int
-	err error
+	n       int
+	err     error
+	txCalls int
+}
+
+func (f *fakeAppsCounter) CountByClusterIDTx(context.Context, *gorm.DB, uint64) (int, error) {
+	f.txCalls++
+	return f.n, f.err
 }
 
 func (f *fakeAppsCounter) CountByClusterID(_ context.Context, _ uint64) (int, error) {

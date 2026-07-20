@@ -129,6 +129,11 @@ func (r *Repo) CountByClusterID(ctx context.Context, clusterID uint64) (int, err
 		Count(&n).Error
 	return int(n), err
 }
+func (r *Repo) CountByClusterIDTx(ctx context.Context, tx *gorm.DB, clusterID uint64) (int, error) {
+	var n int64
+	err := tx.WithContext(ctx).Model(&models.AppsApplication{}).Where("cluster_id = ?", clusterID).Count(&n).Error
+	return int(n), err
+}
 
 // CountByChartRepoID counts LIVE applications that reference the given chart
 // repo. Used by apps/repo.Delete via the Counter seam.

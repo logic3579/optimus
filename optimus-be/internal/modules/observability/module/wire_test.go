@@ -9,19 +9,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"optimus-be/internal/infra/config"
+	"optimus-be/internal/modules/audit"
+	"optimus-be/internal/modules/credentials"
 	"optimus-be/internal/modules/credentials/httpcredential"
 )
 
 func TestWireRejectsInvalidCIDR(t *testing.T) {
 	cfg := testConfig()
 	cfg.AllowedPrivateCIDRs = []string{"bad-cidr"}
-	if _, err := Wire(Input{DB: &gorm.DB{}, Config: cfg}); err == nil {
+	in := validInput()
+	in.Config = cfg
+	if _, err := Wire(in); err == nil {
 		t.Fatal("expected invalid CIDR")
 	}
 }
 
 func TestExactRoutePermissionSnapshotContainsNoAlert(t *testing.T) {
-	m, err := Wire(Input{DB: &gorm.DB{}, Config: testConfig()})
+	m, err := Wire(validInput())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,4 +66,7 @@ func TestExactRoutePermissionSnapshotContainsNoAlert(t *testing.T) {
 
 func testConfig() config.ObservabilityConfig {
 	return config.ObservabilityConfig{QueryTimeout: 15 * time.Second, MaxBatchQueries: 12, MaxConcurrent: 4, MaxRange: 7 * 24 * time.Hour, MinStep: 15 * time.Second, MaxPointsPerSeries: 11000, MaxSeries: 1000, MaxResponseBytes: 16 << 20, MaxEnrichmentIPs: 100}
+}
+func validInput() Input {
+	return Input{DB: &gorm.DB{}, Credentials: credentials.NewConsumer(nil, nil, nil, nil), Audit: audit.NewRecorder(&gorm.DB{}), Config: testConfig()}
 }

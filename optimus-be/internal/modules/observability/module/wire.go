@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -73,8 +74,11 @@ func (f clientFactory) Test(ctx context.Context, d datasource.Detail, c *credent
 }
 
 func Wire(in Input) (*Module, error) {
-	if in.DB == nil {
-		return nil, errors.New("observability database is required")
+	if isNil(in.DB) || isNil(in.Credentials) || isNil(in.Audit) {
+		return nil, errors.New("observability database, credentials, and audit are required")
+	}
+	if isNil(in.Assets) {
+		in.Assets = nil
 	}
 	o := in.Config
 	if o.QueryTimeout <= 0 || o.MaxBatchQueries <= 0 || o.MaxConcurrent <= 0 || o.MaxRange <= 0 || o.MinStep <= 0 || o.MaxPointsPerSeries <= 0 || o.MaxSeries <= 0 || o.MaxResponseBytes <= 0 || o.MaxEnrichmentIPs <= 0 || o.MaxConcurrent > o.MaxBatchQueries {
@@ -105,6 +109,17 @@ func Wire(in Input) (*Module, error) {
 	qSvc := query.NewService(loader, in.Credentials, factory, in.Assets, query.Limits{MaxBatch: o.MaxBatchQueries, MaxConcurrent: o.MaxConcurrent, MaxPromQLBytes: 8192, MaxRange: o.MaxRange, MinStep: o.MinStep, Timeout: o.QueryTimeout, MaxPoints: o.MaxPointsPerSeries, MaxEnrichmentIPs: o.MaxEnrichmentIPs})
 	dashSvc := dashboard.NewService(dashRepo, in.Audit)
 	return &Module{CredentialUsage: counter, ClusterUsage: counter, datasource: datasource.NewHandler(dsSvc), query: query.NewHandler(qSvc), dashboard: dashboard.NewHandler(dashSvc), builtin: builtin.NewHandler()}, nil
+}
+func isNil(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Interface, reflect.Chan:
+		return rv.IsNil()
+	}
+	return false
 }
 func (m *Module) MountRoutes(protected *gin.RouterGroup, cache *rbac.PermissionCache) {
 	permission := func(code string) gin.HandlerFunc { return middleware.RequirePermission(cache, code) }
