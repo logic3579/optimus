@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -11,16 +12,17 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig    `mapstructure:"server"`
-	Database DatabaseConfig  `mapstructure:"database"`
-	JWT      JWTConfig       `mapstructure:"jwt"`
-	Auth     AuthConfig      `mapstructure:"auth"`
-	Log      LogConfig       `mapstructure:"log"`
-	CORS     CORSConfig      `mapstructure:"cors"`
-	I18n     I18nConfig      `mapstructure:"i18n"`
-	Boot     BootstrapConfig `mapstructure:"bootstrap"`
-	Vault    VaultConfig     `mapstructure:"vault"`
-	Assets   AssetsConfig    `mapstructure:"assets"`
+	Server        ServerConfig        `mapstructure:"server"`
+	Database      DatabaseConfig      `mapstructure:"database"`
+	JWT           JWTConfig           `mapstructure:"jwt"`
+	Auth          AuthConfig          `mapstructure:"auth"`
+	Log           LogConfig           `mapstructure:"log"`
+	CORS          CORSConfig          `mapstructure:"cors"`
+	I18n          I18nConfig          `mapstructure:"i18n"`
+	Boot          BootstrapConfig     `mapstructure:"bootstrap"`
+	Vault         VaultConfig         `mapstructure:"vault"`
+	Assets        AssetsConfig        `mapstructure:"assets"`
+	Observability ObservabilityConfig `mapstructure:"observability"`
 }
 
 type ServerConfig struct {
@@ -91,6 +93,19 @@ type AssetsConfig struct {
 	AWSRequestTimeout    time.Duration `mapstructure:"aws_request_timeout"`
 }
 
+type ObservabilityConfig struct {
+	AllowedPrivateCIDRs []string      `mapstructure:"allowed_private_cidrs"`
+	QueryTimeout        time.Duration `mapstructure:"query_timeout"`
+	MaxBatchQueries     int           `mapstructure:"max_batch_queries"`
+	MaxConcurrent       int           `mapstructure:"max_concurrent"`
+	MaxRange            time.Duration `mapstructure:"max_range"`
+	MinStep             time.Duration `mapstructure:"min_step"`
+	MaxPointsPerSeries  int           `mapstructure:"max_points_per_series"`
+	MaxSeries           int           `mapstructure:"max_series"`
+	MaxResponseBytes    int64         `mapstructure:"max_response_bytes"`
+	MaxEnrichmentIPs    int           `mapstructure:"max_enrichment_ips"`
+}
+
 func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
@@ -101,6 +116,16 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("assets.sync_startup_delay", 30*time.Second)
 	v.SetDefault("assets.sync_run_retention_days", 90)
 	v.SetDefault("assets.aws_request_timeout", 30*time.Second)
+	v.SetDefault("observability.allowed_private_cidrs", []string{})
+	v.SetDefault("observability.query_timeout", 15*time.Second)
+	v.SetDefault("observability.max_batch_queries", 12)
+	v.SetDefault("observability.max_concurrent", 4)
+	v.SetDefault("observability.max_range", 168*time.Hour)
+	v.SetDefault("observability.min_step", 15*time.Second)
+	v.SetDefault("observability.max_points_per_series", 11000)
+	v.SetDefault("observability.max_series", 1000)
+	v.SetDefault("observability.max_response_bytes", int64(16777216))
+	v.SetDefault("observability.max_enrichment_ips", 100)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
@@ -140,6 +165,34 @@ func (c *Config) ValidateStrict() error {
 	}
 	if c.Assets.AWSRequestTimeout <= 0 {
 		return errors.New("assets.aws_request_timeout must be > 0")
+	}
+	if err := c.validateObservability(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Config) validateObservability() error {
+	metadata := []netip.Addr{netip.MustParseAddr("169.254.169.254"), netip.MustParseAddr("fd00:ec2::254")}
+	for _, raw := range c.Observability.AllowedPrivateCIDRs {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(raw))
+		if err != nil {
+			return fmt.Errorf("observability.allowed_private_cidrs contains invalid CIDR: %w", err)
+		}
+		for _, addr := range metadata {
+			if prefix.Contains(addr) {
+				return errors.New("observability.allowed_private_cidrs must not include cloud metadata addresses")
+			}
+		}
+	}
+	o := c.Observability
+	if o.QueryTimeout <= 0 || o.MaxBatchQueries <= 0 || o.MaxConcurrent <= 0 ||
+		o.MaxRange <= 0 || o.MinStep <= 0 || o.MaxPointsPerSeries <= 0 || o.MaxSeries <= 0 ||
+		o.MaxResponseBytes <= 0 || o.MaxEnrichmentIPs <= 0 {
+		return errors.New("observability limits must be > 0")
+	}
+	if o.MaxConcurrent > o.MaxBatchQueries {
+		return errors.New("observability.max_concurrent must not exceed max_batch_queries")
 	}
 	return nil
 }

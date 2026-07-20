@@ -52,3 +52,15 @@ assets:
   sync_startup_delay: 30s
   sync_run_retention_days: 90
   aws_request_timeout: 30s
+
+observability:
+  allowed_private_cidrs: []
+  query_timeout: 15s
+  max_batch_queries: 12
+  max_concurrent: 4
+  max_range: 168h
+  min_step: 15s
+  max_points_per_series: 11000
+  max_series: 1000
+  max_response_bytes: 16777216
+  max_enrichment_ips: 100
