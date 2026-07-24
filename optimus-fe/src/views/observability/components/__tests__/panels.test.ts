@@ -17,4 +17,10 @@ describe('observability panels', () => {
     expect(chart.setOption).toHaveBeenCalledTimes(2)
     wrapper.unmount(); expect(chart.dispose).toHaveBeenCalledOnce(); expect(disconnect).toHaveBeenCalledOnce()
   })
+  it('initializes only after loading becomes ready', async () => {
+    const chart = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() }; const factory = vi.fn(() => chart)
+    const wrapper = mount(TimeSeriesPanel, { props: { state: 'loading', result: { result_type: 'scalar', scalar: { timestamp: 1, value: '2' } } }, global: { provide: { chartFactory: factory, resizeObserverFactory: () => ({ observe: vi.fn(), disconnect: vi.fn() }) } } })
+    expect(factory).not.toHaveBeenCalled(); await wrapper.setProps({ state: undefined }); await vi.waitFor(() => expect(factory).toHaveBeenCalledOnce())
+    wrapper.unmount(); expect(chart.dispose).toHaveBeenCalledOnce()
+  })
 })

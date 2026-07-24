@@ -13,8 +13,10 @@ type Chart = { setOption(option: unknown): void; resize(): void; dispose(): void
 const props = defineProps<{ result?: NormalizedResult; state?: 'loading' | 'empty' | 'unsupported' | 'partial' | 'error'; message?: string }>()
 const element = ref<HTMLElement>(); const factory = inject<(el: HTMLElement) => Chart>('chartFactory', el => echarts.init(el)); const observerFactory = inject<(cb: () => void) => { observe(el: Element): void; disconnect(): void }>('resizeObserverFactory', cb => new ResizeObserver(cb)); let chart: Chart | undefined; let observer: { observe(el: Element): void; disconnect(): void } | undefined
 function render() { if (chart && props.result) chart.setOption(toChartOption(props.result)) }
-onMounted(async () => { await nextTick(); if (!element.value || props.state) return; chart = factory(element.value); render(); observer = observerFactory(() => chart?.resize()); observer.observe(element.value) })
+async function ensureChart() { await nextTick(); if (chart || !element.value || props.state) return; chart = factory(element.value); render(); observer = observerFactory(() => chart?.resize()); observer.observe(element.value) }
+onMounted(ensureChart)
 watch(() => props.result, render, { deep: true })
+watch(() => props.state, () => { void ensureChart() })
 onBeforeUnmount(() => { observer?.disconnect(); chart?.dispose() })
 </script>
 <style scoped>.chart{height:260px;min-width:0}</style>
