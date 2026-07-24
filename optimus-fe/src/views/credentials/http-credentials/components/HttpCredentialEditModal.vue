@@ -11,10 +11,10 @@
       <a-form-item :label="$t('credentials.field.name')" name="name">
         <a-input v-model:value="form.name" :maxlength="128" />
       </a-form-item>
-      <a-form-item label="Authentication type" name="auth_type">
+      <a-form-item :label="$t('credentials.field.auth_type')" name="auth_type">
         <a-radio-group v-model:value="form.auth_type" :disabled="isEdit">
-          <a-radio-button value="basic">Basic</a-radio-button>
-          <a-radio-button value="bearer">Bearer</a-radio-button>
+          <a-radio-button value="basic">{{ $t('credentials.auth.basic') }}</a-radio-button>
+          <a-radio-button value="bearer">{{ $t('credentials.auth.bearer') }}</a-radio-button>
         </a-radio-group>
       </a-form-item>
       <a-form-item

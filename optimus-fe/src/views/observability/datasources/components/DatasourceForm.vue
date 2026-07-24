@@ -1,21 +1,21 @@
 <template>
   <a-form :model="form" layout="vertical">
-    <a-form-item label="Name"><a-input v-model:value="form.name" /></a-form-item>
-    <a-form-item label="Base URL"><a-input v-model:value="form.base_url" /></a-form-item>
-    <a-form-item label="Authentication">
+    <a-form-item :label="t('observability_ui.forms.name')"><a-input v-model:value="form.name" /></a-form-item>
+    <a-form-item :label="t('observability_ui.forms.base_url')"><a-input v-model:value="form.base_url" /></a-form-item>
+    <a-form-item :label="t('observability_ui.credentials.auth_type')">
       <a-select v-model:value="form.auth_type" :options="authOptions" />
     </a-form-item>
-    <a-form-item v-if="form.auth_type !== 'none'" label="HTTP credential">
+    <a-form-item v-if="form.auth_type !== 'none'" :label="t('menu.credentials.http_credentials')">
       <a-select v-model:value="form.http_credential_id" :options="credentialOptions" allow-clear />
     </a-form-item>
-    <a-form-item label="Cluster (optional)"><a-select v-model:value="form.cluster_id" :options="clusterOptions" allow-clear /></a-form-item>
-    <a-form-item v-if="initial?.has_custom_ca" label="Existing custom CA">
+    <a-form-item :label="t('observability_ui.forms.cluster_optional')"><a-select v-model:value="form.cluster_id" :options="clusterOptions" allow-clear /></a-form-item>
+    <a-form-item v-if="initial?.has_custom_ca" :label="t('observability_ui.forms.existing_ca')">
       <a-radio-group v-model:value="caMode" :options="caOptions" />
     </a-form-item>
-    <a-form-item v-if="!initial?.has_custom_ca || caMode === 'replace'" label="Custom CA (public PEM)"><a-textarea v-model:value="form.custom_ca_pem" :rows="5" /></a-form-item>
-    <a-form-item label="Skip TLS verification"><a-switch v-model:checked="form.tls_skip_verify" /></a-form-item>
-    <a-alert v-if="form.tls_skip_verify" data-testid="tls-warning" type="error" message="TLS certificate verification is disabled" show-icon />
-    <a-form-item label="Description"><a-textarea v-model:value="form.description" /></a-form-item>
+    <a-form-item v-if="!initial?.has_custom_ca || caMode === 'replace'" :label="t('observability_ui.forms.custom_ca')"><a-textarea v-model:value="form.custom_ca_pem" :rows="5" /></a-form-item>
+    <a-form-item :label="t('observability_ui.forms.skip_tls')"><a-switch v-model:checked="form.tls_skip_verify" /></a-form-item>
+    <a-alert v-if="form.tls_skip_verify" data-testid="tls-warning" type="error" :message="t('observability_ui.tls_warning')" show-icon />
+    <a-form-item :label="t('observability_ui.forms.description')"><a-textarea v-model:value="form.description" /></a-form-item>
   </a-form>
 </template>
 
@@ -29,14 +29,16 @@ export function validateDatasourceURL(value: string): boolean {
 </script>
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useI18n } from '@/hooks/useI18n'
 import type { HTTPCredentialSummary } from '@/api/credentials/http-credential'
 import type { DatasourceDetail, NamedRef, SaveDatasource } from '@/types/observability'
 
 const props = defineProps<{ initial?: DatasourceDetail | null; credentials: HTTPCredentialSummary[]; clusters: NamedRef[] }>()
+const { t } = useI18n()
 const form = reactive<SaveDatasource>({ name: '', base_url: '', auth_type: 'none', tls_skip_verify: false, description: '' })
 const caMode = ref<'keep' | 'replace' | 'clear'>('keep')
-const caOptions = [{ value: 'keep', label: 'Keep' }, { value: 'replace', label: 'Replace' }, { value: 'clear', label: 'Clear' }]
-const authOptions = [{ value: 'none', label: 'None' }, { value: 'basic', label: 'Basic' }, { value: 'bearer', label: 'Bearer' }]
+const caOptions = computed(() => [{ value: 'keep', label: t('observability_ui.ca.keep') }, { value: 'replace', label: t('observability_ui.ca.replace') }, { value: 'clear', label: t('observability_ui.ca.clear') }])
+const authOptions = computed(() => [{ value: 'none', label: t('observability_ui.units.none') }, { value: 'basic', label: t('observability_ui.credentials.basic') }, { value: 'bearer', label: t('observability_ui.credentials.bearer') }])
 const credentialOptions = computed(() => props.credentials.filter(item => item.auth_type === form.auth_type).map(item => ({ value: item.id, label: item.name })))
 const clusterOptions = computed(() => props.clusters.map(item => ({ value: item.id, label: item.name })))
 function reset() {

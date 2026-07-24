@@ -432,6 +432,8 @@
     }
   },
   "credentials": {
+    "filter_all": "All",
+    "auth": { "basic": "Basic", "bearer": "Bearer" },
     "search_placeholder": "Search by name or description",
     "filter_username": "Username",
     "filter_namespace": "Default namespace",
@@ -449,6 +451,7 @@
       "region": "Region",
       "access_key_id": "Access Key ID",
       "secret_access_key": "Secret Access Key"
+      ,"auth_type": "Authentication type", "updated_at": "Updated"
     },
     "placeholder": {
       "unchanged": "••••• (unchanged)"
@@ -612,7 +615,8 @@
     "panel": { "cluster_cpu": "Cluster CPU", "cluster_memory": "Cluster memory", "nodes_ready": "Ready nodes", "pods_phase": "Pods by phase", "restart_rate": "Restart rate", "node_cpu": "Node CPU", "node_memory": "Node memory", "node_ready": "Node readiness", "workload_cpu": "Workload CPU", "workload_memory": "Workload memory", "workload_restarts": "Workload restarts" }
   },
   "observability_ui": {
-    "forms": { "name": "Name", "description": "Description", "data_source": "Data source", "refresh": "Refresh interval", "time_range": "Time range", "promql": "PromQL", "legend": "Legend", "width": "Width" },
+    "forms": { "name": "Name", "description": "Description", "base_url": "Base URL", "cluster_optional": "Cluster (optional)", "existing_ca": "Existing custom CA", "custom_ca": "Custom CA (public PEM)", "skip_tls": "Skip TLS verification", "data_source": "Data source", "refresh": "Refresh interval", "time_range": "Time range", "promql": "PromQL", "legend": "Legend", "width": "Width" },
+    "ca": { "keep": "Keep", "replace": "Replace", "clear": "Clear" },
     "panel_state": { "loading": "Loading", "empty": "No data", "unsupported": "Unsupported result", "partial": "Partial result", "error": "Query failed" },
     "units": { "none": "None", "percent": "Percent", "bytes": "Bytes", "bytes_per_second": "Bytes/s", "cores": "CPU cores", "seconds": "Seconds", "requests_per_second": "Requests/s" },
     "errors": { "load": "Failed to load monitoring data", "save": "Failed to save", "query": "Metric query failed", "limit": "At most 12 queries are allowed per batch" },

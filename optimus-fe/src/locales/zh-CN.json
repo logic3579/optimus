@@ -432,6 +432,8 @@
     }
   },
   "credentials": {
+    "filter_all": "全部",
+    "auth": { "basic": "Basic", "bearer": "Bearer" },
     "search_placeholder": "搜索名称或描述",
     "filter_username": "用户名",
     "filter_namespace": "默认命名空间",
@@ -449,6 +451,7 @@
       "region": "区域",
       "access_key_id": "Access Key ID",
       "secret_access_key": "Secret Access Key"
+      ,"auth_type": "认证类型", "updated_at": "更新时间"
     },
     "placeholder": {
       "unchanged": "•••••（保持不变）"
@@ -612,7 +615,8 @@
     "panel": { "cluster_cpu": "集群 CPU", "cluster_memory": "集群内存", "nodes_ready": "就绪节点", "pods_phase": "Pod 阶段", "restart_rate": "重启速率", "node_cpu": "节点 CPU", "node_memory": "节点内存", "node_ready": "节点就绪状态", "workload_cpu": "工作负载 CPU", "workload_memory": "工作负载内存", "workload_restarts": "工作负载重启" }
   },
   "observability_ui": {
-    "forms": { "name": "名称", "description": "描述", "data_source": "数据源", "refresh": "刷新间隔", "time_range": "时间范围", "promql": "PromQL", "legend": "图例", "width": "宽度" },
+    "forms": { "name": "名称", "description": "描述", "base_url": "基础 URL", "cluster_optional": "集群（可选）", "existing_ca": "现有自定义 CA", "custom_ca": "自定义 CA（公共 PEM）", "skip_tls": "跳过 TLS 校验", "data_source": "数据源", "refresh": "刷新间隔", "time_range": "时间范围", "promql": "PromQL", "legend": "图例", "width": "宽度" },
+    "ca": { "keep": "保留", "replace": "替换", "clear": "清除" },
     "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },
     "units": { "none": "无", "percent": "百分比", "bytes": "字节", "bytes_per_second": "字节/秒", "cores": "CPU 核", "seconds": "秒", "requests_per_second": "请求/秒" },
     "errors": { "load": "监控数据加载失败", "save": "保存失败", "query": "指标查询失败", "limit": "每个批次最多允许 12 个查询" },

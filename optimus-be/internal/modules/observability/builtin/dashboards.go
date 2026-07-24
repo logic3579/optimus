@@ -15,7 +15,7 @@ type Variable struct {
 	Name     string `json:"name"`
 	Label    string `json:"label"`
 	Required bool   `json:"required"`
-	Regex    bool   `json:"-"`
+	Regex    bool   `json:"regex"`
 }
 type Panel struct {
 	RefID     string `json:"ref_id"`

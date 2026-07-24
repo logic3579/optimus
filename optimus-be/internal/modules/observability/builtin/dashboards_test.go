@@ -40,13 +40,30 @@ func TestDashboardSnapshot(t *testing.T) {
 	if len(b) < 500 {
 		t.Fatalf("snapshot unexpectedly small: %s", b)
 	}
-	if got, want := fmt.Sprintf("%x", sha256.Sum256(b)), "3d0b03fdac148cbeba35c54d6cb482eb34a4ae165222ccaab77757fd7253a653"; got != want {
+	if got, want := fmt.Sprintf("%x", sha256.Sum256(b)), "e3513c044d67e152595cb428e978df03605b02d1784a9c1039d68e28d3b8dde2"; got != want {
 		t.Fatalf("snapshot changed: got %s want %s\n%s", got, want, b)
 	}
 	all[0].Panels[0].PromQL = "mutated"
 	again, _ := Get("kubernetes-cluster")
 	if again.Panels[0].PromQL == "mutated" {
 		t.Fatal("definitions are mutable through List")
+	}
+}
+
+func TestVariableJSONContractIncludesRegexSemantics(t *testing.T) {
+	d, ok := Get("kubernetes-workloads")
+	if !ok {
+		t.Fatal("missing workload builtin")
+	}
+	raw, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"name":"workload","label":"workload","required":false,"regex":true`) {
+		t.Fatalf("regex contract missing: %s", raw)
+	}
+	if !strings.Contains(string(raw), `"name":"namespace","label":"namespace","required":true,"regex":false`) {
+		t.Fatalf("literal contract missing: %s", raw)
 	}
 }
 

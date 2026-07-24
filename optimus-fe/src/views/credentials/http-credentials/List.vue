@@ -18,7 +18,7 @@
     <a-alert v-if="errorMessage" class="u-mb-16" type="error" :message="errorMessage" show-icon />
     <a-table :columns="columns" :data-source="table.items.value" :loading="table.loading.value" :pagination="false" row-key="id">
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'auth_type'">{{ record.auth_type === 'basic' ? 'Basic' : 'Bearer' }}</template>
+        <template v-if="column.key === 'auth_type'">{{ record.auth_type === 'basic' ? t('credentials.auth.basic') : t('credentials.auth.bearer') }}</template>
         <template v-else-if="column.key === 'username'">{{ record.auth_type === 'basic' ? record.username || '—' : '—' }}</template>
         <template v-else-if="column.key === 'updated_at'">{{ formatTime(record.updated_at) }}</template>
         <template v-else-if="column.key === 'actions'">
@@ -61,7 +61,7 @@ const searchInput = ref('')
 const authType = ref<'' | HTTPAuthType>('')
 const errorMessage = ref('')
 const authOptions = computed(() => [
-  { value: '', label: 'All' }, { value: 'basic', label: 'Basic' }, { value: 'bearer', label: 'Bearer' },
+  { value: '', label: t('credentials.filter_all') }, { value: 'basic', label: t('credentials.auth.basic') }, { value: 'bearer', label: t('credentials.auth.bearer') },
 ])
 function errorText(error: unknown) {
   if (typeof error === 'object' && error && 'message' in error && typeof error.message === 'string') return error.message
@@ -81,9 +81,9 @@ const table = useTable<HTTPCredentialSummary, Pick<HTTPCredentialListParams, 'q'
 })
 const columns = computed(() => [
   { key: 'name', title: t('credentials.field.name'), dataIndex: 'name' },
-  { key: 'auth_type', title: 'Authentication type' },
+  { key: 'auth_type', title: t('credentials.field.auth_type') },
   { key: 'username', title: t('credentials.field.username') },
-  { key: 'updated_at', title: 'Updated' },
+  { key: 'updated_at', title: t('credentials.field.updated_at') },
   { key: 'actions', title: '', width: 160 },
 ])
 const editOpen = ref(false)
