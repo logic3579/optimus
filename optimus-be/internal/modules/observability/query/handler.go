@@ -16,15 +16,56 @@ type serviceAPI interface {
 	Labels(context.Context, uint64, uint64) ([]string, error)
 	LabelValues(context.Context, uint64, uint64, string) ([]string, error)
 }
-type Handler struct{ svc serviceAPI }
+type QuerySource struct {
+	ID        uint64  `json:"id"`
+	Name      string  `json:"name"`
+	ClusterID *uint64 `json:"cluster_id"`
+}
+type SourceLister interface {
+	ListQuerySources(context.Context) ([]QuerySource, error)
+}
+type SourceListerFunc func(context.Context) ([]QuerySource, error)
 
-func NewHandler(s serviceAPI) *Handler { return &Handler{svc: s} }
+func (f SourceListerFunc) ListQuerySources(ctx context.Context) ([]QuerySource, error) { return f(ctx) }
+
+type Handler struct {
+	svc     serviceAPI
+	sources SourceLister
+}
+
+func NewHandler(s serviceAPI, sources ...SourceLister) *Handler {
+	h := &Handler{svc: s}
+	if len(sources) > 0 {
+		h.sources = sources[0]
+	}
+	return h
+}
 func (h *Handler) Mount(g *gin.RouterGroup, permission func(string) gin.HandlerFunc) {
 	read := g.Group("", permission("observability:metric:read"))
+	read.GET("/query-sources", h.QuerySources)
 	read.POST("/query", h.Instant)
 	read.POST("/query-range", h.Range)
 	read.GET("/datasources/:id/labels", h.Labels)
 	read.GET("/datasources/:id/label-values", h.LabelValues)
+}
+
+// QuerySources godoc
+// @Summary List minimal data sources available for metric queries
+// @Tags observability
+// @Security BearerAuth
+// @Success 200 {object} response.Envelope{data=[]QuerySource}
+// @Router /observability/query-sources [get]
+func (h *Handler) QuerySources(c *gin.Context) {
+	if h.sources == nil {
+		response.Error(c, apperr.New(apperr.CodeInternal, "common.internal", "query source lister is unavailable"))
+		return
+	}
+	out, err := h.sources.ListQuerySources(c.Request.Context())
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, out)
 }
 func actor(c *gin.Context) uint64 { return c.GetUint64(middleware.CtxKeyUserID) }
 func id(c *gin.Context) (uint64, bool) {

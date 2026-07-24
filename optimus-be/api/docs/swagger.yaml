@@ -807,6 +807,8 @@ definitions:
         type: string
       name:
         type: string
+      regex:
+        type: boolean
       required:
         type: boolean
     type: object
@@ -1110,6 +1112,15 @@ definitions:
       promql:
         type: string
       ref_id:
+        type: string
+    type: object
+  internal_modules_observability_query.QuerySource:
+    properties:
+      cluster_id:
+        type: integer
+      id:
+        type: integer
+      name:
         type: string
     type: object
   internal_modules_observability_query.RangeRequest:
@@ -4046,6 +4057,25 @@ paths:
       security:
       - BearerAuth: []
       summary: Run a range Prometheus query batch
+      tags:
+      - observability
+  /observability/query-sources:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_modules_observability_query.QuerySource'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List minimal data sources available for metric queries
       tags:
       - observability
   /permissions:

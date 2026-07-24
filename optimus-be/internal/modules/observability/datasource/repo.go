@@ -52,6 +52,16 @@ func (r *Repo) List(ctx context.Context, q ListQuery) ([]Detail, int64, error) {
 	_ = page
 	return items, total, err
 }
+func (r *Repo) ListQuerySources(ctx context.Context) ([]QuerySource, error) {
+	var rows []QuerySource
+	err := r.db.WithContext(ctx).
+		Table("observability_datasources").
+		Select("id, name, cluster_id").
+		Where("deleted_at IS NULL").
+		Order("name ASC, id ASC").
+		Scan(&rows).Error
+	return rows, err
+}
 func pageValues(page, size int) (int, int, int, error) {
 	if page < 1 {
 		page = 1

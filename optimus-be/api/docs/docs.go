@@ -4490,6 +4490,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/observability/query-sources": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "observability"
+                ],
+                "summary": "List minimal data sources available for metric queries",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_modules_observability_query.QuerySource"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/permissions": {
             "get": {
                 "security": [
@@ -6539,6 +6575,9 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "regex": {
+                    "type": "boolean"
+                },
                 "required": {
                     "type": "boolean"
                 }
@@ -6990,6 +7029,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ref_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_observability_query.QuerySource": {
+            "type": "object",
+            "properties": {
+                "cluster_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
                     "type": "string"
                 }
             }

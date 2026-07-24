@@ -110,8 +110,19 @@ func Wire(in Input) (*Module, error) {
 		return query.Datasource{ID: d.ID, BaseURL: d.BaseURL, AuthType: d.AuthType, CredentialID: cid, TLSSkipVerify: d.TLSSkipVerify, CustomCAPEM: d.CustomCAPEMCopy()}, nil
 	})
 	qSvc := query.NewService(loader, in.Credentials, factory, in.Assets, query.Limits{MaxBatch: o.MaxBatchQueries, MaxConcurrent: o.MaxConcurrent, MaxPromQLBytes: 8192, MaxRange: o.MaxRange, MinStep: o.MinStep, Timeout: o.QueryTimeout, MaxPoints: o.MaxPointsPerSeries, MaxEnrichmentIPs: o.MaxEnrichmentIPs})
+	sourceLister := query.SourceListerFunc(func(ctx context.Context) ([]query.QuerySource, error) {
+		rows, err := dsRepo.ListQuerySources(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]query.QuerySource, len(rows))
+		for i := range rows {
+			out[i] = query.QuerySource{ID: rows[i].ID, Name: rows[i].Name, ClusterID: rows[i].ClusterID}
+		}
+		return out, nil
+	})
 	dashSvc := dashboard.NewService(dashRepo, in.Audit)
-	return &Module{CredentialUsage: counter, ClusterUsage: counter, datasource: datasource.NewHandler(dsSvc), query: query.NewHandler(qSvc), dashboard: dashboard.NewHandler(dashSvc), builtin: builtin.NewHandler()}, nil
+	return &Module{CredentialUsage: counter, ClusterUsage: counter, datasource: datasource.NewHandler(dsSvc), query: query.NewHandler(qSvc, sourceLister), dashboard: dashboard.NewHandler(dashSvc), builtin: builtin.NewHandler()}, nil
 }
 func isNil(v any) bool {
 	if v == nil {

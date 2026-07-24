@@ -22,7 +22,8 @@ describe('observability APIs', () => {
     const c = client(); const a = makeObservabilityQueryApi(c)
     const q: InstantBatch = { datasource_id: 3, enrich_assets: false, queries: [{ ref_id: 'cpu', promql: 'up' }] }
     const r: RangeBatch = { ...q, start: 'a', end: 'b', step: '1m' }
-    await a.instant(q); await a.range(r)
+    await a.sources(); await a.instant(q); await a.range(r)
+    expect(c.get).toHaveBeenCalledWith('/observability/query-sources')
     expect(c.post).toHaveBeenNthCalledWith(1, '/observability/query', q, { signal: undefined }); expect(c.post).toHaveBeenNthCalledWith(2, '/observability/query-range', r, { signal: undefined })
   })
   it('uses exact aggregate and builtin routes', async () => {

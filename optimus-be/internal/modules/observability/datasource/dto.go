@@ -69,6 +69,14 @@ type ListResponse struct {
 	Page     int      `json:"page"`
 	PageSize int      `json:"page_size"`
 }
+
+// QuerySource is the minimal data-source identity exposed to metric operators.
+// It intentionally excludes connection, authentication, and TLS metadata.
+type QuerySource struct {
+	ID        uint64  `json:"id"`
+	Name      string  `json:"name"`
+	ClusterID *uint64 `json:"cluster_id"`
+}
 type TestResponse struct {
 	Reachable bool   `json:"reachable"`
 	Version   string `json:"version,omitempty"`

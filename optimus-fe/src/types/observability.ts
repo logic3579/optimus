@@ -1,6 +1,7 @@
 export interface Page<T>{items:T[];total:number;page:number;page_size:number}
 export interface NamedRef{id:number;name:string}
 export interface DatasourceSummary{id:number;name:string;base_url:string;auth_type:'none'|'basic'|'bearer';http_credential?:NamedRef;cluster?:NamedRef;tls_skip_verify:boolean;has_custom_ca:boolean;description:string;created_by_user_id?:number;created_at:string;updated_at:string}
+export interface QuerySource{id:number;name:string;cluster_id?:number|null}
 export type DatasourceDetail=DatasourceSummary
 export interface SaveDatasource{name:string;base_url:string;auth_type:'none'|'basic'|'bearer';http_credential_id?:number;cluster_id?:number;tls_skip_verify:boolean;custom_ca_pem?:string;description:string;clear_http_credential?:boolean;clear_cluster?:boolean;clear_custom_ca?:boolean}
 export interface Query{ref_id:string;promql:string}

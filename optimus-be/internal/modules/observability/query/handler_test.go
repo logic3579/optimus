@@ -17,6 +17,12 @@ type fakeHandlerService struct {
 	label string
 	step  time.Duration
 }
+type fakeSourceLister struct{}
+
+func (fakeSourceLister) ListQuerySources(context.Context) ([]QuerySource, error) {
+	clusterID := uint64(7)
+	return []QuerySource{{ID: 3, Name: "prom", ClusterID: &clusterID}}, nil
+}
 
 func (f *fakeHandlerService) Instant(_ context.Context, a uint64, _ InstantRequest) (*BatchResult, error) {
 	f.actor = a
@@ -73,8 +79,13 @@ func TestRoutesAndActor(t *testing.T) {
 	r := gin.New()
 	r.Use(func(c *gin.Context) { c.Set(middleware.CtxKeyUserID, uint64(8)); c.Next() })
 	var perms []string
-	NewHandler(s).Mount(r.Group("/observability"), func(p string) gin.HandlerFunc { perms = append(perms, p); return func(c *gin.Context) { c.Next() } })
+	NewHandler(s, fakeSourceLister{}).Mount(r.Group("/observability"), func(p string) gin.HandlerFunc { perms = append(perms, p); return func(c *gin.Context) { c.Next() } })
 	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/observability/query-sources", nil))
+	require.Equal(t, 200, w.Code)
+	require.JSONEq(t, `{"code":0,"message":"","data":[{"id":3,"name":"prom","cluster_id":7}]}`, w.Body.String())
+	require.NotContains(t, w.Body.String(), "base_url")
+	w = httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/observability/query", strings.NewReader(`{"datasource_id":1,"queries":[{"ref_id":"a","promql":"up"}]}`))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)

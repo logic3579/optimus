@@ -1,4 +1,5 @@
-import{flushPromises,mount}from'@vue/test-utils';import{describe,it,expect,vi}from'vitest';import type{BatchResult,Dashboard}from'@/types/observability';import Detail from'../Detail.vue'
+import{config,flushPromises,mount}from'@vue/test-utils';import{describe,it,expect,vi}from'vitest';import type{BatchResult,Dashboard}from'@/types/observability';import Detail from'../Detail.vue'
+config.global.directives.permission=()=>undefined
 vi.mock('vue-router',()=>({useRoute:()=>({params:{id:'9'}})}))
 vi.mock('@/hooks/useI18n',()=>({useI18n:()=>({t:(key:string)=>key==='observability_ui.errors.query'?'Metric query failed':key})}))
 const dashboard:Dashboard={id:9,name:'Ops',description:'',refresh_interval_s:30,time_range:'15m',created_at:'',updated_at:'',panels:[{id:1,dashboard_id:9,datasource_id:2,title:'ok',panel_type:'time_series',promql:'up',unit:'none',legend:'',sort_order:0,width:12,created_at:'',updated_at:''},{id:2,dashboard_id:9,datasource_id:7,title:'bad',panel_type:'stat',promql:'bad',unit:'none',legend:'',sort_order:1,width:6,created_at:'',updated_at:''}]}
