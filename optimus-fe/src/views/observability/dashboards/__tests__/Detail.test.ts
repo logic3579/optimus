@@ -1,0 +1,2 @@
+import{describe,it,expect}from'vitest';import type{QueryItemResult}from'@/types/observability'
+describe('dashboard detail result mapping',()=>{it('keeps successful and partial item errors independently',()=>{const items:QueryItemResult[]=[{ref_id:'panel-1',result:{result_type:'scalar',scalar:{timestamp:1,value:'1'}}},{ref_id:'panel-2',error:{code:44203,message:'bad query'}}];const mapped=new Map(items.map(item=>[Number(item.ref_id.replace('panel-','')),item]));expect(mapped.get(1)?.result?.scalar?.value).toBe('1');expect(mapped.get(2)?.error?.code).toBe(44203)})})
