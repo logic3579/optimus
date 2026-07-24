@@ -3,6 +3,7 @@
     "ok": "确定",
     "cancel": "取消",
     "save": "保存",
+    "create": "新建", "view": "查看", "edit": "编辑", "delete": "删除", "test": "测试", "up": "上移", "down": "下移", "remove": "移除",
     "submit": "提交",
     "reset": "重置",
     "refresh": "刷新",
@@ -608,18 +609,22 @@
     }
   },
   "observability": {
-    "datasource": { "deleted": "数据源已删除" },
-    "errors": { "load": "监控数据加载失败", "query": "指标查询失败" },
+    "datasource": { "deleted": "数据源已删除", "read_required": "需要数据源读取权限" },
+    "errors": { "load": "监控数据加载失败", "query": "指标查询失败", "datasource_read_required": "需要数据源读取权限" },
     "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },
     "builtin": { "kubernetes_cluster": "Kubernetes 集群", "kubernetes_nodes": "Kubernetes 节点", "kubernetes_workloads": "Kubernetes 工作负载", "asset_enrichment": "资产信息增强", "node": "节点", "namespace": "命名空间", "workload": "工作负载" },
     "panel": { "cluster_cpu": "集群 CPU", "cluster_memory": "集群内存", "nodes_ready": "就绪节点", "pods_phase": "Pod 阶段", "restart_rate": "重启速率", "node_cpu": "节点 CPU", "node_memory": "节点内存", "node_ready": "节点就绪状态", "workload_cpu": "工作负载 CPU", "workload_memory": "工作负载内存", "workload_restarts": "工作负载重启" }
   },
   "observability_ui": {
-    "forms": { "name": "名称", "description": "描述", "base_url": "基础 URL", "cluster_optional": "集群（可选）", "existing_ca": "现有自定义 CA", "custom_ca": "自定义 CA（公共 PEM）", "skip_tls": "跳过 TLS 校验", "data_source": "数据源", "refresh": "刷新间隔", "time_range": "时间范围", "promql": "PromQL", "legend": "图例", "width": "宽度" },
+    "forms": { "name": "名称", "description": "描述", "base_url": "基础 URL", "cluster": "集群", "tls": "TLS 警告", "panel_title": "面板标题", "panel_type": "面板类型", "unit": "单位", "cluster_optional": "集群（可选）", "existing_ca": "现有自定义 CA", "custom_ca": "自定义 CA（公共 PEM）", "skip_tls": "跳过 TLS 校验", "data_source": "数据源", "refresh": "刷新间隔", "time_range": "时间范围", "promql": "PromQL", "legend": "图例", "width": "宽度" },
     "ca": { "keep": "保留", "replace": "替换", "clear": "清除" },
+    "dashboard": { "create": "新建仪表盘", "edit": "编辑仪表盘", "detail": "仪表盘详情", "add_panel": "添加面板", "default_panel": "面板" },
+    "panel_type": { "time_series": "时序图", "stat": "统计值", "table": "表格" },
+    "test": { "reachable": "可连接", "unreachable": "不可连接" },
+    "tls_danger": "危险：TLS 校验已禁用",
     "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },
     "units": { "none": "无", "percent": "百分比", "bytes": "字节", "bytes_per_second": "字节/秒", "cores": "CPU 核", "seconds": "秒", "requests_per_second": "请求/秒" },
-    "errors": { "load": "监控数据加载失败", "save": "保存失败", "query": "指标查询失败", "limit": "每个批次最多允许 12 个查询" },
+    "errors": { "load": "监控数据加载失败", "save": "保存失败", "query": "指标查询失败", "limit": "每个批次最多允许 12 个查询", "invalid_dashboard": "仪表盘表单无效" },
     "tls_warning": "TLS 证书校验已禁用",
     "builtin": { "kubernetes": "Kubernetes", "namespace": "命名空间", "workload": "工作负载", "asset_enrichment": "资产信息增强" },
     "credentials": { "auth_type": "认证类型", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "留空以保留现有密钥" }

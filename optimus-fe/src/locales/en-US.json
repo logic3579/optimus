@@ -3,6 +3,7 @@
     "ok": "OK",
     "cancel": "Cancel",
     "save": "Save",
+    "create": "Create", "view": "View", "edit": "Edit", "delete": "Delete", "test": "Test", "up": "Up", "down": "Down", "remove": "Remove",
     "submit": "Submit",
     "reset": "Reset",
     "refresh": "Refresh",
@@ -608,18 +609,22 @@
     }
   },
   "observability": {
-    "datasource": { "deleted": "Data source deleted" },
-    "errors": { "load": "Failed to load monitoring data", "query": "Metric query failed" },
+    "datasource": { "deleted": "Data source deleted", "read_required": "Data-source read permission is required" },
+    "errors": { "load": "Failed to load monitoring data", "query": "Metric query failed", "datasource_read_required": "Data-source read permission is required" },
     "panel_state": { "loading": "Loading", "empty": "No data", "unsupported": "Unsupported result", "partial": "Partial result", "error": "Query failed" },
     "builtin": { "kubernetes_cluster": "Kubernetes cluster", "kubernetes_nodes": "Kubernetes nodes", "kubernetes_workloads": "Kubernetes workloads", "asset_enrichment": "Asset enrichment", "node": "Node", "namespace": "Namespace", "workload": "Workload" },
     "panel": { "cluster_cpu": "Cluster CPU", "cluster_memory": "Cluster memory", "nodes_ready": "Ready nodes", "pods_phase": "Pods by phase", "restart_rate": "Restart rate", "node_cpu": "Node CPU", "node_memory": "Node memory", "node_ready": "Node readiness", "workload_cpu": "Workload CPU", "workload_memory": "Workload memory", "workload_restarts": "Workload restarts" }
   },
   "observability_ui": {
-    "forms": { "name": "Name", "description": "Description", "base_url": "Base URL", "cluster_optional": "Cluster (optional)", "existing_ca": "Existing custom CA", "custom_ca": "Custom CA (public PEM)", "skip_tls": "Skip TLS verification", "data_source": "Data source", "refresh": "Refresh interval", "time_range": "Time range", "promql": "PromQL", "legend": "Legend", "width": "Width" },
+    "forms": { "name": "Name", "description": "Description", "base_url": "Base URL", "cluster": "Cluster", "tls": "TLS warning", "panel_title": "Panel title", "panel_type": "Panel type", "unit": "Unit", "cluster_optional": "Cluster (optional)", "existing_ca": "Existing custom CA", "custom_ca": "Custom CA (public PEM)", "skip_tls": "Skip TLS verification", "data_source": "Data source", "refresh": "Refresh interval", "time_range": "Time range", "promql": "PromQL", "legend": "Legend", "width": "Width" },
     "ca": { "keep": "Keep", "replace": "Replace", "clear": "Clear" },
+    "dashboard": { "create": "Create dashboard", "edit": "Edit dashboard", "detail": "Dashboard detail", "add_panel": "Add panel", "default_panel": "Panel" },
+    "panel_type": { "time_series": "Time series", "stat": "Stat", "table": "Table" },
+    "test": { "reachable": "Reachable", "unreachable": "Unreachable" },
+    "tls_danger": "Danger: TLS verification disabled",
     "panel_state": { "loading": "Loading", "empty": "No data", "unsupported": "Unsupported result", "partial": "Partial result", "error": "Query failed" },
     "units": { "none": "None", "percent": "Percent", "bytes": "Bytes", "bytes_per_second": "Bytes/s", "cores": "CPU cores", "seconds": "Seconds", "requests_per_second": "Requests/s" },
-    "errors": { "load": "Failed to load monitoring data", "save": "Failed to save", "query": "Metric query failed", "limit": "At most 12 queries are allowed per batch" },
+    "errors": { "load": "Failed to load monitoring data", "save": "Failed to save", "query": "Metric query failed", "limit": "At most 12 queries are allowed per batch", "invalid_dashboard": "Dashboard form is invalid" },
     "tls_warning": "TLS certificate verification is disabled",
     "builtin": { "kubernetes": "Kubernetes", "namespace": "Namespace", "workload": "Workload", "asset_enrichment": "Asset enrichment" },
     "credentials": { "auth_type": "Authentication type", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "Leave blank to keep the existing secret" }

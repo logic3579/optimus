@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/stores/auth'
 import List from '../List.vue'
 
-vi.mock('@/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('@/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key === 'observability_ui.test.reachable' ? 'Reachable' : key }) }))
 vi.mock('ant-design-vue', () => ({ message: { success: vi.fn() } }))
 const stubs = {
   'a-card': { template: '<div><slot/></div>' }, 'a-alert': { template: '<div><slot/></div>' },
