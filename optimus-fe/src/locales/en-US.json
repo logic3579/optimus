@@ -604,7 +604,13 @@
       "truncated": "Showing first {limit}; narrow by namespace or search to see more."
     }
   },
-  "observability": { "datasource": { "deleted": "Data source deleted" } },
+  "observability": {
+    "datasource": { "deleted": "Data source deleted" },
+    "errors": { "load": "Failed to load monitoring data", "query": "Metric query failed" },
+    "panel_state": { "loading": "Loading", "empty": "No data", "unsupported": "Unsupported result", "partial": "Partial result", "error": "Query failed" },
+    "builtin": { "kubernetes_cluster": "Kubernetes cluster", "kubernetes_nodes": "Kubernetes nodes", "kubernetes_workloads": "Kubernetes workloads", "asset_enrichment": "Asset enrichment", "node": "Node", "namespace": "Namespace", "workload": "Workload" },
+    "panel": { "cluster_cpu": "Cluster CPU", "cluster_memory": "Cluster memory", "nodes_ready": "Ready nodes", "pods_phase": "Pods by phase", "restart_rate": "Restart rate", "node_cpu": "Node CPU", "node_memory": "Node memory", "node_ready": "Node readiness", "workload_cpu": "Workload CPU", "workload_memory": "Workload memory", "workload_restarts": "Workload restarts" }
+  },
   "observability_ui": {
     "forms": { "name": "Name", "description": "Description", "data_source": "Data source", "refresh": "Refresh interval", "time_range": "Time range", "promql": "PromQL", "legend": "Legend", "width": "Width" },
     "panel_state": { "loading": "Loading", "empty": "No data", "unsupported": "Unsupported result", "partial": "Partial result", "error": "Query failed" },

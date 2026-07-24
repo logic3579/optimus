@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import PanelState from '../PanelState.vue'
 import TimeSeriesPanel from '../TimeSeriesPanel.vue'
+vi.mock('@/hooks/useI18n',()=>({useI18n:()=>({t:(key:string)=>({loading:'Loading',empty:'No data',unsupported:'Unsupported',partial:'Partial',error:'Error'}[key.split('.').at(-1) as 'loading']??key)})}))
 
 describe('observability panels', () => {
   it.each([['loading', 'Loading'], ['empty', 'No data'], ['unsupported', 'Unsupported'], ['partial', 'Partial'], ['error', 'failed']] as const)('renders %s state', (state, text) => {

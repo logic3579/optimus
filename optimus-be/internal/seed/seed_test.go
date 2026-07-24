@@ -140,6 +140,11 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 		require.NotNil(t, menu.PermissionCode)
 		require.Equal(t, contract[1], *menu.PermissionCode)
 	}
+	var observabilityParent models.Menu
+	require.NoError(t, gdb.Where("code = ?", "observability").First(&observabilityParent).Error)
+	var observabilityChildren []models.Menu
+	require.NoError(t, gdb.Where("parent_id = ?", observabilityParent.ID).Order("sort_order").Find(&observabilityChildren).Error)
+	require.Equal(t, []string{"observability.kubernetes", "observability.dashboards", "observability.datasources"}, []string{observabilityChildren[0].Code, observabilityChildren[1].Code, observabilityChildren[2].Code})
 
 	// Parent linkage: k8s.* children must have parent_id = k8s.id.
 	var k8sParent models.Menu

@@ -604,7 +604,13 @@
       "truncated": "只展示前 {limit} 条；请用命名空间或搜索缩小范围。"
     }
   },
-  "observability": { "datasource": { "deleted": "数据源已删除" } },
+  "observability": {
+    "datasource": { "deleted": "数据源已删除" },
+    "errors": { "load": "监控数据加载失败", "query": "指标查询失败" },
+    "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },
+    "builtin": { "kubernetes_cluster": "Kubernetes 集群", "kubernetes_nodes": "Kubernetes 节点", "kubernetes_workloads": "Kubernetes 工作负载", "asset_enrichment": "资产信息增强", "node": "节点", "namespace": "命名空间", "workload": "工作负载" },
+    "panel": { "cluster_cpu": "集群 CPU", "cluster_memory": "集群内存", "nodes_ready": "就绪节点", "pods_phase": "Pod 阶段", "restart_rate": "重启速率", "node_cpu": "节点 CPU", "node_memory": "节点内存", "node_ready": "节点就绪状态", "workload_cpu": "工作负载 CPU", "workload_memory": "工作负载内存", "workload_restarts": "工作负载重启" }
+  },
   "observability_ui": {
     "forms": { "name": "名称", "description": "描述", "data_source": "数据源", "refresh": "刷新间隔", "time_range": "时间范围", "promql": "PromQL", "legend": "图例", "width": "宽度" },
     "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },

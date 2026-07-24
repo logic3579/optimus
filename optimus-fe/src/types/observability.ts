@@ -17,6 +17,6 @@ export interface PanelInput{datasource_id:number;title:string;panel_type:'time_s
 export interface Panel extends PanelInput{id:number;dashboard_id:number;created_at:string;updated_at:string}
 export interface SaveDashboard{name:string;description:string;refresh_interval_s:number;time_range:'15m'|'1h'|'6h'|'24h'|'7d';panels:PanelInput[]}
 export interface Dashboard extends Omit<SaveDashboard,'panels'>{id:number;created_by_user_id?:number;created_at:string;updated_at:string;panels:Panel[]}
-export interface BuiltinVariable{name:string;label:string;required:boolean}
+export interface BuiltinVariable{name:string;label:string;required:boolean;regex?:boolean}
 export interface BuiltinPanel{ref_id:string;title_key:string;panel_type:'time_series'|'stat'|'table';promql:string;unit:string;sort_order:number;width:6|12}
 export interface BuiltinDashboard{code:string;title_key:string;variables:BuiltinVariable[];panels:BuiltinPanel[]}
