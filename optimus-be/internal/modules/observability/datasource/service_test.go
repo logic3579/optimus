@@ -2,9 +2,17 @@ package datasource
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -14,6 +22,24 @@ import (
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/credentials"
 )
+
+func testCAPEM(t *testing.T) string {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "p5-audit-redaction-test"},
+		NotBefore:             time.Now().Add(-time.Minute),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+}
 
 func TestDetailCustomCAPEMReturnsCopyAndStaysOutOfJSON(t *testing.T) {
 	d := Detail{customCAPEM: "secret-ca"}
@@ -212,16 +238,21 @@ func TestServiceValidatesURLCAClusterAndUniqueness(t *testing.T) {
 	}
 }
 
-func TestServiceCreateAuditsWithoutCA(t *testing.T) {
+func TestServiceCreateAuditRedactsCustomCA(t *testing.T) {
 	a := &fakeAudit{}
 	r := &fakeRepo{}
 	s := newTestService(r, &fakeMeta{}, &fakeCluster{ok: true}, &fakePanels{}, &fakeConsumer{}, fakeTester{}, a)
-	d, err := s.Create(context.Background(), 1, "ip", "ua", CreateRequest{Name: " prom ", BaseURL: " https://example.com/prom ", AuthType: "none", TLSSkipVerify: true, CustomCAPEM: nil})
+	ca := testCAPEM(t)
+	d, err := s.Create(context.Background(), 1, "ip", "ua", CreateRequest{Name: " prom ", BaseURL: " https://example.com/prom ", AuthType: "none", TLSSkipVerify: true, CustomCAPEM: &ca})
 	require.NoError(t, err)
 	require.Equal(t, "prom", d.Name)
 	require.True(t, d.TLSSkipVerify)
+	require.True(t, d.HasCustomCA)
 	require.Len(t, a.events, 1)
 	require.NotContains(t, a.events[0].Payload, "custom_ca_pem")
+	payload, err := json.Marshal(a.events[0].Payload)
+	require.NoError(t, err)
+	require.NotContains(t, string(payload), ca)
 }
 
 func TestServiceDeleteRejectsPanelUsage(t *testing.T) {
