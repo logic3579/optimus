@@ -23,4 +23,20 @@ describe('observability panels', () => {
     expect(factory).not.toHaveBeenCalled(); await wrapper.setProps({ state: undefined }); await vi.waitFor(() => expect(factory).toHaveBeenCalledOnce())
     wrapper.unmount(); expect(chart.dispose).toHaveBeenCalledOnce()
   })
+  it('tears down a detached chart and reinitializes after a state round trip', async () => {
+    const charts = [0, 1].map(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() }))
+    const disconnects = [vi.fn(), vi.fn()]
+    const factory = vi.fn(() => charts[factory.mock.calls.length - 1]!)
+    let observerIndex = 0
+    const wrapper = mount(TimeSeriesPanel, { props: { result: { result_type: 'scalar', scalar: { timestamp: 1, value: '2' } } }, global: { provide: { chartFactory: factory, resizeObserverFactory: () => ({ observe: vi.fn(), disconnect: disconnects[observerIndex++]! }) } } })
+    await vi.waitFor(() => expect(factory).toHaveBeenCalledOnce())
+    await wrapper.setProps({ state: 'error' })
+    expect(charts[0]!.dispose).toHaveBeenCalledOnce()
+    expect(disconnects[0]).toHaveBeenCalledOnce()
+    await wrapper.setProps({ state: undefined })
+    await vi.waitFor(() => expect(factory).toHaveBeenCalledTimes(2))
+    wrapper.unmount()
+    expect(charts[1]!.dispose).toHaveBeenCalledOnce()
+    expect(disconnects[1]).toHaveBeenCalledOnce()
+  })
 })

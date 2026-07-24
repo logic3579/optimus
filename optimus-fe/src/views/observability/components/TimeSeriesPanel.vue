@@ -14,9 +14,10 @@ const props = defineProps<{ result?: NormalizedResult; state?: 'loading' | 'empt
 const element = ref<HTMLElement>(); const factory = inject<(el: HTMLElement) => Chart>('chartFactory', el => echarts.init(el)); const observerFactory = inject<(cb: () => void) => { observe(el: Element): void; disconnect(): void }>('resizeObserverFactory', cb => new ResizeObserver(cb)); let chart: Chart | undefined; let observer: { observe(el: Element): void; disconnect(): void } | undefined
 function render() { if (chart && props.result) chart.setOption(toChartOption(props.result)) }
 async function ensureChart() { await nextTick(); if (chart || !element.value || props.state) return; chart = factory(element.value); render(); observer = observerFactory(() => chart?.resize()); observer.observe(element.value) }
+function teardownChart() { observer?.disconnect(); observer = undefined; chart?.dispose(); chart = undefined }
 onMounted(ensureChart)
 watch(() => props.result, render, { deep: true })
-watch(() => props.state, () => { void ensureChart() })
-onBeforeUnmount(() => { observer?.disconnect(); chart?.dispose() })
+watch(() => props.state, state => { if (state) teardownChart(); else void ensureChart() })
+onBeforeUnmount(teardownChart)
 </script>
 <style scoped>.chart{height:260px;min-width:0}</style>
