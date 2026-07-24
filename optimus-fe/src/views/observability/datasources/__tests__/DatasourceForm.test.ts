@@ -68,4 +68,26 @@ describe('DatasourceForm', () => {
     expect(vm.payload()).not.toEqual(expect.objectContaining({ clear_http_credential: true, clear_cluster: true, clear_custom_ca: true }))
     expect(Object.keys(vm.payload()).some((key: string) => key.startsWith('clear_'))).toBe(false)
   })
+  it('requires a credential for Basic and Bearer authentication', () => {
+    const { vm } = mounted()
+    vm.form.name = 'prom'; vm.form.base_url = 'https://metrics.test'; vm.form.auth_type = 'basic'
+    expect(() => vm.payload()).toThrowError(expect.objectContaining({ message_key: 'observability.datasource.credential_required' }))
+    vm.form.http_credential_id = 1
+    expect(vm.payload()).toEqual(expect.objectContaining({ auth_type: 'basic', http_credential_id: 1 }))
+  })
+  it('does not silently clear an existing credential while auth remains enabled', () => {
+    const { vm } = mounted({ id: 9, name: 'prom', base_url: 'https://metrics.test', auth_type: 'basic', http_credential: { id: 1, name: 'basic-one' }, tls_skip_verify: false, has_custom_ca: false, description: '', created_at: '', updated_at: '' })
+    vm.form.http_credential_id = undefined
+    expect(() => vm.payload()).toThrowError(expect.objectContaining({ message_key: 'observability.datasource.credential_required' }))
+  })
+  it('requires PEM content when replacing an existing custom CA', () => {
+    const { vm } = mounted({ id: 9, name: 'prom', base_url: 'https://metrics.test', auth_type: 'none', tls_skip_verify: false, has_custom_ca: true, description: '', created_at: '', updated_at: '' })
+    vm.caMode = 'replace'
+    expect(() => vm.payload()).toThrowError(expect.objectContaining({ message_key: 'observability.datasource.ca_required' }))
+  })
+  it('attaches a localization key to local URL validation failures', () => {
+    const { vm } = mounted()
+    vm.form.base_url = 'https://user:pass@metrics.test'
+    expect(() => vm.payload()).toThrowError(expect.objectContaining({ message_key: 'observability.datasource.invalid_url' }))
+  })
 })

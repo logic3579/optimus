@@ -46,7 +46,13 @@ function reset() {
 watch(() => props.initial, reset, { immediate: true })
 watch(() => form.auth_type, value => { if (value === 'none') form.http_credential_id = undefined; else if (!props.credentials.some(item => item.id === form.http_credential_id && item.auth_type === value)) form.http_credential_id = undefined })
 function payload(): SaveDatasource {
-  if (!validateDatasourceURL(form.base_url)) throw new Error('observability.datasource.invalid_url')
+  if (!validateDatasourceURL(form.base_url)) throw validationError('observability.datasource.invalid_url')
+  if (form.auth_type !== 'none' && !form.http_credential_id) {
+    throw validationError('observability.datasource.credential_required')
+  }
+  if (props.initial?.has_custom_ca && caMode.value === 'replace' && !form.custom_ca_pem?.trim()) {
+    throw validationError('observability.datasource.ca_required')
+  }
   const result: SaveDatasource = {
     name: form.name, base_url: form.base_url, auth_type: form.auth_type,
     tls_skip_verify: form.tls_skip_verify, description: form.description,
@@ -60,6 +66,9 @@ function payload(): SaveDatasource {
     if (caMode.value === 'replace' && form.custom_ca_pem) result.custom_ca_pem = form.custom_ca_pem
   } else if (form.custom_ca_pem) result.custom_ca_pem = form.custom_ca_pem
   return result
+}
+function validationError(messageKey: string): Error & { message_key: string } {
+  return Object.assign(new Error(messageKey), { message_key: messageKey })
 }
 defineExpose({ form, caMode, credentialOptions, clusterOptions, payload })
 </script>

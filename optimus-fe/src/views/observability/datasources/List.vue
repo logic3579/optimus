@@ -47,17 +47,51 @@ const canRead = computed(() => permission.has('observability:datasource:read'))
 const canWrite = computed(() => permission.has('observability:datasource:write'))
 const canDelete = computed(() => permission.has('observability:datasource:delete'))
 const canTest = canWrite
+const canReadCredentials = computed(() => permission.has('credentials:http:read'))
+const canReadClusters = computed(() => permission.has('k8s:cluster:read'))
 const errorMessage = ref(''); const testError = ref(''); const testResult = ref<{ reachable: boolean; version?: string }>()
 function localized(error: unknown) { if (typeof error === 'object' && error && 'message_key' in error && typeof error.message_key === 'string') return t(error.message_key); return t('network.error') }
 const table = useTable<DatasourceSummary, { q?: string }>({ fetcher: async ({ page, pageSize, filters }) => { const result = await api.list({ page, page_size: pageSize, q: filters?.q }); return { items: result.items, total: result.total } } })
 const columns = [{ key: 'name', title: 'Name', dataIndex: 'name' }, { key: 'base_url', title: 'Base URL', dataIndex: 'base_url' }, { key: 'auth_type', title: 'Auth', dataIndex: 'auth_type' }, { key: 'cluster', title: 'Cluster' }, { key: 'tls', title: 'TLS warning' }, { key: 'updated_at', title: 'Updated' }, { key: 'actions', title: 'Actions' }]
 const credentials = ref<HTTPCredentialSummary[]>([]); const clusters = ref<NamedRef[]>([])
 const formOpen = ref(false); const editing = ref<DatasourceDetail | null>(null); const formRef = ref<{ payload(): SaveDatasource }>()
-function openCreate() { editing.value = null; formOpen.value = true }
-async function openEdit(row: DatasourceSummary) { editing.value = await api.get(row.id); formOpen.value = true }
+async function loadReferences() {
+  const tasks: Promise<void>[] = []
+  if (canReadCredentials.value) {
+    tasks.push(credentialApi.list({ page: 1, page_size: 100 })
+      .then(page => { credentials.value = page.items })
+      .catch(error => { errorMessage.value = localized(error) }))
+  } else {
+    credentials.value = []
+  }
+  if (canReadClusters.value) {
+    tasks.push(clusterApi.list({ page: 1, page_size: 100 })
+      .then(page => { clusters.value = page.items.map(item => ({ id: item.id, name: item.name })) })
+      .catch(error => { errorMessage.value = localized(error) }))
+  } else {
+    clusters.value = []
+  }
+  await Promise.all(tasks)
+}
+async function openCreate() {
+  editing.value = null
+  await loadReferences()
+  formOpen.value = true
+}
+async function openEdit(row: DatasourceSummary) {
+  try {
+    const [detail] = await Promise.all([api.get(row.id), loadReferences()])
+    editing.value = detail
+    formOpen.value = true
+  } catch (error) {
+    errorMessage.value = localized(error)
+  }
+}
 async function save() { try { const body = formRef.value!.payload(); if (editing.value) await api.update(editing.value.id, body); else await api.create(body); formOpen.value = false; await table.reload() } catch (error) { errorMessage.value = localized(error) } }
 async function remove(row: Pick<DatasourceSummary, 'id'>) { try { await api.remove(row.id); message.success(t('observability.datasource.deleted')); errorMessage.value = ''; await table.reload() } catch (error) { errorMessage.value = localized(error) } }
 async function testDatasource(row: Pick<DatasourceSummary, 'id'>) { testError.value = ''; testResult.value = undefined; try { const value = await api.test(row.id); testResult.value = { reachable: value.reachable, ...(value.version ? { version: value.version } : {}) } } catch (error) { testError.value = localized(error) } }
-onMounted(async () => { void table.reload().catch(error => { errorMessage.value = localized(error) }); const [credentialPage, clusterPage] = await Promise.all([credentialApi.list({ page: 1, page_size: 100 }), clusterApi.list({ page: 1, page_size: 100 })]); credentials.value = credentialPage.items; clusters.value = clusterPage.items.map(item => ({ id: item.id, name: item.name })) })
-defineExpose({ auth, table, canRead, canWrite, canDelete, canTest, errorMessage, testError, testResult, remove, testDatasource })
+onMounted(() => {
+  if (canRead.value) void table.reload().catch(error => { errorMessage.value = localized(error) })
+})
+defineExpose({ auth, table, canRead, canWrite, canDelete, canTest, errorMessage, testError, testResult, remove, testDatasource, openCreate, openEdit })
 </script>

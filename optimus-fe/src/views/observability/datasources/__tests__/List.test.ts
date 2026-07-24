@@ -1,6 +1,7 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '@/stores/auth'
 import List from '../List.vue'
 
 vi.mock('@/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -15,12 +16,15 @@ const stubs = {
   'a-pagination': true, PageHeader: true, DatasourceForm: true,
 }
 function mounted(permissions: string[]) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore().setPermissions(permissions)
   const api = { list: vi.fn().mockResolvedValue({ items: [], total: 0 }), get: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), test: vi.fn() }
-  const wrapper = mount(List, { global: { plugins: [createPinia()], stubs, provide: { observabilityDatasourceApi: api, httpCredentialApi: { list: vi.fn().mockResolvedValue({ items: [] }) }, clusterApi: { list: vi.fn().mockResolvedValue({ items: [] }) } } } })
-  const vm = wrapper.vm as unknown as { auth: { permissions: string[] }; canRead: boolean; canWrite: boolean; canDelete: boolean; canTest: boolean; errorMessage: string; testError: string; testResult?: { reachable: boolean; version?: string }; remove(row: { id: number; name?: string }): Promise<void>; testDatasource(row: { id: number }): Promise<void> }
-  const auth = vm.auth
-  auth.permissions = permissions
-  return { wrapper, vm, api }
+  const credentialApi = { list: vi.fn().mockResolvedValue({ items: [] }) }
+  const clusterApi = { list: vi.fn().mockResolvedValue({ items: [] }) }
+  const wrapper = mount(List, { global: { plugins: [pinia], stubs, provide: { observabilityDatasourceApi: api, httpCredentialApi: credentialApi, clusterApi } } })
+  const vm = wrapper.vm as unknown as { canRead: boolean; canWrite: boolean; canDelete: boolean; canTest: boolean; errorMessage: string; testError: string; testResult?: { reachable: boolean; version?: string }; remove(row: { id: number; name?: string }): Promise<void>; testDatasource(row: { id: number }): Promise<void>; openCreate(): Promise<void> }
+  return { wrapper, vm, api, credentialApi, clusterApi }
 }
 describe('Datasource list', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -51,5 +55,29 @@ describe('Datasource list', () => {
     api.test.mockRejectedValueOnce({ message_key: 'observability.test.timeout', message: 'raw upstream' })
     await vm.testDatasource({ id: 3 })
     expect(vm.testError).toBe('observability.test.timeout')
+  })
+  it('does not load reference APIs for a datasource-only reader', async () => {
+    const { api, credentialApi, clusterApi } = mounted(['observability:datasource:read'])
+    await flushPromises()
+    expect(api.list).toHaveBeenCalledTimes(1)
+    expect(credentialApi.list).not.toHaveBeenCalled()
+    expect(clusterApi.list).not.toHaveBeenCalled()
+  })
+  it('loads only permitted references when opening the form', async () => {
+    const { vm, credentialApi, clusterApi } = mounted(['observability:datasource:write', 'credentials:http:read'])
+    await vm.openCreate()
+    expect(credentialApi.list).toHaveBeenCalledWith({ page: 1, page_size: 100 })
+    expect(clusterApi.list).not.toHaveBeenCalled()
+  })
+  it('localizes reference-load failures without an unhandled rejection', async () => {
+    const { vm, credentialApi } = mounted(['observability:datasource:write', 'credentials:http:read'])
+    credentialApi.list.mockRejectedValueOnce({ message_key: 'credentials.http.list_failed' })
+    await expect(vm.openCreate()).resolves.toBeUndefined()
+    expect(vm.errorMessage).toBe('credentials.http.list_failed')
+  })
+  it('does not load the datasource table without read permission', async () => {
+    const { api } = mounted(['observability:datasource:write'])
+    await flushPromises()
+    expect(api.list).not.toHaveBeenCalled()
   })
 })
