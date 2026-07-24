@@ -1,0 +1,4 @@
+import{describe,it,expect}from'vitest'
+const views=import.meta.glob('../**/*.vue',{query:'?raw',import:'default',eager:true}) as Record<string,string>
+describe('observability permission and Linux casing audit',()=>{it('uses exact read/write/delete permission codes and no alert surface',()=>{const source=Object.values(views).join('\n');expect(source).toContain('observability:metric:read');expect(source).toContain('observability:dashboard:write');expect(source).toContain('observability:dashboard:delete');expect(source).toContain('observability:datasource:write');expect(source).toContain('observability:datasource:delete');expect(source).not.toMatch(/observability:[^'"]*alert/)})
+it.each(['../kubernetes/Index.vue','../dashboards/List.vue','../datasources/List.vue'])('resolves lowercase-path component with exact Linux casing %s',path=>expect(views[path]).toBeTypeOf('string'))})

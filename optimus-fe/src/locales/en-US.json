@@ -122,7 +122,8 @@
     "credentials": {
       "ssh_keys": "SSH keys",
       "kubeconfigs": "Kubeconfigs",
-      "cloud_keys": "Cloud keys"
+      "cloud_keys": "Cloud keys",
+      "http_credentials": "HTTP credentials"
     },
     "k8s": {
       "clusters": "Clusters",
@@ -143,7 +144,9 @@
       "vpcs": "VPCs",
       "databases": "RDS Databases",
       "sync_runs": "Sync Runs"
-    }
+    },
+    "observability_group": "Observability",
+    "observability": { "kubernetes": "Kubernetes monitoring", "dashboards": "Dashboards", "datasources": "Data sources" }
   },
   "perm": {
     "system": {
@@ -600,6 +603,16 @@
     "list": {
       "truncated": "Showing first {limit}; narrow by namespace or search to see more."
     }
+  },
+  "observability": { "datasource": { "deleted": "Data source deleted" } },
+  "observability_ui": {
+    "forms": { "name": "Name", "description": "Description", "data_source": "Data source", "refresh": "Refresh interval", "time_range": "Time range", "promql": "PromQL", "legend": "Legend", "width": "Width" },
+    "panel_state": { "loading": "Loading", "empty": "No data", "unsupported": "Unsupported result", "partial": "Partial result", "error": "Query failed" },
+    "units": { "none": "None", "percent": "Percent", "bytes": "Bytes", "bytes_per_second": "Bytes/s", "cores": "CPU cores", "seconds": "Seconds", "requests_per_second": "Requests/s" },
+    "errors": { "load": "Failed to load monitoring data", "save": "Failed to save", "query": "Metric query failed", "limit": "At most 12 queries are allowed per batch" },
+    "tls_warning": "TLS certificate verification is disabled",
+    "builtin": { "kubernetes": "Kubernetes", "namespace": "Namespace", "workload": "Workload", "asset_enrichment": "Asset enrichment" },
+    "credentials": { "auth_type": "Authentication type", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "Leave blank to keep the existing secret" }
   },
   "apps": {
     "title": "Applications",

@@ -122,7 +122,8 @@
     "credentials": {
       "ssh_keys": "SSH 密钥",
       "kubeconfigs": "Kubeconfig",
-      "cloud_keys": "云密钥"
+      "cloud_keys": "云密钥",
+      "http_credentials": "HTTP 凭证"
     },
     "k8s": {
       "clusters": "集群管理",
@@ -143,7 +144,9 @@
       "vpcs": "VPC",
       "databases": "RDS 数据库",
       "sync_runs": "同步运行记录"
-    }
+    },
+    "observability_group": "可观测性",
+    "observability": { "kubernetes": "Kubernetes 监控", "dashboards": "仪表盘", "datasources": "数据源" }
   },
   "perm": {
     "system": {
@@ -600,6 +603,16 @@
     "list": {
       "truncated": "只展示前 {limit} 条；请用命名空间或搜索缩小范围。"
     }
+  },
+  "observability": { "datasource": { "deleted": "数据源已删除" } },
+  "observability_ui": {
+    "forms": { "name": "名称", "description": "描述", "data_source": "数据源", "refresh": "刷新间隔", "time_range": "时间范围", "promql": "PromQL", "legend": "图例", "width": "宽度" },
+    "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },
+    "units": { "none": "无", "percent": "百分比", "bytes": "字节", "bytes_per_second": "字节/秒", "cores": "CPU 核", "seconds": "秒", "requests_per_second": "请求/秒" },
+    "errors": { "load": "监控数据加载失败", "save": "保存失败", "query": "指标查询失败", "limit": "每个批次最多允许 12 个查询" },
+    "tls_warning": "TLS 证书校验已禁用",
+    "builtin": { "kubernetes": "Kubernetes", "namespace": "命名空间", "workload": "工作负载", "asset_enrichment": "资产信息增强" },
+    "credentials": { "auth_type": "认证类型", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "留空以保留现有密钥" }
   },
   "apps": {
     "title": "应用",

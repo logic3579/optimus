@@ -134,6 +134,7 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			{Code: "credentials.ssh_keys", Name: "menu.credentials.ssh_keys", Path: "/credentials/ssh-keys", Component: "credentials/ssh-keys/List", PermissionCode: sp("credentials:ssh_key:read")},
 			{Code: "credentials.kubeconfigs", Name: "menu.credentials.kubeconfigs", Path: "/credentials/kubeconfigs", Component: "credentials/kubeconfigs/List", PermissionCode: sp("credentials:kubeconfig:read")},
 			{Code: "credentials.cloud_keys", Name: "menu.credentials.cloud_keys", Path: "/credentials/cloud-keys", Component: "credentials/cloud-keys/List", PermissionCode: sp("credentials:cloud_key:read")},
+			{Code: "credentials.http_credentials", Name: "menu.credentials.http_credentials", Path: "/credentials/http-credentials", Component: "credentials/http-credentials/List", PermissionCode: sp("credentials:http:read")},
 		}},
 		{Code: "k8s", Name: "menu.k8s_group", Path: "/k8s", Component: "", Icon: "cluster", Children: []spec{
 			{Code: "k8s.clusters", Name: "menu.k8s.clusters", Path: "/k8s/clusters", Component: "k8s/clusters/List", PermissionCode: sp("k8s:cluster:read")},
@@ -161,6 +162,11 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			{Code: "assets.vpcs", Name: "menu.assets.vpcs", Path: "/assets/vpcs", Component: "assets/vpcs/List", PermissionCode: sp("assets:resource:read")},
 			{Code: "assets.databases", Name: "menu.assets.databases", Path: "/assets/databases", Component: "assets/databases/List", PermissionCode: sp("assets:resource:read")},
 			{Code: "assets.sync_runs", Name: "menu.assets.sync_runs", Path: "/assets/sync-runs", Component: "assets/sync-runs/List", PermissionCode: sp("assets:sync:read")},
+		}},
+		{Code: "observability", Name: "menu.observability_group", Path: "/observability", Component: "", Icon: "line-chart", Children: []spec{
+			{Code: "observability.kubernetes", Name: "menu.observability.kubernetes", Path: "/observability/kubernetes", Component: "observability/kubernetes/Index", PermissionCode: sp("observability:metric:read")},
+			{Code: "observability.dashboards", Name: "menu.observability.dashboards", Path: "/observability/dashboards", Component: "observability/dashboards/List", PermissionCode: sp("observability:dashboard:read")},
+			{Code: "observability.datasources", Name: "menu.observability.datasources", Path: "/observability/datasources", Component: "observability/datasources/List", PermissionCode: sp("observability:datasource:read")},
 		}},
 	}
 	var insert func(parentID *uint64, nodes []spec, sortStart int) error

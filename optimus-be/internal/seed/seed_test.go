@@ -110,9 +110,10 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 	wantCodes := []string{
 		"dashboard",
 		"system", "system.users", "system.roles", "system.permissions", "system.menus", "system.audit_logs",
-		"credentials", "credentials.ssh_keys", "credentials.kubeconfigs", "credentials.cloud_keys",
+		"credentials", "credentials.ssh_keys", "credentials.kubeconfigs", "credentials.cloud_keys", "credentials.http_credentials",
 		"k8s", "k8s.clusters", "k8s.workloads", "k8s.network", "k8s.config", "k8s.cluster_resources",
 		"apps", "apps.applications", "apps.chart_repos",
+		"observability", "observability.kubernetes", "observability.dashboards", "observability.datasources",
 	}
 	for _, code := range wantCodes {
 		var m models.Menu
@@ -125,7 +126,20 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 	require.NoError(t, gdb.Where("code = ?", "credentials").First(&parent).Error)
 	var childrenCount int64
 	gdb.Model(&models.Menu{}).Where("parent_id = ?", parent.ID).Count(&childrenCount)
-	require.Equal(t, int64(3), childrenCount)
+	require.Equal(t, int64(4), childrenCount)
+
+	for code, contract := range map[string][2]string{
+		"credentials.http_credentials": {"credentials/http-credentials/List", "credentials:http:read"},
+		"observability.kubernetes":     {"observability/kubernetes/Index", "observability:metric:read"},
+		"observability.dashboards":     {"observability/dashboards/List", "observability:dashboard:read"},
+		"observability.datasources":    {"observability/datasources/List", "observability:datasource:read"},
+	} {
+		var menu models.Menu
+		require.NoError(t, gdb.Where("code = ?", code).First(&menu).Error)
+		require.Equal(t, contract[0], menu.Component)
+		require.NotNil(t, menu.PermissionCode)
+		require.Equal(t, contract[1], *menu.PermissionCode)
+	}
 
 	// Parent linkage: k8s.* children must have parent_id = k8s.id.
 	var k8sParent models.Menu
