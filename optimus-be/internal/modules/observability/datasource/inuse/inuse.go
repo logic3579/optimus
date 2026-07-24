@@ -2,7 +2,9 @@ package inuse
 
 import (
 	"context"
+
 	"gorm.io/gorm"
+
 	"optimus-be/internal/models"
 )
 

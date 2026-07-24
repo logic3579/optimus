@@ -100,7 +100,7 @@ func (s *Service) Create(ctx context.Context, actor uint64, ip, ua string, req C
 		if err = s.repo.CreateTx(ctx, tx, row); err != nil {
 			return err
 		}
-		return s.record(s.auditTx(tx), ctx, actor, "observability.datasource.create", row.ID, ip, ua, map[string]any{"name": row.Name, "base_url": row.BaseURL, "auth_type": row.AuthType, "http_credential_id": row.HTTPCredentialID, "cluster_id": row.ClusterID, "tls_skip_verify": row.TLSSkipVerify, "has_custom_ca": row.CustomCAPEM != nil})
+		return s.record(ctx, s.auditTx(tx), actor, "observability.datasource.create", row.ID, ip, ua, map[string]any{"name": row.Name, "base_url": row.BaseURL, "auth_type": row.AuthType, "http_credential_id": row.HTTPCredentialID, "cluster_id": row.ClusterID, "tls_skip_verify": row.TLSSkipVerify, "has_custom_ca": row.CustomCAPEM != nil})
 	})
 	if err != nil {
 		return nil, err
@@ -177,9 +177,8 @@ func (s *Service) Update(ctx context.Context, actor uint64, ip, ua string, id ui
 				changed = append(changed, "name")
 			}
 		}
-		base := row.BaseURL
 		if req.BaseURL != nil {
-			base = strings.TrimSpace(*req.BaseURL)
+			base := strings.TrimSpace(*req.BaseURL)
 			if _, err := prometheus.ParseBaseURL(base); err != nil {
 				return err
 			}
@@ -260,7 +259,7 @@ func (s *Service) Update(ctx context.Context, actor uint64, ip, ua string, id ui
 			return notFound()
 		}
 		sort.Strings(changed)
-		return s.record(s.auditTx(tx), ctx, actor, "observability.datasource.update", id, ip, ua, map[string]any{"changed_fields": changed})
+		return s.record(ctx, s.auditTx(tx), actor, "observability.datasource.update", id, ip, ua, map[string]any{"changed_fields": changed})
 	})
 	if err != nil {
 		return nil, err
@@ -287,7 +286,7 @@ func (s *Service) Delete(ctx context.Context, actor uint64, ip, ua string, id ui
 		if affected != 1 {
 			return notFound()
 		}
-		return s.record(s.auditTx(tx), ctx, actor, "observability.datasource.delete", id, ip, ua, map[string]any{"name": row.Name})
+		return s.record(ctx, s.auditTx(tx), actor, "observability.datasource.delete", id, ip, ua, map[string]any{"name": row.Name})
 	})
 }
 func (s *Service) TestConnection(ctx context.Context, actor uint64, ip, ua string, id uint64) (*TestResponse, error) {
@@ -299,13 +298,17 @@ func (s *Service) TestConnection(ctx context.Context, actor uint64, ip, ua strin
 	if d.AuthType != "none" {
 		if s.consumer == nil || d.HTTPCredential == nil {
 			err = authMismatch()
-			s.recordTestAudit(ctx, actor, ip, ua, id, err)
+			if auditErr := s.recordTestAudit(ctx, actor, ip, ua, id, err); auditErr != nil {
+				return nil, auditErr
+			}
 			return nil, err
 		}
 		consumeCtx := credentials.WithActor(ctx, actor)
 		secret, err = s.consumer.GetHTTPCredential(consumeCtx, d.HTTPCredential.ID, "observability.datasource.test")
 		if err != nil {
-			s.recordTestAudit(ctx, actor, ip, ua, id, err)
+			if auditErr := s.recordTestAudit(ctx, actor, ip, ua, id, err); auditErr != nil {
+				return nil, auditErr
+			}
 			return nil, err
 		}
 		defer credentials.WipeHTTPCredential(secret)
@@ -325,9 +328,9 @@ func (s *Service) recordTestAudit(ctx context.Context, actor uint64, ip, ua stri
 	if be, ok := apperr.AsBiz(testErr); ok {
 		payload["error_code"] = be.Code
 	}
-	return s.record(s.audit, ctx, actor, "observability.datasource.test", id, ip, ua, payload)
+	return s.record(ctx, s.audit, actor, "observability.datasource.test", id, ip, ua, payload)
 }
-func (s *Service) record(w auditWriter, ctx context.Context, actor uint64, action string, id uint64, ip, ua string, payload any) error {
+func (s *Service) record(ctx context.Context, w auditWriter, actor uint64, action string, id uint64, ip, ua string, payload any) error {
 	if w == nil {
 		return nil
 	}

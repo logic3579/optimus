@@ -11,8 +11,8 @@ import (
 
 var enrichmentLabels = []string{"private_ip", "instance_ip", "node_ip"}
 
-func enrich(ctx context.Context, consumer assets.Consumer, items []ItemResult, cap int) map[string]AssetSummary {
-	if consumer == nil || cap <= 0 {
+func enrich(ctx context.Context, consumer assets.Consumer, items []ItemResult, limit int) map[string]AssetSummary {
+	if consumer == nil || limit <= 0 {
 		return nil
 	}
 	set := map[netip.Addr]struct{}{}
@@ -35,8 +35,8 @@ func enrich(ctx context.Context, consumer assets.Consumer, items []ItemResult, c
 		ips = append(ips, ip)
 	}
 	sort.Slice(ips, func(i, j int) bool { return ips[i].Compare(ips[j]) < 0 })
-	if len(ips) > cap {
-		ips = ips[:cap]
+	if len(ips) > limit {
+		ips = ips[:limit]
 	}
 	out := map[string]AssetSummary{}
 	for _, ip := range ips {

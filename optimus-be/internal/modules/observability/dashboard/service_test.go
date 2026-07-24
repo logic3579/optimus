@@ -78,6 +78,12 @@ func TestPanelFingerprintsRemainBoundedAtAggregateLimit(t *testing.T) {
 		panels[i] = PanelInput{DatasourceID: 1, Title: "panel", PanelType: "stat", PromQL: "tenant_query", Unit: "none", SortOrder: i, Width: 12}
 	}
 	fingerprints := panelFingerprints(panels)
-	if len(fingerprints) != 100 { t.Fatalf("fingerprints=%d", len(fingerprints)) }
-	for _, fingerprint := range fingerprints { if len(fingerprint) != 64 { t.Fatalf("unbounded fingerprint=%q", fingerprint) } }
+	if len(fingerprints) != 100 {
+		t.Fatalf("fingerprints=%d", len(fingerprints))
+	}
+	for _, fingerprint := range fingerprints {
+		if len(fingerprint) != 64 {
+			t.Fatalf("unbounded fingerprint=%q", fingerprint)
+		}
+	}
 }

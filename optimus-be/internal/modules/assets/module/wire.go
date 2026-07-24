@@ -94,7 +94,7 @@ func Wire(rootCtx context.Context, in Input) *Module {
 		cancel:          cancel,
 	}
 	module.accountHandler = account.NewHandler(accountService)
-	module.accountHandler.SetTriggerSync(newManualSyncTrigger(accountService, engine, in.Config.AWSRequestTimeout, in.Logger, moduleCtx, &module.workers))
+	module.accountHandler.SetTriggerSync(newManualSyncTrigger(moduleCtx, accountService, engine, in.Config.AWSRequestTimeout, in.Logger, &module.workers))
 	module.CronScheduler = assetsync.StartScheduler(moduleCtx, assetsync.Config{
 		SyncCron:          in.Config.SyncCron,
 		StartupDelay:      in.Config.SyncStartupDelay,
@@ -151,7 +151,7 @@ type syncEngine interface {
 	RunAccountLocked(context.Context, uint64, string, *uint64) error
 }
 
-func newManualSyncTrigger(service accountSyncService, engine syncEngine, requestTimeout time.Duration, logger *slog.Logger, rootCtx context.Context, workers *workerGroup) func(*gin.Context, uint64) {
+func newManualSyncTrigger(rootCtx context.Context, service accountSyncService, engine syncEngine, requestTimeout time.Duration, logger *slog.Logger, workers *workerGroup) func(*gin.Context, uint64) {
 	if logger == nil {
 		logger = slog.Default()
 	}

@@ -1,11 +1,13 @@
 package httpcredential
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
+
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/infra/response"
-	"strconv"
 )
 
 type Handler struct{ svc *Service }

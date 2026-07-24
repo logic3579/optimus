@@ -190,15 +190,15 @@ func (c *Client) endpoint(path string) (*url.URL, error) {
 	u.Fragment = ""
 	return &u, nil
 }
-func readBounded(r io.Reader, max int64) ([]byte, error) {
-	if max <= 0 {
+func readBounded(r io.Reader, limit int64) ([]byte, error) {
+	if limit <= 0 {
 		return nil, errors.New("invalid response size limit")
 	}
-	data, err := io.ReadAll(io.LimitReader(r, max+1))
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
 		return nil, err
 	}
-	if int64(len(data)) > max {
+	if int64(len(data)) > limit {
 		return nil, errors.New("Prometheus response exceeds size limit")
 	}
 	return data, nil

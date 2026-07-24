@@ -13,7 +13,7 @@ import (
 
 type errorSourceLister struct{ err error }
 
-func (f errorSourceLister) ListQuerySources(context.Context) ([]QuerySource, error) {
+func (f errorSourceLister) ListQuerySources(context.Context) ([]Source, error) {
 	return nil, f.err
 }
 
@@ -29,9 +29,9 @@ func TestFunctionalAdaptersAndNoTimeoutBranch(t *testing.T) {
 	require.EqualValues(t, 7, row.ID)
 
 	listed := false
-	lister := SourceListerFunc(func(context.Context) ([]QuerySource, error) {
+	lister := SourceListerFunc(func(context.Context) ([]Source, error) {
 		listed = true
-		return []QuerySource{{ID: 7, Name: "prom"}}, nil
+		return []Source{{ID: 7, Name: "prom"}}, nil
 	})
 	sources, err := lister.ListQuerySources(t.Context())
 	require.NoError(t, err)

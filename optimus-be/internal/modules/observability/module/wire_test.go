@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+
 	"optimus-be/internal/infra/config"
 	"optimus-be/internal/modules/assets"
 	"optimus-be/internal/modules/audit"

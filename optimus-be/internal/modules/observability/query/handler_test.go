@@ -2,14 +2,16 @@ package query
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
-	"optimus-be/internal/infra/middleware"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+
+	"optimus-be/internal/infra/middleware"
 )
 
 type fakeHandlerService struct {
@@ -19,9 +21,9 @@ type fakeHandlerService struct {
 }
 type fakeSourceLister struct{}
 
-func (fakeSourceLister) ListQuerySources(context.Context) ([]QuerySource, error) {
+func (fakeSourceLister) ListQuerySources(context.Context) ([]Source, error) {
 	clusterID := uint64(7)
-	return []QuerySource{{ID: 3, Name: "prom", ClusterID: &clusterID}}, nil
+	return []Source{{ID: 3, Name: "prom", ClusterID: &clusterID}}, nil
 }
 
 func (f *fakeHandlerService) Instant(_ context.Context, a uint64, _ InstantRequest) (*BatchResult, error) {

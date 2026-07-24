@@ -52,7 +52,7 @@ func TestTransportDialsValidatedIPAndPreservesSNI(t *testing.T) {
 	policy, err := NewPolicy(nil, resolver)
 	require.NoError(t, err)
 	var dialAddress string
-	factory := NewTransportFactory(policy, func(_ context.Context, network, address string) (net.Conn, error) {
+	factory := NewTransportFactory(policy, func(_ context.Context, _, address string) (net.Conn, error) {
 		dialAddress = address
 		return nil, errors.New("stop after address capture")
 	})

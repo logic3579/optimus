@@ -3,13 +3,15 @@ package httpcredential
 import (
 	"context"
 	"errors"
-	"gorm.io/gorm"
-	apperr "optimus-be/internal/infra/errors"
-	"optimus-be/internal/models"
-	"optimus-be/internal/modules/audit"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"gorm.io/gorm"
+
+	apperr "optimus-be/internal/infra/errors"
+	"optimus-be/internal/models"
+	"optimus-be/internal/modules/audit"
 )
 
 type Cipher interface {

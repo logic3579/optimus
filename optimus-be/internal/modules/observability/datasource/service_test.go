@@ -29,7 +29,6 @@ func TestDetailCustomCAPEMReturnsCopyAndStaysOutOfJSON(t *testing.T) {
 type fakeRepo struct {
 	row      *models.ObservabilityDatasource
 	conflict bool
-	panels   int64
 	tx       *gorm.DB
 }
 
@@ -40,7 +39,7 @@ func (f *fakeRepo) GetByID(context.Context, uint64) (*Detail, error) {
 	}
 	return detailFromModel(f.row, "cred", "cluster"), nil
 }
-func (f *fakeRepo) Transaction(ctx context.Context, fn func(*gorm.DB) error) error {
+func (f *fakeRepo) Transaction(_ context.Context, fn func(*gorm.DB) error) error {
 	if f.tx == nil {
 		f.tx = &gorm.DB{}
 	}
@@ -60,7 +59,7 @@ func (f *fakeRepo) CreateTx(_ context.Context, _ *gorm.DB, m *models.Observabili
 	f.row = m
 	return nil
 }
-func (f *fakeRepo) UpdateTx(_ context.Context, _ *gorm.DB, _ uint64, fields map[string]any) (int64, error) {
+func (f *fakeRepo) UpdateTx(_ context.Context, _ *gorm.DB, _ uint64, _ map[string]any) (int64, error) {
 	return 1, nil
 }
 func (f *fakeRepo) SoftDeleteTx(context.Context, *gorm.DB, uint64) (int64, error) { return 1, nil }

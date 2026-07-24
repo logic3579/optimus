@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/infra/response"
@@ -16,17 +17,17 @@ type serviceAPI interface {
 	Labels(context.Context, uint64, uint64) ([]string, error)
 	LabelValues(context.Context, uint64, uint64, string) ([]string, error)
 }
-type QuerySource struct {
+type Source struct {
 	ID        uint64  `json:"id"`
 	Name      string  `json:"name"`
 	ClusterID *uint64 `json:"cluster_id"`
 }
 type SourceLister interface {
-	ListQuerySources(context.Context) ([]QuerySource, error)
+	ListQuerySources(context.Context) ([]Source, error)
 }
-type SourceListerFunc func(context.Context) ([]QuerySource, error)
+type SourceListerFunc func(context.Context) ([]Source, error)
 
-func (f SourceListerFunc) ListQuerySources(ctx context.Context) ([]QuerySource, error) { return f(ctx) }
+func (f SourceListerFunc) ListQuerySources(ctx context.Context) ([]Source, error) { return f(ctx) }
 
 type Handler struct {
 	svc     serviceAPI
@@ -53,7 +54,7 @@ func (h *Handler) Mount(g *gin.RouterGroup, permission func(string) gin.HandlerF
 // @Summary List minimal data sources available for metric queries
 // @Tags observability
 // @Security BearerAuth
-// @Success 200 {object} response.Envelope{data=[]QuerySource}
+// @Success 200 {object} response.Envelope{data=[]Source}
 // @Router /observability/query-sources [get]
 func (h *Handler) QuerySources(c *gin.Context) {
 	if h.sources == nil {

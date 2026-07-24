@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 )

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/modules/assets"
 	"optimus-be/internal/modules/credentials"

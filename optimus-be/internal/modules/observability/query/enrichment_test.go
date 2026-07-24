@@ -3,11 +3,13 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"net/netip"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"optimus-be/internal/modules/assets"
 	"optimus-be/internal/modules/observability/prometheus"
-	"testing"
 )
 
 type fakeAssets struct {

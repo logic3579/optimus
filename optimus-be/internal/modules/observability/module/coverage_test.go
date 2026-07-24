@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
 	"optimus-be/internal/modules/observability/datasource"
 	"optimus-be/internal/modules/observability/prometheus"
 	"optimus-be/internal/modules/observability/query"

@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-
 	"gorm.io/gorm"
+
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/response"
 	"optimus-be/internal/models"

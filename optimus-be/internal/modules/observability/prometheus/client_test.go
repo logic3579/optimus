@@ -116,7 +116,7 @@ func TestClientMapsFailures(t *testing.T) {
 		requireBizCode(t, err, apperr.CodeObservabilityQueryInvalidResponse)
 	})
 	t.Run("timeout", func(t *testing.T) {
-		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			select {
 			case <-r.Context().Done():
 			case <-time.After(250 * time.Millisecond):
@@ -221,7 +221,7 @@ func TestClientMapsTransportErrorsAndPreservesCause(t *testing.T) {
 
 func prometheusJSONServer(t *testing.T, status int, body string) *httptest.Server {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(status)
 		_, err := io.WriteString(w, body)
 		require.NoError(t, err)

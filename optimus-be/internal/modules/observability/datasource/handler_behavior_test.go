@@ -172,8 +172,8 @@ func TestDatasourceRepositoryAndDTOContracts(t *testing.T) {
 	if got.ID != 7 || got.HTTPCredential == nil || got.HTTPCredential.Name != "token" || got.Cluster == nil || got.Cluster.Name != "prod" || !got.HasCustomCA {
 		t.Fatalf("detail=%#v", got)
 	}
-	copy := got.CustomCAPEMCopy()
-	copy[0] = 'X'
+	caCopy := got.CustomCAPEMCopy()
+	caCopy[0] = 'X'
 	if string(got.CustomCAPEMCopy()) != ca {
 		t.Fatal("CA copy aliases internal data")
 	}
@@ -203,7 +203,7 @@ func TestDatasourceSmallServiceContracts(t *testing.T) {
 	if actorPtr(0) != nil || actorPtr(12) == nil || *actorPtr(12) != 12 {
 		t.Fatal("actor pointer contract failed")
 	}
-	if err := (&Service{}).record(nil, context.Background(), 1, "action", 2, "", "", nil); err != nil {
+	if err := (&Service{}).record(context.Background(), nil, 1, "action", 2, "", "", nil); err != nil {
 		t.Fatalf("nil audit writer should be ignored: %v", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"gorm.io/gorm"
+
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/assets/errs"

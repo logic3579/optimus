@@ -170,7 +170,7 @@ func (r *dashboardRepoStub) GetByID(_ context.Context, id uint64) (*Detail, erro
 	out.ID = id
 	return &out, nil
 }
-func (r *dashboardRepoStub) Transaction(ctx context.Context, fn func(*gorm.DB) error) error {
+func (r *dashboardRepoStub) Transaction(_ context.Context, fn func(*gorm.DB) error) error {
 	return fn(&gorm.DB{})
 }
 func (r *dashboardRepoStub) GetModelForUpdate(context.Context, *gorm.DB, uint64) (*models.ObservabilityDashboard, error) {

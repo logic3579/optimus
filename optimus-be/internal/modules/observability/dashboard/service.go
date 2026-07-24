@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/audit"
 )

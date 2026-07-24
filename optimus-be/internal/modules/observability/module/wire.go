@@ -110,14 +110,14 @@ func Wire(in Input) (*Module, error) {
 		return query.Datasource{ID: d.ID, BaseURL: d.BaseURL, AuthType: d.AuthType, CredentialID: cid, TLSSkipVerify: d.TLSSkipVerify, CustomCAPEM: d.CustomCAPEMCopy()}, nil
 	})
 	qSvc := query.NewService(loader, in.Credentials, factory, in.Assets, query.Limits{MaxBatch: o.MaxBatchQueries, MaxConcurrent: o.MaxConcurrent, MaxPromQLBytes: 8192, MaxRange: o.MaxRange, MinStep: o.MinStep, Timeout: o.QueryTimeout, MaxPoints: o.MaxPointsPerSeries, MaxEnrichmentIPs: o.MaxEnrichmentIPs})
-	sourceLister := query.SourceListerFunc(func(ctx context.Context) ([]query.QuerySource, error) {
+	sourceLister := query.SourceListerFunc(func(ctx context.Context) ([]query.Source, error) {
 		rows, err := dsRepo.ListQuerySources(ctx)
 		if err != nil {
 			return nil, err
 		}
-		out := make([]query.QuerySource, len(rows))
+		out := make([]query.Source, len(rows))
 		for i := range rows {
-			out[i] = query.QuerySource{ID: rows[i].ID, Name: rows[i].Name, ClusterID: rows[i].ClusterID}
+			out[i] = query.Source{ID: rows[i].ID, Name: rows[i].Name, ClusterID: rows[i].ClusterID}
 		}
 		return out, nil
 	})

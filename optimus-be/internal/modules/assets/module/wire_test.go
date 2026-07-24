@@ -65,7 +65,7 @@ func TestModuleShutdown_CancelsAndWaitsForManualWorker(t *testing.T) {
 	engine := &fakeSyncEngine{locked: true, runStarted: make(chan context.Context, 1), waitCancel: true}
 	c, rec, _ := testContext(t)
 
-	newManualSyncTrigger(svc, engine, time.Hour, nil, rootCtx, &m.workers)(c, 42)
+	newManualSyncTrigger(rootCtx, svc, engine, time.Hour, nil, &m.workers)(c, 42)
 	require.Equal(t, http.StatusOK, rec.Code)
 	var workerCtx context.Context
 	select {
@@ -83,7 +83,7 @@ func TestModuleShutdown_CancelsAndWaitsForManualWorker(t *testing.T) {
 	// Once shutdown begins, no later trigger can add work or retain the lock.
 	lateEngine := &fakeSyncEngine{locked: true, runStarted: make(chan context.Context, 1)}
 	lateCtx, lateRec, _ := testContext(t)
-	newManualSyncTrigger(svc, lateEngine, time.Hour, nil, rootCtx, &m.workers)(lateCtx, 42)
+	newManualSyncTrigger(rootCtx, svc, lateEngine, time.Hour, nil, &m.workers)(lateCtx, 42)
 	require.Equal(t, http.StatusInternalServerError, lateRec.Code)
 	require.EqualValues(t, 1, lateEngine.unlockCalls.Load())
 	require.Empty(t, lateEngine.runStarted)
@@ -94,7 +94,7 @@ func TestManualSyncTrigger_RejectsDisabledAccountBeforeLockAndAudit(t *testing.T
 	engine := &fakeSyncEngine{locked: true, runStarted: make(chan context.Context, 1)}
 	c, rec, _ := testContext(t)
 
-	newManualSyncTrigger(svc, engine, time.Second, nil, context.Background(), &workerGroup{})(c, 42)
+	newManualSyncTrigger(context.Background(), svc, engine, time.Second, nil, &workerGroup{})(c, 42)
 
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 	require.Equal(t, int(asseterrs.CodeAssetsCloudAccountDisabled), envelopeCode(t, rec))
@@ -107,7 +107,7 @@ func TestManualSyncTrigger_RejectsBusyAccountWithoutAudit(t *testing.T) {
 	engine := &fakeSyncEngine{locked: false, runStarted: make(chan context.Context, 1)}
 	c, rec, _ := testContext(t)
 
-	newManualSyncTrigger(svc, engine, time.Second, nil, context.Background(), &workerGroup{})(c, 42)
+	newManualSyncTrigger(context.Background(), svc, engine, time.Second, nil, &workerGroup{})(c, 42)
 
 	require.Equal(t, http.StatusConflict, rec.Code)
 	require.Equal(t, int(asseterrs.CodeAssetsSyncBusy), envelopeCode(t, rec))
@@ -121,7 +121,7 @@ func TestManualSyncTrigger_AuditsInlineAndRunsWithDetachedBoundedContext(t *test
 	c, rec, cancelRequest := testContext(t)
 	c.Set(middleware.CtxKeyUserID, uint64(7))
 
-	newManualSyncTrigger(svc, engine, 50*time.Millisecond, nil, context.Background(), &workerGroup{})(c, 42)
+	newManualSyncTrigger(context.Background(), svc, engine, 50*time.Millisecond, nil, &workerGroup{})(c, 42)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, int(apperr.CodeOK), envelopeCode(t, rec))
 	require.Equal(t, 1, svc.auditCalls)
@@ -150,7 +150,7 @@ func TestManualSyncTrigger_PropagatesLookupError(t *testing.T) {
 	engine := &fakeSyncEngine{locked: true, runStarted: make(chan context.Context, 1)}
 	c, rec, _ := testContext(t)
 
-	newManualSyncTrigger(svc, engine, time.Second, nil, context.Background(), &workerGroup{})(c, 42)
+	newManualSyncTrigger(context.Background(), svc, engine, time.Second, nil, &workerGroup{})(c, 42)
 
 	require.Equal(t, apperr.HTTPStatus(apperr.CodeNotFound), rec.Code)
 	require.Equal(t, int(apperr.CodeNotFound), envelopeCode(t, rec))

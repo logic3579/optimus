@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/modules/credentials"
 	"optimus-be/internal/modules/observability/prometheus"
