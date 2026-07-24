@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import type { HTTPCredentialSummary } from '@/api/credentials/http-credential'
 import HttpCredentialEditModal from '../components/HttpCredentialEditModal.vue'
 
 vi.mock('@/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -17,21 +18,22 @@ const stubs = {
   'a-alert': { template: '<div><slot/></div>' },
 }
 
-function mounted(initial: any = null) {
+interface ModalVM { form: { name: string; auth_type: string; username: string; secret: string }; rules: { username: { required?: boolean }[]; secret: { required?: boolean }[] }; errorMessage: string; onOk(): Promise<void> }
+function mounted(initial: HTTPCredentialSummary | null = null) {
   const api = { create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}) }
   const wrapper = mount(HttpCredentialEditModal, {
     props: { open: true, initial },
     global: { provide: { httpCredentialApi: api }, stubs, mocks: { $t: (key: string) => key } },
   })
-  return { wrapper, api, vm: wrapper.vm as any }
+  return { wrapper, api, vm: wrapper.vm as unknown as ModalVM }
 }
 
 describe('HTTP credential modal', () => {
   it('requires Basic username and create secret, while update secret is optional', async () => {
     const create = mounted()
-    expect(create.vm.rules.username[0].required).toBe(true)
-    expect(create.vm.rules.secret[0].required).toBe(true)
-    const edit = mounted({ id: 7, name: 'saved', auth_type: 'basic', username: 'reader' })
+    expect(create.vm.rules.username.at(0)?.required).toBe(true)
+    expect(create.vm.rules.secret.at(0)?.required).toBe(true)
+    const edit = mounted({ id: 7, name: 'saved', auth_type: 'basic', username: 'reader', created_at: '', updated_at: '' })
     expect(edit.vm.rules.secret).toEqual([])
     expect(edit.vm.form.secret).toBe('')
     expect(edit.wrapper.text()).not.toContain('stored-secret')

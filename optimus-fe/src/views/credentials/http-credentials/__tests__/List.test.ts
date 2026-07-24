@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import type { DirectiveBinding } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import List from '../List.vue'
 
@@ -29,11 +30,11 @@ function mounted(permissions: string[]) {
   const wrapper = mount(List, {
     global: {
       plugins: [pinia], provide: { httpCredentialApi: api }, stubs,
-      directives: { permission: { mounted(el: HTMLElement, binding: any) { if (!permissions.includes(binding.value)) el.style.display = 'none' } } },
+      directives: { permission: { mounted(el: HTMLElement, binding: DirectiveBinding<string>) { if (!permissions.includes(binding.value)) el.style.display = 'none' } } },
       mocks: { $t: (key: string) => key },
     },
   })
-  return { wrapper, api, vm: wrapper.vm as any }
+  return { wrapper, api, vm: wrapper.vm as unknown as { table: { reload(): Promise<void> }; errorMessage: string } }
 }
 
 describe('HTTP credential list', () => {

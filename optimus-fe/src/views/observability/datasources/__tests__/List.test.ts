@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,9 +17,10 @@ const stubs = {
 function mounted(permissions: string[]) {
   const api = { list: vi.fn().mockResolvedValue({ items: [], total: 0 }), get: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), test: vi.fn() }
   const wrapper = mount(List, { global: { plugins: [createPinia()], stubs, provide: { observabilityDatasourceApi: api, httpCredentialApi: { list: vi.fn().mockResolvedValue({ items: [] }) }, clusterApi: { list: vi.fn().mockResolvedValue({ items: [] }) } } } })
-  const auth = (wrapper.vm as any).auth
+  const vm = wrapper.vm as unknown as { auth: { permissions: string[] }; canRead: boolean; canWrite: boolean; canDelete: boolean; canTest: boolean; errorMessage: string; testError: string; testResult?: { reachable: boolean; version?: string }; remove(row: { id: number; name?: string }): Promise<void>; testDatasource(row: { id: number }): Promise<void> }
+  const auth = vm.auth
   auth.permissions = permissions
-  return { wrapper, vm: wrapper.vm as any, api }
+  return { wrapper, vm, api }
 }
 describe('Datasource list', () => {
   beforeEach(() => setActivePinia(createPinia()))

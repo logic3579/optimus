@@ -1,3 +1,33 @@
-import{describe,it,expect,vi}from'vitest';import{makeObservabilityDatasourceApi}from'../datasource';import{makeObservabilityQueryApi}from'../query';import{makeObservabilityDashboardApi}from'../dashboard'
-const client=()=>{const ok=vi.fn().mockResolvedValue({data:{data:{}}});return{get:ok,post:vi.fn(ok),put:vi.fn(ok),delete:vi.fn(ok)}as any}
-describe('observability APIs',()=>{it('uses exact datasource routes',async()=>{const c=client(),a=makeObservabilityDatasourceApi(c),v:any={name:'p'};await a.list({q:'x'});await a.create(v);await a.get(3);await a.update(3,v);await a.remove(3);await a.test(3);await a.labels(3);await a.labelValues(3,'pod/name');expect(c.get).toHaveBeenCalledWith('/observability/datasources',{params:{q:'x'}});expect(c.post).toHaveBeenCalledWith('/observability/datasources',v);expect(c.get).toHaveBeenCalledWith('/observability/datasources/3');expect(c.put).toHaveBeenCalledWith('/observability/datasources/3',v);expect(c.delete).toHaveBeenCalledWith('/observability/datasources/3');expect(c.post).toHaveBeenCalledWith('/observability/datasources/3/test');expect(c.get).toHaveBeenCalledWith('/observability/datasources/3/labels');expect(c.get).toHaveBeenCalledWith('/observability/datasources/3/label-values',{params:{label:'pod/name'}})});it('posts exact query batches',async()=>{const c=client(),a=makeObservabilityQueryApi(c),q:any={datasource_id:3,enrich_assets:false,queries:[{ref_id:'cpu',promql:'rate(x[5m])'}]},r={...q,start:'a',end:'b',step:'1m'};await a.instant(q);await a.range(r);expect(c.post).toHaveBeenNthCalledWith(1,'/observability/query',q,{signal:undefined});expect(c.post).toHaveBeenNthCalledWith(2,'/observability/query-range',r,{signal:undefined});expect(r.step).toBe('1m');expect(r.queries).toHaveLength(1)});it('uses exact aggregate and builtin routes',async()=>{const c=client(),a=makeObservabilityDashboardApi(c),v:any={name:'d',panels:[{promql:'up'}]};await a.list({q:'x'});await a.create(v);await a.get(2);await a.update(2,v);await a.remove(2);await a.listBuiltins();await a.getBuiltin('kubernetes/nodes');expect(c.get).toHaveBeenCalledWith('/observability/dashboards',{params:{q:'x'}});expect(c.post).toHaveBeenCalledWith('/observability/dashboards',v);expect(c.put).toHaveBeenCalledWith('/observability/dashboards/2',v);expect(c.delete).toHaveBeenCalledWith('/observability/dashboards/2');expect(c.get).toHaveBeenCalledWith('/observability/builtin-dashboards');expect(c.get).toHaveBeenCalledWith('/observability/builtin-dashboards/kubernetes%2Fnodes')})})
+import type { AxiosInstance } from 'axios'
+import { describe, expect, it, vi } from 'vitest'
+import type { InstantBatch, RangeBatch, SaveDashboard, SaveDatasource } from '@/types/observability'
+import { makeObservabilityDashboardApi } from '../dashboard'
+import { makeObservabilityDatasourceApi } from '../datasource'
+import { makeObservabilityQueryApi } from '../query'
+
+const client = () => {
+  const ok = vi.fn().mockResolvedValue({ data: { data: {} } })
+  return { get: ok, post: vi.fn(ok), put: vi.fn(ok), delete: vi.fn(ok) } as unknown as AxiosInstance
+}
+const datasource: SaveDatasource = { name: 'p', base_url: 'https://p.test', auth_type: 'none', tls_skip_verify: false, description: '' }
+const dashboard: SaveDashboard = { name: 'd', description: '', refresh_interval_s: 30, time_range: '1h', panels: [] }
+
+describe('observability APIs', () => {
+  it('uses exact datasource routes', async () => {
+    const c = client(); const a = makeObservabilityDatasourceApi(c)
+    await a.list({ q: 'x' }); await a.create(datasource); await a.get(3); await a.update(3, datasource); await a.remove(3); await a.test(3); await a.labels(3); await a.labelValues(3, 'pod/name')
+    expect(c.get).toHaveBeenCalledWith('/observability/datasources', { params: { q: 'x' } }); expect(c.post).toHaveBeenCalledWith('/observability/datasources', datasource)
+  })
+  it('posts exact query batches', async () => {
+    const c = client(); const a = makeObservabilityQueryApi(c)
+    const q: InstantBatch = { datasource_id: 3, enrich_assets: false, queries: [{ ref_id: 'cpu', promql: 'up' }] }
+    const r: RangeBatch = { ...q, start: 'a', end: 'b', step: '1m' }
+    await a.instant(q); await a.range(r)
+    expect(c.post).toHaveBeenNthCalledWith(1, '/observability/query', q, { signal: undefined }); expect(c.post).toHaveBeenNthCalledWith(2, '/observability/query-range', r, { signal: undefined })
+  })
+  it('uses exact aggregate and builtin routes', async () => {
+    const c = client(); const a = makeObservabilityDashboardApi(c)
+    await a.list({ q: 'x' }); await a.create(dashboard); await a.get(2); await a.update(2, dashboard); await a.remove(2); await a.listBuiltins(); await a.getBuiltin('kubernetes/nodes')
+    expect(c.get).toHaveBeenCalledWith('/observability/dashboards', { params: { q: 'x' } }); expect(c.get).toHaveBeenCalledWith('/observability/builtin-dashboards/kubernetes%2Fnodes')
+  })
+})
