@@ -19,7 +19,7 @@ describe('chart adapter', () => {
     expect(toChartOption({ result_type: 'scalar', scalar: { timestamp: 3, value: '4.5' } }).series[0]?.data).toEqual([[3000, 4.5]])
     expect(toChartOption({ result_type: 'string', text: 'up' }).unsupported).toBe(true)
   })
-  it.each([['percent', .42, '42%'], ['bytes', 1536, '1.5 KiB'], ['cores', .25, '250m'], ['seconds', 90, '1m 30s'], ['rate', 12.3, '12.3/s']])('formats %s units', (unit, value, output) => {
+  it.each([['percent', .42, '42%'], ['bytes', 1536, '1.5 KiB'], ['bytes_per_second', 1536, '1.5 KiB/s'], ['cores', .25, '250m'], ['seconds', 90, '1m 30s'], ['requests_per_second', 12.3, '12.3 req/s']])('formats %s units', (unit, value, output) => {
     expect(formatMetricValue(value as number, unit as string)).toBe(output)
   })
 })

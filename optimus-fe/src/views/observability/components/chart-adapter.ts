@@ -23,9 +23,9 @@ export function toChartOption(result: NormalizedResult): ChartOption {
 export function formatMetricValue(value: number, unit: string): string {
   if (!Number.isFinite(value)) return '—'
   if (unit === 'percent') return `${Number((value * 100).toFixed(2))}%`
-  if (unit === 'bytes') { const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']; let n = value; let i = 0; while (Math.abs(n) >= 1024 && i < units.length - 1) { n /= 1024; i++ } return `${Number(n.toFixed(2))} ${units[i]}` }
+  if (unit === 'bytes' || unit === 'bytes_per_second') { const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']; let n = value; let i = 0; while (Math.abs(n) >= 1024 && i < units.length - 1) { n /= 1024; i++ } return `${Number(n.toFixed(2))} ${units[i]}${unit === 'bytes_per_second' ? '/s' : ''}` }
   if (unit === 'cores') return value < 1 ? `${Number((value * 1000).toFixed(2))}m` : `${Number(value.toFixed(2))}`
   if (unit === 'seconds') { const minutes = Math.floor(value / 60); const seconds = Math.round(value % 60); return minutes ? `${minutes}m ${seconds}s` : `${seconds}s` }
-  if (unit === 'rate') return `${Number(value.toFixed(2))}/s`
+  if (unit === 'requests_per_second') return `${Number(value.toFixed(2))} req/s`
   return `${Number(value.toFixed(2))}`
 }
