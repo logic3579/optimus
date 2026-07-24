@@ -45,6 +45,59 @@ http {
 }
 ```
 
+Create `redirect.conf`; the first route redirects across origins and the
+second attempts to escape the configured `/prom/` base-path prefix:
+
+```nginx
+events {}
+http {
+  server {
+    listen 9092;
+    location = /cross-origin {
+      return 302 http://172.31.77.13:9093/capture;
+    }
+    location = /prom/escape {
+      return 302 /outside;
+    }
+    location = /outside {
+      proxy_pass http://172.31.77.13:9093/capture;
+    }
+  }
+}
+```
+
+Create `receiver.conf`. Its access log records any forwarded Authorization
+header; the log line count is also the receiver request counter:
+
+```nginx
+events {}
+http {
+  log_format capture '$request_method $request_uri auth="$http_authorization"';
+  access_log /var/log/nginx/capture.log capture;
+  server {
+    listen 9093;
+    location / {
+      return 204;
+    }
+  }
+}
+```
+
+Create `Corefile`. `mixed.p5.test` deliberately returns one allowlisted
+address and one denied loopback address:
+
+```text
+.:53 {
+  errors
+  log
+  hosts {
+    172.31.77.10 mixed.p5.test
+    127.0.0.1 mixed.p5.test
+    fallthrough
+  }
+}
+```
+
 Create `compose.yaml`:
 
 ```yaml
@@ -65,8 +118,33 @@ services:
     networks:
       smoke:
         ipv4_address: 172.31.77.11
+  redirector:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./redirect.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      smoke:
+        ipv4_address: 172.31.77.12
+  receiver:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./receiver.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      smoke:
+        ipv4_address: 172.31.77.13
+  dns:
+    image: coredns/coredns:1.11.3
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - ./Corefile:/etc/coredns/Corefile:ro
+    networks:
+      smoke:
+        ipv4_address: 172.31.77.53
 networks:
   smoke:
+    name: optimus-p5-smoke-net
+    driver_opts:
+      com.docker.network.bridge.name: br-p5-smoke
     ipam:
       config:
         - subnet: 172.31.77.0/24
@@ -78,17 +156,36 @@ Start it and confirm both paths:
 docker compose up -d
 curl --fail http://172.31.77.10:9090/-/ready
 curl --fail -u smoke:smoke-pass http://172.31.77.11:9091/-/ready
+curl --silent --output /dev/null --write-out '%{http_code}\n' \
+  http://172.31.77.13:9093/capture
+docker run --rm --network optimus-p5-smoke-net --dns 172.31.77.53 \
+  busybox:1.36 nslookup mixed.p5.test
 ```
 
 Configure Optimus with the two exact target addresses, not the broad Docker
-subnet:
+subnet. Add the redirect fixture only for the redirect checks:
 
 ```bash
-export OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS='172.31.77.10/32,172.31.77.11/32'
+export P5_NARROW_CIDRS='172.31.77.10/32,172.31.77.11/32,172.31.77.12/32,172.31.77.13/32'
+export OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS="$P5_NARROW_CIDRS"
 ```
 
-Restart the backend after changing the allowlist. A broad allowlist such as
-`0.0.0.0/0` is not an acceptable smoke configuration.
+Restart the backend after changing the allowlist. For the mixed-answer check,
+the backend must resolve `*.p5.test` through the disposable CoreDNS instance.
+If the backend runs as a container, attach it to
+`optimus-p5-smoke-net` and configure that service with
+`dns: [172.31.77.53]` before restarting it. On a systemd-resolved Linux host,
+the equivalent disposable host configuration is:
+
+```bash
+sudo resolvectl dns br-p5-smoke 172.31.77.53
+sudo resolvectl domain br-p5-smoke '~p5.test'
+resolvectl query mixed.p5.test
+```
+
+The query must show both `172.31.77.10` and `127.0.0.1`. A broad allowlist
+such as `0.0.0.0/0` is used only for the explicit negative check in section 8
+and must be restored immediately afterward.
 
 ## 2. Authenticate to Optimus
 
@@ -239,32 +336,115 @@ The second query must return zero.
 
 ## 8. Confirm denied destinations and redirects
 
-Attempt to create/test sources for all of the following and expect normalized
-destination-denied or invalid-URL errors:
+First record the receiver baseline. The earlier readiness request is included,
+so compare counts rather than assuming zero:
 
-- `http://169.254.169.254/latest/meta-data/` even if a deliberately broad
-  `0.0.0.0/0` allowlist is tried;
-- `http://[::ffff:169.254.169.254]/`;
-- a hostname resolving to one allowed address and one loopback/private address;
-- an allowed local endpoint that redirects to metadata, loopback, another
-  origin, or outside the configured base-path prefix.
+```bash
+receiver_count() {
+  docker compose exec -T receiver sh -c \
+    'test -f /var/log/nginx/capture.log && wc -l < /var/log/nginx/capture.log || echo 0'
+}
+export RECEIVER_BEFORE=$(receiver_count)
+docker compose exec -T receiver sh -c \
+  'test ! -f /var/log/nginx/capture.log || ! grep -q "Authorization:" /var/log/nginx/capture.log'
+```
 
-The redirect target must receive no request, and no Authorization header may
-be forwarded. These cases are also enforced by automated URL-policy and
-transport tests; do not weaken the allowlist to make a smoke step pass.
+Create the cross-origin redirect source and run its connection test:
+
+```bash
+export REDIRECT_DS=$(
+  curl --fail --silent --show-error "${auth[@]}" \
+    -d '{"name":"smoke-redirect","base_url":"http://172.31.77.12:9092/cross-origin","auth_type":"none","tls_skip_verify":false}' \
+    "$API/observability/datasources" | jq -er '.data.id'
+)
+curl --silent --show-error "${auth[@]}" -X POST \
+  "$API/observability/datasources/$REDIRECT_DS/test" | tee redirect-result.json
+jq -e '.code != 0 or .data.reachable == false' redirect-result.json
+test "$(receiver_count)" = "$RECEIVER_BEFORE"
+```
+
+Repeat with an authenticated source whose redirect escapes `/prom/`. This
+proves both that the receiver sees no request and that credentials are not
+forwarded:
+
+```bash
+export PREFIX_REDIRECT_DS=$(
+  curl --fail --silent --show-error "${auth[@]}" \
+    -d "{\"name\":\"smoke-prefix-redirect\",\"base_url\":\"http://172.31.77.12:9092/prom/escape\",\"auth_type\":\"basic\",\"http_credential_id\":$HTTP_CREDENTIAL,\"tls_skip_verify\":false}" \
+    "$API/observability/datasources" | jq -er '.data.id'
+)
+curl --silent --show-error "${auth[@]}" -X POST \
+  "$API/observability/datasources/$PREFIX_REDIRECT_DS/test" | tee prefix-redirect-result.json
+jq -e '.code != 0 or .data.reachable == false' prefix-redirect-result.json
+test "$(receiver_count)" = "$RECEIVER_BEFORE"
+docker compose exec -T receiver sh -c \
+  'test ! -f /var/log/nginx/capture.log || ! grep -q "Basic\\|Bearer" /var/log/nginx/capture.log'
+```
+
+Create a source using the mixed-answer DNS fixture. Creation may reject it
+immediately; if creation succeeds, the connection test must reject it:
+
+```bash
+mixed_body=$(
+  curl --silent --show-error "${auth[@]}" \
+    -d '{"name":"smoke-mixed-dns","base_url":"http://mixed.p5.test:9090","auth_type":"none","tls_skip_verify":false}' \
+    "$API/observability/datasources"
+)
+printf '%s\n' "$mixed_body" | jq
+export MIXED_DS=$(printf '%s\n' "$mixed_body" | jq -r '.data.id // empty')
+if test -n "$MIXED_DS"; then
+  curl --silent --show-error "${auth[@]}" -X POST \
+    "$API/observability/datasources/$MIXED_DS/test" | tee mixed-result.json
+  jq -e '.code != 0 or .data.reachable == false' mixed-result.json
+else
+  printf '%s\n' "$mixed_body" | jq -e '.code != 0'
+fi
+```
+
+Finally, prove that a deliberately broad allowlist cannot permit metadata.
+Save the narrow setting, restart with the broad setting, execute both exact
+requests, then restore and restart before doing anything else:
+
+```bash
+export OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS='0.0.0.0/0,::/0'
+# Restart the backend now and wait for /health to become ready.
+
+for url in \
+  'http://169.254.169.254/latest/meta-data/' \
+  'http://[::ffff:169.254.169.254]/'
+do
+  body=$(
+    jq -n --arg name "smoke-denied-$(date +%s%N)" --arg url "$url" \
+      '{name:$name,base_url:$url,auth_type:"none",tls_skip_verify:false}' |
+      curl --silent --show-error "${auth[@]}" --data-binary @- \
+        "$API/observability/datasources"
+  )
+  printf '%s\n' "$body" | jq -e '.code != 0'
+done
+
+export OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS="$P5_NARROW_CIDRS"
+# Restart the backend again and wait for /health before continuing.
+```
+
+These checks must return normalized destination-denied/redirect errors. Do not
+weaken the denial policy to make a smoke step pass.
 
 ## 9. Teardown
 
-Delete the smoke dashboards and both data sources before deleting the HTTP
-credential. Remove the disposable RBAC users/roles. Then:
+Delete the smoke dashboards and all successfully created data sources
+(`OPEN_DS`, `AUTH_DS`, `REDIRECT_DS`, `PREFIX_REDIRECT_DS`, and `MIXED_DS`
+when set) before deleting the HTTP credential. Remove the disposable RBAC
+users/roles. Remove the disposable resolver route before stopping CoreDNS:
 
 ```bash
+sudo resolvectl revert br-p5-smoke 2>/dev/null || true
 cd "$SMOKE_DIR"
 docker compose down --volumes --remove-orphans
 cd /
 rm -rf -- "$SMOKE_DIR"
-unset TOKEN ADMIN_PASSWORD HTTP_CREDENTIAL OPEN_DS AUTH_DS DASHBOARD
-unset OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS
+unset TOKEN ADMIN_PASSWORD HTTP_CREDENTIAL OPEN_DS AUTH_DS DASHBOARD REDIRECT_DS
+unset PREFIX_REDIRECT_DS MIXED_DS RECEIVER_BEFORE P5_NARROW_CIDRS
+unset OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS COMPOSE_PROJECT_NAME
 ```
 
 Confirm no smoke containers, credentials, data sources, dashboards, roles, or
