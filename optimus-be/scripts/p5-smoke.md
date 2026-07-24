@@ -51,12 +51,14 @@ second attempts to escape the configured `/prom/` base-path prefix:
 ```nginx
 events {}
 http {
+  log_format redirect '$request_method $request_uri status=$status auth="$http_authorization"';
+  access_log /var/log/nginx/redirect.log redirect;
   server {
     listen 9092;
-    location = /cross-origin {
+    location ^~ /cross-origin/ {
       return 302 http://172.31.77.13:9093/capture;
     }
-    location = /prom/escape {
+    location ^~ /prom/escape/ {
       return 302 /outside;
     }
     location = /outside {
@@ -344,9 +346,14 @@ receiver_count() {
   docker compose exec -T receiver sh -c \
     'test -f /var/log/nginx/capture.log && wc -l < /var/log/nginx/capture.log || echo 0'
 }
+redirect_count() {
+  docker compose exec -T redirector sh -c \
+    'test -f /var/log/nginx/redirect.log && wc -l < /var/log/nginx/redirect.log || echo 0'
+}
 export RECEIVER_BEFORE=$(receiver_count)
+export REDIRECT_BEFORE=$(redirect_count)
 docker compose exec -T receiver sh -c \
-  'test ! -f /var/log/nginx/capture.log || ! grep -q "Authorization:" /var/log/nginx/capture.log'
+  'test ! -f /var/log/nginx/capture.log || ! grep -Eq "auth=\"(Basic|Bearer) " /var/log/nginx/capture.log'
 ```
 
 Create the cross-origin redirect source and run its connection test:
@@ -360,6 +367,10 @@ export REDIRECT_DS=$(
 curl --silent --show-error "${auth[@]}" -X POST \
   "$API/observability/datasources/$REDIRECT_DS/test" | tee redirect-result.json
 jq -e '.code != 0 or .data.reachable == false' redirect-result.json
+test "$(redirect_count)" -gt "$REDIRECT_BEFORE"
+docker compose exec -T redirector sh -c \
+  'tail -n 1 /var/log/nginx/redirect.log | grep -q "status=302"'
+export REDIRECT_AFTER_CROSS=$(redirect_count)
 test "$(receiver_count)" = "$RECEIVER_BEFORE"
 ```
 
@@ -376,9 +387,12 @@ export PREFIX_REDIRECT_DS=$(
 curl --silent --show-error "${auth[@]}" -X POST \
   "$API/observability/datasources/$PREFIX_REDIRECT_DS/test" | tee prefix-redirect-result.json
 jq -e '.code != 0 or .data.reachable == false' prefix-redirect-result.json
+test "$(redirect_count)" -gt "$REDIRECT_AFTER_CROSS"
+docker compose exec -T redirector sh -c \
+  'tail -n 1 /var/log/nginx/redirect.log | grep -q "status=302"'
 test "$(receiver_count)" = "$RECEIVER_BEFORE"
 docker compose exec -T receiver sh -c \
-  'test ! -f /var/log/nginx/capture.log || ! grep -q "Basic\\|Bearer" /var/log/nginx/capture.log'
+  'test ! -f /var/log/nginx/capture.log || ! grep -Eq "auth=\"(Basic|Bearer) " /var/log/nginx/capture.log'
 ```
 
 Create a source using the mixed-answer DNS fixture. Creation may reject it
@@ -443,7 +457,8 @@ docker compose down --volumes --remove-orphans
 cd /
 rm -rf -- "$SMOKE_DIR"
 unset TOKEN ADMIN_PASSWORD HTTP_CREDENTIAL OPEN_DS AUTH_DS DASHBOARD REDIRECT_DS
-unset PREFIX_REDIRECT_DS MIXED_DS RECEIVER_BEFORE P5_NARROW_CIDRS
+unset PREFIX_REDIRECT_DS MIXED_DS RECEIVER_BEFORE REDIRECT_BEFORE REDIRECT_AFTER_CROSS
+unset P5_NARROW_CIDRS
 unset OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS COMPOSE_PROJECT_NAME
 ```
 
