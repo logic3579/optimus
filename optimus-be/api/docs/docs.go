@@ -4515,7 +4515,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/internal_modules_observability_query.QuerySource"
+                                                "$ref": "#/definitions/internal_modules_observability_query.Source"
                                             }
                                         }
                                     }
@@ -7033,20 +7033,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_modules_observability_query.QuerySource": {
-            "type": "object",
-            "properties": {
-                "cluster_id": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_modules_observability_query.RangeRequest": {
             "type": "object",
             "properties": {
@@ -7071,6 +7057,20 @@ const docTemplate = `{
                 "step": {
                     "type": "string",
                     "example": "1m"
+                }
+            }
+        },
+        "internal_modules_observability_query.Source": {
+            "type": "object",
+            "properties": {
+                "cluster_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },

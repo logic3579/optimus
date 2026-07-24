@@ -1114,15 +1114,6 @@ definitions:
       ref_id:
         type: string
     type: object
-  internal_modules_observability_query.QuerySource:
-    properties:
-      cluster_id:
-        type: integer
-      id:
-        type: integer
-      name:
-        type: string
-    type: object
   internal_modules_observability_query.RangeRequest:
     properties:
       datasource_id:
@@ -1139,6 +1130,15 @@ definitions:
         type: string
       step:
         example: 1m
+        type: string
+    type: object
+  internal_modules_observability_query.Source:
+    properties:
+      cluster_id:
+        type: integer
+      id:
+        type: integer
+      name:
         type: string
     type: object
   internal_modules_rbac.ChangePasswordRequest:
@@ -4070,7 +4070,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/internal_modules_observability_query.QuerySource'
+                    $ref: '#/definitions/internal_modules_observability_query.Source'
                   type: array
               type: object
       security:
