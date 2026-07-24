@@ -624,7 +624,7 @@
     "tls_danger": "危险：TLS 校验已禁用",
     "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },
     "units": { "none": "无", "percent": "百分比", "bytes": "字节", "bytes_per_second": "字节/秒", "cores": "CPU 核", "seconds": "秒", "requests_per_second": "请求/秒" },
-    "errors": { "load": "监控数据加载失败", "save": "保存失败", "query": "指标查询失败", "limit": "每个批次最多允许 12 个查询", "invalid_dashboard": "仪表盘表单无效" },
+    "errors": { "load": "监控数据加载失败", "save": "保存失败", "query": "指标查询失败", "invalid_dashboard": "仪表盘表单无效", "renderer_required": "请填写所有必填变量", "renderer_unsafe": "变量包含不支持的字符", "renderer_unknown": "仪表盘包含未知变量", "renderer_unresolved": "仪表盘包含未解析变量" },
     "tls_warning": "TLS 证书校验已禁用",
     "builtin": { "kubernetes": "Kubernetes", "namespace": "命名空间", "workload": "工作负载", "asset_enrichment": "资产信息增强" },
     "credentials": { "auth_type": "认证类型", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "留空以保留现有密钥" }

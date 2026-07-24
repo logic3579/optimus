@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { DirectiveBinding } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import PageHeader from '@/components/PageHeader.vue'
 import List from '../List.vue'
 
 vi.mock('@/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -41,11 +42,12 @@ describe('HTTP credential list', () => {
   beforeEach(() => setActivePinia(createPinia()))
   it('gates write/delete controls and confirms delete', async () => {
     const readOnly = mounted(['credentials:http:read']).wrapper
-    expect(readOnly.find('[data-testid="create"]').isVisible()).toBe(false)
+    expect(readOnly.find('[data-testid="create"]').exists()).toBe(false)
     expect(readOnly.find('[data-testid="confirm"]').exists()).toBe(false)
     readOnly.unmount()
-    const { wrapper, api } = mounted(['credentials:http:write', 'credentials:http:delete'])
+    const { wrapper, api } = mounted(['credentials:http:read', 'credentials:http:write', 'credentials:http:delete'])
     expect(wrapper.find('[data-testid="create"]').exists()).toBe(true)
+    expect(wrapper.findComponent(PageHeader).props('title')).toBe('menu.credentials.http_credentials')
     await wrapper.find('[data-testid="confirm"]').trigger('click')
     expect(api.remove).toHaveBeenCalledWith(3)
   })

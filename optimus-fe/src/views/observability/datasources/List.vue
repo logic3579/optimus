@@ -20,7 +20,7 @@
       </template>
     </a-table>
     <a-pagination :current="table.page.value" :page-size="table.pageSize.value" :total="table.total.value" @change="table.setPage" />
-    <a-modal v-model:open="formOpen" :title="t('observability_ui.forms.data_source')" @ok="save">
+    <a-modal v-if="canWrite" v-model:open="formOpen" :title="t('observability_ui.forms.data_source')" @ok="save">
       <DatasourceForm ref="formRef" :initial="editing" :credentials="credentials" :clusters="clusters" />
     </a-modal>
   </a-card>
@@ -46,7 +46,7 @@ const auth = useAuthStore(); const permission = usePermission(); const { t } = u
 const canRead = computed(() => permission.has('observability:datasource:read'))
 const canWrite = computed(() => permission.has('observability:datasource:write'))
 const canDelete = computed(() => permission.has('observability:datasource:delete'))
-const canTest = canWrite
+const canTest = computed(() => permission.has('observability:datasource:write'))
 const canReadCredentials = computed(() => permission.has('credentials:http:read'))
 const canReadClusters = computed(() => permission.has('k8s:cluster:read'))
 const errorMessage = ref(''); const testError = ref(''); const testResult = ref<{ reachable: boolean; version?: string }>()

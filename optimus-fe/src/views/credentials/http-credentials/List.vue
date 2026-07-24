@@ -1,6 +1,6 @@
 <template>
-  <a-card v-permission="'credentials:http:read'">
-    <PageHeader title="HTTP credentials" />
+  <a-card v-if="canRead">
+    <PageHeader :title="t('menu.credentials.http_credentials')" />
     <div class="filter-row u-mb-16">
       <a-input-search
         v-model:value="searchInput"
@@ -11,7 +11,7 @@
         @change="onSearchInputChange"
       />
       <a-select v-model:value="authType" :options="authOptions" style="width: 160px" @change="onAuthTypeChange" />
-      <a-button v-permission="'credentials:http:write'" type="primary" @click="openCreate">
+      <a-button v-if="canWrite" type="primary" @click="openCreate">
         {{ $t('credentials.action.create') }}
       </a-button>
     </div>
@@ -23,8 +23,8 @@
         <template v-else-if="column.key === 'updated_at'">{{ formatTime(record.updated_at) }}</template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a v-permission="'credentials:http:write'" @click="openEdit(record)">{{ $t('credentials.action.edit') }}</a>
-            <a-popconfirm v-if="has('credentials:http:delete')" :title="$t('credentials.action.confirm_delete')" @confirm="remove(record)">
+            <a v-if="canWrite" @click="openEdit(record)">{{ $t('credentials.action.edit') }}</a>
+            <a-popconfirm v-if="canDelete" :title="$t('credentials.action.confirm_delete')" @confirm="remove(record)">
               <a class="danger">{{ $t('credentials.action.delete') }}</a>
             </a-popconfirm>
           </a-space>
@@ -40,7 +40,7 @@
       @change="table.setPage"
       @show-size-change="(_: number, size: number) => table.setPageSize(size)"
     />
-    <HttpCredentialEditModal v-model:open="editOpen" :initial="editing" @saved="table.reload" />
+    <HttpCredentialEditModal v-if="canWrite" v-model:open="editOpen" :initial="editing" @saved="table.reload" />
   </a-card>
 </template>
 
@@ -56,7 +56,10 @@ import type { HTTPCredentialApi, HTTPCredentialListParams, HTTPCredentialSummary
 
 const api = inject<HTTPCredentialApi>('httpCredentialApi')!
 const { t } = useI18n()
-const { has } = usePermission()
+const permission = usePermission()
+const canRead = computed(() => permission.has('credentials:http:read'))
+const canWrite = computed(() => permission.has('credentials:http:write'))
+const canDelete = computed(() => permission.has('credentials:http:delete'))
 const searchInput = ref('')
 const authType = ref<'' | HTTPAuthType>('')
 const errorMessage = ref('')
@@ -103,8 +106,8 @@ async function remove(row: HTTPCredentialSummary) {
   catch (error) { errorMessage.value = errorText(error) }
 }
 function formatTime(value: string) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString() }
-onMounted(() => { void table.reload().catch(() => undefined) })
-defineExpose({ table, errorMessage, remove, openEdit })
+onMounted(() => { if (canRead.value) void table.reload().catch(() => undefined) })
+defineExpose({ canRead, canWrite, canDelete, table, errorMessage, remove, openEdit })
 </script>
 
 <style scoped lang="scss">

@@ -22,14 +22,45 @@ function elements(source: string) {
 function hasGate(node: ElementNode, name: string, expression: string) {
   return node.props.some(prop => prop.type === NodeTypes.DIRECTIVE && prop.name === name && prop.exp?.type === NodeTypes.SIMPLE_EXPRESSION && prop.exp.content.includes(expression))
 }
+function hasEvent(node: ElementNode, event: string, handler: string) {
+  return node.props.some(prop => prop.type === NodeTypes.DIRECTIVE && prop.name === 'on' && prop.arg?.type === NodeTypes.SIMPLE_EXPRESSION && prop.arg.content === event && prop.exp?.type === NodeTypes.SIMPLE_EXPRESSION && prop.exp.content.includes(handler))
+}
+function exactPermissionBinding(source: string, variable: string, code: string) {
+  const escaped = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`\\b${variable}\\s*=\\s*computed\\(\\(\\)\\s*=>\\s*(?:permission|p)\\.has\\(['"]${escaped}['"]\\)\\)`).test(source)
+}
 describe('P5 structural permission/casing audit', () => {
   it.each([
-    ['../datasources/List.vue', 'a-button', 'if', 'canWrite'], ['../datasources/List.vue', 'a-popconfirm', 'if', 'canDelete'],
-    ['../dashboards/List.vue', 'a-button', 'if', 'canWrite'], ['../dashboards/List.vue', 'a-popconfirm', 'if', 'canDelete'],
-    ['../dashboards/List.vue', 'a', 'if', 'canMetricRead'], ['../kubernetes/Index.vue', 'a-card', 'if', 'canRead'],
-    ['../dashboards/Detail.vue', 'div', 'permission', 'observability:dashboard:read'],
-  ] as const)('%s <%s> binds v-%s=%s', (file, tag, directive, expression) => {
-    expect(elements(views[file] ?? '').some(node => node.tag === tag && hasGate(node, directive, expression))).toBe(true)
+    ['../datasources/List.vue', 'a-button', 'click', 'openCreate', 'canWrite', 'observability:datasource:write'],
+    ['../datasources/List.vue', 'a', 'click', 'openEdit', 'canWrite', 'observability:datasource:write'],
+    ['../datasources/List.vue', 'a', 'click', 'testDatasource', 'canTest', 'observability:datasource:write'],
+    ['../datasources/List.vue', 'a-popconfirm', 'confirm', 'remove', 'canDelete', 'observability:datasource:delete'],
+    ['../datasources/List.vue', 'a-modal', 'ok', 'save', 'canWrite', 'observability:datasource:write'],
+    ['../dashboards/List.vue', 'a-button', 'click', 'openCreate', 'canWrite', 'observability:dashboard:write'],
+    ['../dashboards/List.vue', 'a', 'click', 'openEdit', 'canWrite', 'observability:dashboard:write'],
+    ['../dashboards/List.vue', 'a', 'click', 'openDetail', 'canMetricRead', 'observability:metric:read'],
+    ['../dashboards/List.vue', 'a-popconfirm', 'confirm', 'remove', 'canDelete', 'observability:dashboard:delete'],
+    ['../kubernetes/Index.vue', 'a-button', 'click', 'run', 'canRead', 'observability:metric:read'],
+    ['../../credentials/http-credentials/List.vue', 'a-button', 'click', 'openCreate', 'canWrite', 'credentials:http:write'],
+    ['../../credentials/http-credentials/List.vue', 'a', 'click', 'openEdit', 'canWrite', 'credentials:http:write'],
+    ['../../credentials/http-credentials/List.vue', 'a-popconfirm', 'confirm', 'remove', 'canDelete', 'credentials:http:delete'],
+  ] as const)('%s <%s> %s=%s has gate %s bound to exact %s', (file, tag, event, handler, gate, permission) => {
+    const source = allViews[file] ?? ''
+    expect(elements(source).some(node => node.tag === tag && hasEvent(node, event, handler) && hasGate(node, 'if', gate))).toBe(true)
+    expect(exactPermissionBinding(source, gate, permission)).toBe(true)
+  })
+  it.each([
+    ['../datasources/List.vue', 'canRead', 'observability:datasource:read'],
+    ['../dashboards/List.vue', 'canRead', 'observability:dashboard:read'],
+    ['../kubernetes/Index.vue', 'canRead', 'observability:metric:read'],
+    ['../../credentials/http-credentials/List.vue', 'canRead', 'credentials:http:read'],
+  ] as const)('%s view container uses %s bound to exact %s', (file, gate, permission) => {
+    const source = allViews[file] ?? ''
+    expect(elements(source).some(node => node.tag === 'a-card' && hasGate(node, 'if', gate))).toBe(true)
+    expect(exactPermissionBinding(source, gate, permission)).toBe(true)
+  })
+  it('dashboard detail has the exact declarative read gate', () => {
+    expect(elements(views['../dashboards/Detail.vue'] ?? '').some(node => node.tag === 'div' && hasGate(node, 'permission', 'observability:dashboard:read'))).toBe(true)
   })
   it.each([
     ['credentials/http-credentials/List', 'credentials:http:read', '../../credentials/http-credentials/List.vue'],

@@ -624,7 +624,7 @@
     "tls_danger": "Danger: TLS verification disabled",
     "panel_state": { "loading": "Loading", "empty": "No data", "unsupported": "Unsupported result", "partial": "Partial result", "error": "Query failed" },
     "units": { "none": "None", "percent": "Percent", "bytes": "Bytes", "bytes_per_second": "Bytes/s", "cores": "CPU cores", "seconds": "Seconds", "requests_per_second": "Requests/s" },
-    "errors": { "load": "Failed to load monitoring data", "save": "Failed to save", "query": "Metric query failed", "limit": "At most 12 queries are allowed per batch", "invalid_dashboard": "Dashboard form is invalid" },
+    "errors": { "load": "Failed to load monitoring data", "save": "Failed to save", "query": "Metric query failed", "invalid_dashboard": "Dashboard form is invalid", "renderer_required": "Complete all required variables", "renderer_unsafe": "A variable contains unsupported characters", "renderer_unknown": "The dashboard contains an unknown variable", "renderer_unresolved": "The dashboard contains an unresolved variable" },
     "tls_warning": "TLS certificate verification is disabled",
     "builtin": { "kubernetes": "Kubernetes", "namespace": "Namespace", "workload": "Workload", "asset_enrichment": "Asset enrichment" },
     "credentials": { "auth_type": "Authentication type", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "Leave blank to keep the existing secret" }
