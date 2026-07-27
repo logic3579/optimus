@@ -51,10 +51,23 @@ func (f *fakeProbe) StatusForApplication(_ context.Context, _ *models.AppsApplic
 type fakeChecker struct {
 	installed bool
 	err       error
+	calls     int
 }
 
 func (f *fakeChecker) IsReleaseInstalled(_ context.Context, _ *models.AppsApplication) (bool, error) {
+	f.calls++
 	return f.installed, f.err
+}
+
+type fakeDeliveryApplicationCounter struct {
+	count int64
+	err   error
+	calls int
+}
+
+func (f *fakeDeliveryApplicationCounter) CountByApplicationID(_ context.Context, _ uint64) (int64, error) {
+	f.calls++
+	return f.count, f.err
 }
 
 func TestService_Create_NameConflict(t *testing.T) {
@@ -175,6 +188,75 @@ func TestService_Delete_AllowedWhenNoCheckerOrNotInstalled(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, svc.Delete(ctx, 0, "", "", d.ID))
+}
+
+func TestService_Delete_RefusedWhenApplicationIsDeliveryManaged(t *testing.T) {
+	svc, r, clID, crID := setupSvc(t)
+	ctx := context.Background()
+	d, err := svc.Create(ctx, 0, "", "", application.CreateRequest{
+		Name: "delivery-managed", ClusterID: clID, Namespace: "default", ReleaseName: "delivery-managed",
+		ChartRepoID: crID, ChartName: "nginx",
+	})
+	require.NoError(t, err)
+	counter := &fakeDeliveryApplicationCounter{count: 1}
+	checker := &fakeChecker{installed: false}
+	svc.SetDeliveryApplicationCounter(counter)
+	svc.SetHelmInstalledChecker(checker)
+
+	err = svc.Delete(ctx, 0, "", "", d.ID)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeDeliveryEnvironmentInUse, be.Code)
+	require.Equal(t, "delivery.environment.in_use", be.MessageKey)
+	require.Equal(t, 1, counter.calls)
+	require.Zero(t, checker.calls, "delivery binding check must precede the Helm lookup")
+	_, getErr := r.Get(ctx, d.ID)
+	require.NoError(t, getErr, "blocked application must remain active")
+}
+
+func TestService_Delete_DeliveryCounterLookupFailureFailsClosed(t *testing.T) {
+	svc, r, clID, crID := setupSvc(t)
+	ctx := context.Background()
+	d, err := svc.Create(ctx, 0, "", "", application.CreateRequest{
+		Name: "counter-error", ClusterID: clID, Namespace: "default", ReleaseName: "counter-error",
+		ChartRepoID: crID, ChartName: "nginx",
+	})
+	require.NoError(t, err)
+	svc.SetDeliveryApplicationCounter(&fakeDeliveryApplicationCounter{
+		err: errors.New("postgres exposed sensitive topology"),
+	})
+
+	err = svc.Delete(ctx, 0, "", "", d.ID)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeDeliveryApplicationUnavailable, be.Code)
+	require.Equal(t, "delivery.application.unavailable", be.MessageKey)
+	require.NotContains(t, be.Message, "sensitive topology")
+	_, getErr := r.Get(ctx, d.ID)
+	require.NoError(t, getErr, "lookup failure must fail closed")
+}
+
+func TestService_Delete_DeliveryCounterNilSafeAndZeroAllowsExistingBehavior(t *testing.T) {
+	svc, _, clID, crID := setupSvc(t)
+	ctx := context.Background()
+
+	d, err := svc.Create(ctx, 0, "", "", application.CreateRequest{
+		Name: "nil-counter", ClusterID: clID, Namespace: "default", ReleaseName: "nil-counter",
+		ChartRepoID: crID, ChartName: "nginx",
+	})
+	require.NoError(t, err)
+	svc.SetDeliveryApplicationCounter(nil)
+	require.NoError(t, svc.Delete(ctx, 0, "", "", d.ID))
+
+	d, err = svc.Create(ctx, 0, "", "", application.CreateRequest{
+		Name: "zero-counter", ClusterID: clID, Namespace: "default", ReleaseName: "zero-counter",
+		ChartRepoID: crID, ChartName: "nginx",
+	})
+	require.NoError(t, err)
+	counter := &fakeDeliveryApplicationCounter{}
+	svc.SetDeliveryApplicationCounter(counter)
+	require.NoError(t, svc.Delete(ctx, 0, "", "", d.ID))
+	require.Equal(t, 1, counter.calls)
 }
 
 func TestService_Update_OnlyAllowedFields(t *testing.T) {

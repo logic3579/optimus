@@ -54,7 +54,8 @@ func (r *inMemoryRecorder) snapshot() []audit.Event {
 // call. That works for unit tests because helm's release storage lives in
 // memory anyway — install/upgrade/rollback all see the same release history.
 type fakeFactory struct {
-	cfg *action.Configuration
+	cfg   *action.Configuration
+	calls int
 }
 
 func newFakeFactory() *fakeFactory {
@@ -68,6 +69,7 @@ func newFakeFactory() *fakeFactory {
 }
 
 func (f *fakeFactory) NewForCluster(_ context.Context, _ uint64, _, _ string) (*action.Configuration, error) {
+	f.calls++
 	return f.cfg, nil
 }
 
@@ -116,6 +118,37 @@ type failingChartLoader struct{ err error }
 
 func (f failingChartLoader) LoadChart(_ context.Context, _ uint64, _, _ string) (*chart.Chart, error) {
 	return nil, f.err
+}
+
+type countingChartLoader struct{ calls int }
+
+func (f *countingChartLoader) LoadChart(_ context.Context, _ uint64, name, version string) (*chart.Chart, error) {
+	f.calls++
+	return loader.LoadArchive(buildMinimalChartTgz(name, version))
+}
+
+type managedGovernance struct {
+	operationID string
+	err         error
+	calls       []MutationAction
+}
+
+func (g *managedGovernance) AuthorizeMutation(ctx context.Context, applicationID uint64, action MutationAction) error {
+	g.calls = append(g.calls, action)
+	if g.err != nil {
+		return g.err
+	}
+	if action == MutationActionRollback {
+		return nil
+	}
+	if action == MutationActionUpgrade && DeliveryUpgradeAuthorized(ctx, applicationID, g.operationID) {
+		return nil
+	}
+	return apperr.New(
+		apperr.CodeDeliveryApplicationUnavailable,
+		"delivery.application.unavailable",
+		"delivery-managed application requires an authorized operation",
+	)
 }
 
 // --- chart tgz builder -----------------------------------------------------
@@ -212,6 +245,118 @@ func TestNewService_PanicsOnNilSeams(t *testing.T) {
 			c()
 		})
 	}
+}
+
+func TestService_GovernanceBlocksManagedDirectMutationsBeforeExternalWork(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(*Service, uint64) error
+	}{
+		{
+			name: "install",
+			run: func(s *Service, id uint64) error {
+				_, err := s.Install(context.Background(), 1, "", "", id, InstallRequest{ChartVersion: "1.0.0"})
+				return err
+			},
+		},
+		{
+			name: "upgrade",
+			run: func(s *Service, id uint64) error {
+				_, err := s.Upgrade(context.Background(), 1, "", "", id, UpgradeRequest{ChartVersion: "1.1.0"})
+				return err
+			},
+		},
+		{
+			name: "uninstall",
+			run: func(s *Service, id uint64) error {
+				return s.Uninstall(context.Background(), 1, "", "", id, UninstallRequest{})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory := newFakeFactory()
+			loader := &countingChartLoader{}
+			apps := newStubAppService()
+			s := NewService(factory, apps, loader, &inMemoryRecorder{})
+			policy := &managedGovernance{operationID: "delivery-operation-1"}
+			s.SetGovernance(policy)
+
+			err := tt.run(s, apps.app.ID)
+			be, ok := apperr.AsBiz(err)
+			require.True(t, ok, "expected safe BizError, got %T: %v", err, err)
+			require.Equal(t, apperr.CodeDeliveryApplicationUnavailable, be.Code)
+			require.Zero(t, loader.calls, "governance must run before chart loading")
+			require.Zero(t, factory.calls, "governance must run before Helm construction")
+			require.Len(t, policy.calls, 1)
+		})
+	}
+}
+
+func TestService_GovernanceDeliveryUpgradeCapabilityMustMatch(t *testing.T) {
+	s, apps, _, _ := newTestService()
+	ctx := context.Background()
+	_, err := s.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+	require.NoError(t, err)
+
+	policy := &managedGovernance{operationID: "delivery-operation-1"}
+	s.SetGovernance(policy)
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+	}{
+		{"application mismatch", WithDeliveryUpgrade(ctx, apps.app.ID+1, policy.operationID)},
+		{"operation mismatch", WithDeliveryUpgrade(ctx, apps.app.ID, "delivery-operation-2")},
+		{"missing capability", ctx},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := s.Upgrade(tt.ctx, 1, "", "", apps.app.ID, UpgradeRequest{ChartVersion: "1.1.0"})
+			be, ok := apperr.AsBiz(err)
+			require.True(t, ok)
+			require.Equal(t, apperr.CodeDeliveryApplicationUnavailable, be.Code)
+		})
+	}
+
+	upgradeCtx := WithDeliveryUpgrade(ctx, apps.app.ID, policy.operationID)
+	res, err := s.Upgrade(upgradeCtx, 1, "", "", apps.app.ID, UpgradeRequest{ChartVersion: "1.1.0"})
+	require.NoError(t, err)
+	require.Equal(t, 2, res.Revision)
+}
+
+func TestService_GovernanceAllowsDirectRollbackButStillAuthorizesIt(t *testing.T) {
+	s, apps, _, _ := newTestService()
+	ctx := context.Background()
+	_, err := s.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+	require.NoError(t, err)
+	_, err = s.Upgrade(ctx, 1, "", "", apps.app.ID, UpgradeRequest{ChartVersion: "1.1.0"})
+	require.NoError(t, err)
+
+	policy := &managedGovernance{operationID: "delivery-operation-1"}
+	s.SetGovernance(policy)
+	res, err := s.Rollback(ctx, 1, "", "", apps.app.ID, RollbackRequest{Revision: 1})
+	require.NoError(t, err)
+	require.Equal(t, 3, res.Revision)
+	require.Equal(t, []MutationAction{MutationActionRollback}, policy.calls)
+}
+
+func TestService_GovernanceLookupFailureReturnsStableSafeError(t *testing.T) {
+	factory := newFakeFactory()
+	loader := &countingChartLoader{}
+	apps := newStubAppService()
+	s := NewService(factory, apps, loader, &inMemoryRecorder{})
+	s.SetGovernance(&managedGovernance{err: errors.New("postgres exposed sensitive topology")})
+
+	_, err := s.Install(context.Background(), 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeDeliveryApplicationUnavailable, be.Code)
+	require.Equal(t, "delivery.application.unavailable", be.MessageKey)
+	require.NotContains(t, be.Message, "sensitive topology")
+	require.Zero(t, loader.calls)
+	require.Zero(t, factory.calls)
 }
 
 func TestService_Install_Then_Upgrade_Then_Rollback_Then_Uninstall(t *testing.T) {

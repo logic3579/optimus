@@ -26,12 +26,19 @@ type HelmInstalledChecker interface {
 	IsReleaseInstalled(ctx context.Context, app *models.AppsApplication) (bool, error)
 }
 
+// DeliveryApplicationCounter reports active delivery environment bindings for
+// an application. It is wired by the delivery module at composition time.
+type DeliveryApplicationCounter interface {
+	CountByApplicationID(ctx context.Context, applicationID uint64) (int64, error)
+}
+
 // Service owns audit emission and the optional helm seams.
 type Service struct {
-	repo    *Repo
-	audit   *audit.Recorder
-	probe   HelmStatusProbe
-	checker HelmInstalledChecker
+	repo            *Repo
+	audit           *audit.Recorder
+	probe           HelmStatusProbe
+	checker         HelmInstalledChecker
+	deliveryCounter DeliveryApplicationCounter
 }
 
 // NewService returns a Service bound to a repo + audit recorder. The helm
@@ -49,6 +56,12 @@ func (s *Service) SetHelmStatusProbe(p HelmStatusProbe) { s.probe = p }
 
 // SetHelmInstalledChecker wires the delete pre-check.
 func (s *Service) SetHelmInstalledChecker(c HelmInstalledChecker) { s.checker = c }
+
+// SetDeliveryApplicationCounter wires the delivery binding pre-delete check.
+// nil is safe and preserves existing behavior when delivery is not composed.
+func (s *Service) SetDeliveryApplicationCounter(counter DeliveryApplicationCounter) {
+	s.deliveryCounter = counter
+}
 
 // --- queries ---------------------------------------------------------------
 
@@ -221,6 +234,23 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 			return apperr.New(apperr.CodeNotFound, "apps.application.not_found", "application not found")
 		}
 		return err
+	}
+	if s.deliveryCounter != nil {
+		count, countErr := s.deliveryCounter.CountByApplicationID(ctx, id)
+		if countErr != nil {
+			return apperr.New(
+				apperr.CodeDeliveryApplicationUnavailable,
+				"delivery.application.unavailable",
+				"delivery application binding lookup is unavailable",
+			)
+		}
+		if count != 0 {
+			return apperr.New(
+				apperr.CodeDeliveryEnvironmentInUse,
+				"delivery.environment.in_use",
+				"application is bound to an active delivery environment",
+			)
+		}
 	}
 	if s.checker != nil {
 		installed, cerr := s.checker.IsReleaseInstalled(ctx, m)
