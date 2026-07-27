@@ -115,6 +115,7 @@ func (s *Service) LoadChart(ctx context.Context, repoID uint64, chartName, versi
 	if err != nil {
 		return nil, err
 	}
+	defer wipeChartBytes(tgz)
 	ch, lerr := loader.LoadArchive(bytes.NewReader(tgz))
 	if lerr != nil {
 		return nil, apperr.New(apperr.CodeAppsRepoInvalidIndex, "apps.repo.bad_chart", lerr.Error())
@@ -165,7 +166,21 @@ func chartTgzHTTP(m *models.AppsChartRepo, pwd, chartName, version string) ([]by
 
 // chartTgzOCI pulls the chart .tgz from an OCI registry. Mirrors
 // defaultValuesOCI's auth + Pull flow but returns the raw chart bytes.
+type ociPullFunc func(*registry.Client, string, ...registry.PullOption) (*registry.PullResult, error)
+
+func defaultOCIPull(client *registry.Client, ref string, opts ...registry.PullOption) (*registry.PullResult, error) {
+	return client.Pull(ref, opts...)
+}
+
 func chartTgzOCI(m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+	return chartTgzOCIWithPull(m, pwd, chartName, version, defaultOCIPull)
+}
+
+func chartTgzOCIWithPull(
+	m *models.AppsChartRepo,
+	pwd, chartName, version string,
+	pullChart ociPullFunc,
+) ([]byte, error) {
 	rc, err := registry.NewClient()
 	if err != nil {
 		return nil, apps.MapError(err)
@@ -177,7 +192,7 @@ func chartTgzOCI(m *models.AppsChartRepo, pwd, chartName, version string) ([]byt
 		}
 	}
 	ref := ociRef(m.URL, chartName) + ":" + version
-	pull, err := rc.Pull(ref, registry.PullOptWithChart(true))
+	pull, err := pullChart(rc, ref, registry.PullOptWithChart(true))
 	if err != nil {
 		return nil, apps.MapError(err)
 	}
