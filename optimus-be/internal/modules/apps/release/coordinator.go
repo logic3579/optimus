@@ -104,14 +104,14 @@ func (c *Coordinator) Acquire(
 			case models.AppsReleaseOperationSucceeded, models.AppsReleaseOperationFailed:
 				return nil
 			case models.AppsReleaseOperationReconciling:
-				if existing.LeaseOwner == nil || *existing.LeaseOwner != owner {
-					return operationBusyError()
+				if err := claimReconciliation(ctx, tx, existing, owner, now, now.Add(lease)); err != nil {
+					return err
 				}
 				result.NeedsReconciliation = true
 				return nil
 			case models.AppsReleaseOperationActive:
 				if leaseExpired(existing, now) {
-					if err := markReconciling(ctx, tx, existing, owner, now); err != nil {
+					if err := markReconciling(ctx, tx, existing, owner, now.Add(lease), now); err != nil {
 						return err
 					}
 					result.Operation = existing
@@ -141,14 +141,14 @@ func (c *Coordinator) Acquire(
 		switch {
 		case err == nil:
 			if blocking.State == models.AppsReleaseOperationReconciling {
-				if blocking.LeaseOwner == nil || *blocking.LeaseOwner != owner {
-					return operationBusyError()
+				if err := claimReconciliation(ctx, tx, blocking, owner, now, now.Add(lease)); err != nil {
+					return err
 				}
 				result = AcquireResult{Operation: blocking, NeedsReconciliation: true}
 				return nil
 			}
 			if leaseExpired(blocking, now) {
-				if err := markReconciling(ctx, tx, blocking, owner, now); err != nil {
+				if err := markReconciling(ctx, tx, blocking, owner, now.Add(lease), now); err != nil {
 					return err
 				}
 				result = AcquireResult{Operation: blocking, NeedsReconciliation: true}
@@ -198,17 +198,14 @@ func (c *Coordinator) Renew(ctx context.Context, operationID, owner string, unti
 	}
 	var committedError error
 	err := c.withLockedOperation(ctx, operationID, func(tx operationTransaction, row *models.AppsReleaseOperation) error {
-		if row.State != models.AppsReleaseOperationActive {
-			if row.State == models.AppsReleaseOperationReconciling {
-				if row.LeaseOwner == nil || *row.LeaseOwner != owner {
-					return operationBusyError()
-				}
-				return reconciliationRequiredError()
-			}
+		if row.State != models.AppsReleaseOperationActive && row.State != models.AppsReleaseOperationReconciling {
 			return operationBusyError()
 		}
 		if leaseExpired(row, now) {
-			if err := markReconciling(ctx, tx, row, owner, now); err != nil {
+			if row.State == models.AppsReleaseOperationReconciling {
+				return operationBusyError()
+			}
+			if err := markReconciling(ctx, tx, row, owner, until, now); err != nil {
 				return err
 			}
 			committedError = reconciliationRequiredError()
@@ -241,12 +238,16 @@ func (c *Coordinator) Complete(ctx context.Context, operationID, owner string, r
 	err := c.withLockedOperation(ctx, operationID, func(tx operationTransaction, row *models.AppsReleaseOperation) error {
 		switch row.State {
 		case models.AppsReleaseOperationReconciling:
-			if row.LeaseOwner == nil || *row.LeaseOwner != owner {
+			if leaseExpired(row, now) || row.LeaseOwner == nil || *row.LeaseOwner != owner {
 				return operationBusyError()
 			}
 		case models.AppsReleaseOperationActive:
 			if leaseExpired(row, now) {
-				if err := markReconciling(ctx, tx, row, owner, now); err != nil {
+				reconciliationUntil := now
+				if row.LeaseExpiresAt != nil {
+					reconciliationUntil = *row.LeaseExpiresAt
+				}
+				if err := markReconciling(ctx, tx, row, owner, reconciliationUntil, now); err != nil {
 					return err
 				}
 				committedError = reconciliationRequiredError()
@@ -321,12 +322,32 @@ func markReconciling(
 	tx operationTransaction,
 	row *models.AppsReleaseOperation,
 	owner string,
+	until time.Time,
 	now time.Time,
 ) error {
 	ownerCopy := owner
 	row.State = models.AppsReleaseOperationReconciling
 	row.LeaseOwner = &ownerCopy
-	row.LeaseExpiresAt = nil
+	row.LeaseExpiresAt = &until
+	row.UpdatedAt = now
+	return tx.Save(ctx, row)
+}
+
+func claimReconciliation(
+	ctx context.Context,
+	tx operationTransaction,
+	row *models.AppsReleaseOperation,
+	owner string,
+	now, until time.Time,
+) error {
+	if !leaseExpired(row, now) && (row.LeaseOwner == nil || *row.LeaseOwner != owner) {
+		return operationBusyError()
+	}
+	ownerCopy := owner
+	row.LeaseOwner = &ownerCopy
+	if row.LeaseExpiresAt == nil || row.LeaseExpiresAt.Before(until) || leaseExpired(row, now) {
+		row.LeaseExpiresAt = &until
+	}
 	row.UpdatedAt = now
 	return tx.Save(ctx, row)
 }

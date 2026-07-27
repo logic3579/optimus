@@ -139,13 +139,91 @@ func TestCoordinatorExpiredLeaseAssignsReconciliationWithoutMutation(t *testing.
 	require.Equal(t, "operation-1", result.Operation.OperationID)
 	require.Equal(t, models.AppsReleaseOperationReconciling, result.Operation.State)
 	require.Equal(t, "worker-2", derefString(result.Operation.LeaseOwner))
+	require.Equal(t, clock.Now().Add(time.Minute), derefTime(result.Operation.LeaseExpiresAt))
 
-	replay, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "worker-2", time.Minute)
+	clock.Advance(30 * time.Second)
+	replay, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "worker-2", 2*time.Minute)
 	require.NoError(t, err)
 	require.False(t, replay.Acquired)
 	require.True(t, replay.NeedsReconciliation)
 	require.Equal(t, "operation-1", replay.Operation.OperationID)
 	require.Equal(t, "worker-2", derefString(replay.Operation.LeaseOwner))
+	require.Equal(t, clock.Now().Add(2*time.Minute), derefTime(replay.Operation.LeaseExpiresAt))
+}
+
+func TestCoordinatorRenewExtendsReconciliationLease(t *testing.T) {
+	coordinator, clock, _ := newCoordinatorHarness()
+	ctx := context.Background()
+
+	_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", time.Minute)
+	require.NoError(t, err)
+	clock.Advance(2 * time.Minute)
+	result, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "reconciler-1", time.Minute)
+	require.NoError(t, err)
+	require.False(t, result.Acquired)
+	require.True(t, result.NeedsReconciliation)
+
+	until := clock.Now().Add(3 * time.Minute)
+	require.NoError(t, coordinator.Renew(ctx, "operation-1", "reconciler-1", until))
+	operation, err := coordinator.Inspect(ctx, "operation-1")
+	require.NoError(t, err)
+	require.Equal(t, models.AppsReleaseOperationReconciling, operation.State)
+	require.Equal(t, until, derefTime(operation.LeaseExpiresAt))
+	requireBizError(t,
+		coordinator.Renew(ctx, "operation-1", "other-reconciler", until.Add(time.Minute)),
+		apperr.CodeDeliveryOperationBusy,
+		"delivery.execution.operation_busy",
+	)
+}
+
+func TestCoordinatorExpiredReconciliationLeaseAllowsTakeover(t *testing.T) {
+	coordinator, clock, _ := newCoordinatorHarness()
+	ctx := context.Background()
+
+	_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", time.Minute)
+	require.NoError(t, err)
+	clock.Advance(2 * time.Minute)
+	firstClaim, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "reconciler-1", time.Minute)
+	require.NoError(t, err)
+	require.False(t, firstClaim.Acquired)
+	require.True(t, firstClaim.NeedsReconciliation)
+
+	clock.Advance(2 * time.Minute)
+	takeover, err := coordinator.Acquire(ctx, 41, "operation-3", "upgrade", "reconciler-2", 2*time.Minute)
+	require.NoError(t, err)
+	require.False(t, takeover.Acquired, "reconciliation takeover must never authorize mutation")
+	require.True(t, takeover.NeedsReconciliation)
+	require.Equal(t, "operation-1", takeover.Operation.OperationID)
+	require.Equal(t, "reconciler-2", derefString(takeover.Operation.LeaseOwner))
+	require.Equal(t, clock.Now().Add(2*time.Minute), derefTime(takeover.Operation.LeaseExpiresAt))
+
+	requireBizError(t,
+		coordinator.Renew(ctx, "operation-1", "reconciler-1", clock.Now().Add(3*time.Minute)),
+		apperr.CodeDeliveryOperationBusy,
+		"delivery.execution.operation_busy",
+	)
+	requireBizError(t,
+		coordinator.Complete(ctx, "operation-1", "reconciler-1", SafeOperationResult{Succeeded: false}),
+		apperr.CodeDeliveryOperationBusy,
+		"delivery.execution.operation_busy",
+	)
+	require.NoError(t, coordinator.Complete(ctx, "operation-1", "reconciler-2", SafeOperationResult{Succeeded: false}))
+}
+
+func TestCoordinatorNonExpiredMutationCannotBeTakenForReconciliation(t *testing.T) {
+	coordinator, _, now := newCoordinatorHarness()
+	ctx := context.Background()
+
+	_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", 5*time.Minute)
+	require.NoError(t, err)
+	_, err = coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "worker-2", time.Minute)
+	requireBizError(t, err, apperr.CodeDeliveryOperationBusy, "delivery.execution.operation_busy")
+
+	operation, err := coordinator.Inspect(ctx, "operation-1")
+	require.NoError(t, err)
+	require.Equal(t, models.AppsReleaseOperationActive, operation.State)
+	require.Equal(t, "worker-1", derefString(operation.LeaseOwner))
+	require.Equal(t, now.Add(5*time.Minute), derefTime(operation.LeaseExpiresAt))
 }
 
 func TestCoordinatorReconciliationRejectsOtherOwner(t *testing.T) {

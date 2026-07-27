@@ -101,3 +101,57 @@ func TestAppsReleaseOperationConcurrency(t *testing.T) {
 		Count(&active).Error)
 	require.EqualValues(t, 1, active)
 }
+
+func TestAppsReleaseOperationReconciliationLeaseTakeover(t *testing.T) {
+	_, database := setupServer(t)
+	cluster := dbtest.SeedCluster(t, database, "release-operation-reconciliation")
+	chartRepo := &models.AppsChartRepo{
+		Name: "release-operation-reconciliation-repo",
+		Type: "http",
+		URL:  "https://charts.example.test",
+	}
+	require.NoError(t, database.Create(chartRepo).Error)
+	application := &models.AppsApplication{
+		Name:        "release-operation-reconciliation-app",
+		ClusterID:   cluster.ID,
+		Namespace:   "default",
+		ReleaseName: "release-operation-reconciliation",
+		ChartRepoID: chartRepo.ID,
+		ChartName:   "example",
+	}
+	require.NoError(t, database.Create(application).Error)
+
+	expired := time.Now().Add(-time.Minute)
+	owner := "expired-mutation-owner"
+	operation := &models.AppsReleaseOperation{
+		ApplicationID:  application.ID,
+		OperationID:    "release-operation-reconciliation-1",
+		Kind:           "upgrade",
+		State:          models.AppsReleaseOperationActive,
+		LeaseOwner:     &owner,
+		LeaseExpiresAt: &expired,
+	}
+	require.NoError(t, database.Create(operation).Error)
+	coordinator := release.NewCoordinator(database)
+
+	first, err := coordinator.Acquire(
+		context.Background(), application.ID, "next-operation-1", "upgrade", "reconciler-1", time.Minute,
+	)
+	require.NoError(t, err)
+	require.False(t, first.Acquired)
+	require.True(t, first.NeedsReconciliation)
+	require.Equal(t, "reconciler-1", *first.Operation.LeaseOwner)
+	require.NotNil(t, first.Operation.LeaseExpiresAt)
+
+	require.NoError(t, database.Model(&models.AppsReleaseOperation{}).
+		Where("id = ?", operation.ID).
+		Update("lease_expires_at", expired).Error)
+	second, err := coordinator.Acquire(
+		context.Background(), application.ID, "next-operation-2", "upgrade", "reconciler-2", time.Minute,
+	)
+	require.NoError(t, err)
+	require.False(t, second.Acquired)
+	require.True(t, second.NeedsReconciliation)
+	require.Equal(t, "reconciler-2", *second.Operation.LeaseOwner)
+	require.NotNil(t, second.Operation.LeaseExpiresAt)
+}
