@@ -45,10 +45,12 @@ type deliveryMutationCapability struct {
 
 type deliveryMutationCapabilityKey struct{}
 
-// WithDeliveryUpgrade adds the narrow in-process capability used by the P6
+// withDeliveryUpgrade adds the narrow in-process capability used by the P6
 // worker. The only capability this package can issue is an upgrade capability;
 // install, uninstall, and rollback cannot be elevated through this helper.
-func WithDeliveryUpgrade(ctx context.Context, applicationID uint64, operationID string) context.Context {
+// The issuer stays package-private; UpgradeForDelivery is implemented in this
+// package so no other internal package needs authority to mint it.
+func withDeliveryUpgrade(ctx context.Context, applicationID uint64, operationID string) context.Context {
 	return context.WithValue(ctx, deliveryMutationCapabilityKey{}, deliveryMutationCapability{
 		applicationID: applicationID,
 		operationID:   operationID,
@@ -56,10 +58,10 @@ func WithDeliveryUpgrade(ctx context.Context, applicationID uint64, operationID 
 	})
 }
 
-// DeliveryUpgradeAuthorized reports whether ctx contains the exact private
+// deliveryUpgradeAuthorized reports whether ctx contains the exact private
 // capability expected by a governance provider. Both identifiers and the
 // closed action must match; malformed or empty operation IDs are denied.
-func DeliveryUpgradeAuthorized(ctx context.Context, applicationID uint64, operationID string) bool {
+func deliveryUpgradeAuthorized(ctx context.Context, applicationID uint64, operationID string) bool {
 	if ctx == nil || applicationID == 0 || !validDeliveryOperationID(operationID) {
 		return false
 	}
@@ -80,7 +82,8 @@ func (s *Service) authorizeMutation(ctx context.Context, applicationID uint64, a
 		if _, ok := apperr.AsBiz(err); ok {
 			return err
 		}
-		return apperr.New(
+		return apperr.Wrap(
+			err,
 			apperr.CodeDeliveryApplicationUnavailable,
 			"delivery.application.unavailable",
 			"delivery governance is unavailable",

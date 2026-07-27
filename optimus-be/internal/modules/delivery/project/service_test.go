@@ -38,6 +38,7 @@ func (r *memoryRepo) Transaction(_ context.Context, fn func(projectRepository) e
 func (r *memoryRepo) LockProject(ctx context.Context, id uint64) (*models.DeliveryProject, error) {
 	return r.GetProject(ctx, id)
 }
+func (r *memoryRepo) LockApplication(context.Context, uint64) error { return nil }
 
 func (r *memoryRepo) ListProjects(_ context.Context, q ListQuery) ([]models.DeliveryProject, int64, error) {
 	rows := make([]models.DeliveryProject, 0, len(r.projects))
@@ -217,24 +218,49 @@ var errActivityCheckedOutsideProjectLock = errors.New("activity checked outside 
 
 type orderingRepo struct {
 	*memoryRepo
-	inTransaction   bool
-	projectLocked   bool
-	activityChecked bool
-	events          []string
+	inTransaction     bool
+	projectLocked     bool
+	applicationLocked bool
+	activityChecked   bool
+	events            []string
 }
 
 func (r *orderingRepo) Transaction(_ context.Context, fn func(projectRepository) error) error {
 	r.inTransaction = true
 	r.projectLocked = false
+	r.applicationLocked = false
 	r.activityChecked = false
 	r.events = append(r.events, "transaction.begin")
 	defer func() {
 		r.events = append(r.events, "transaction.end")
 		r.inTransaction = false
 		r.projectLocked = false
+		r.applicationLocked = false
 		r.activityChecked = false
 	}()
 	return fn(r)
+}
+
+func (r *orderingRepo) LockApplication(_ context.Context, _ uint64) error {
+	if !r.inTransaction || !r.projectLocked {
+		return errors.New("application lock requested outside project transaction")
+	}
+	r.applicationLocked = true
+	r.events = append(r.events, "application.lock")
+	return nil
+}
+
+type bindingApplicationReader struct {
+	repo *orderingRepo
+	base *applicationReaderStub
+}
+
+func (r bindingApplicationReader) GetApplication(ctx context.Context, id uint64) (*Application, error) {
+	if !r.repo.inTransaction || !r.repo.projectLocked || !r.repo.applicationLocked {
+		return nil, errors.New("application read requested outside lifecycle lock")
+	}
+	r.repo.events = append(r.repo.events, "application.read")
+	return r.base.GetApplication(ctx, id)
 }
 
 func (r *orderingRepo) LockProject(ctx context.Context, id uint64) (*models.DeliveryProject, error) {
@@ -504,6 +530,22 @@ func TestDestructiveActivityChecksRunAfterProjectLockInsideTransaction(t *testin
 			"transaction.begin", "project.lock", "activity.check", "pipeline.count", "environment.delete", "transaction.end",
 		}, repo.events)
 	})
+}
+
+func TestBindEnvironmentValidatesApplicationAfterLifecycleLock(t *testing.T) {
+	_, baseRepo, apps, audits := setupService()
+	repo := &orderingRepo{memoryRepo: baseRepo}
+	svc := NewService(repo, bindingApplicationReader{repo: repo, base: apps}, activityReaderStub{}, audits)
+	project, err := svc.CreateProject(context.Background(), 0, "", "", CreateProjectRequest{Name: "bind-order"})
+	require.NoError(t, err)
+
+	_, err = svc.BindEnvironment(context.Background(), 0, "", "", project.ID, BindEnvironmentRequest{
+		EnvironmentKey: "dev", DisplayName: "Development", ApplicationID: 10,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"transaction.begin", "project.lock", "application.lock", "application.read", "transaction.end",
+	}, repo.events)
 }
 
 func TestServiceListAndGetUseDeterministicEnvironmentOrder(t *testing.T) {

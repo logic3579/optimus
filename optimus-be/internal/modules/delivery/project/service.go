@@ -42,6 +42,7 @@ type projectRepository interface {
 	ListProjects(ctx context.Context, q ListQuery) ([]models.DeliveryProject, int64, error)
 	GetProject(ctx context.Context, id uint64) (*models.DeliveryProject, error)
 	LockProject(ctx context.Context, id uint64) (*models.DeliveryProject, error)
+	LockApplication(ctx context.Context, applicationID uint64) error
 	CreateProject(ctx context.Context, row *models.DeliveryProject) error
 	UpdateProject(ctx context.Context, id uint64, fields map[string]any) error
 	DeleteProject(ctx context.Context, id uint64) error
@@ -237,15 +238,20 @@ func (s *Service) BindEnvironment(ctx context.Context, actor uint64, ip, ua stri
 	if req.ApplicationID == 0 {
 		return nil, validationError("application_id is required")
 	}
-	application, err := s.availableApplication(ctx, req.ApplicationID)
-	if err != nil {
-		return nil, err
-	}
+	var application *Application
 	row := &models.DeliveryEnvironment{
 		ProjectID: projectID, EnvironmentKey: key, DisplayName: req.DisplayName, ApplicationID: req.ApplicationID,
 	}
 	if err := s.repo.Transaction(ctx, func(repo projectRepository) error {
 		if _, err := repo.LockProject(ctx, projectID); err != nil {
+			return err
+		}
+		if err := repo.LockApplication(ctx, req.ApplicationID); err != nil {
+			return err
+		}
+		var err error
+		application, err = s.availableApplication(ctx, req.ApplicationID)
+		if err != nil {
 			return err
 		}
 		bound, err := repo.ApplicationBound(ctx, req.ApplicationID)

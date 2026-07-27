@@ -141,7 +141,7 @@ func (g *managedGovernance) AuthorizeMutation(ctx context.Context, applicationID
 	if action == MutationActionRollback {
 		return nil
 	}
-	if action == MutationActionUpgrade && DeliveryUpgradeAuthorized(ctx, applicationID, g.operationID) {
+	if action == MutationActionUpgrade && deliveryUpgradeAuthorized(ctx, applicationID, g.operationID) {
 		return nil
 	}
 	return apperr.New(
@@ -307,8 +307,8 @@ func TestService_GovernanceDeliveryUpgradeCapabilityMustMatch(t *testing.T) {
 		name string
 		ctx  context.Context
 	}{
-		{"application mismatch", WithDeliveryUpgrade(ctx, apps.app.ID+1, policy.operationID)},
-		{"operation mismatch", WithDeliveryUpgrade(ctx, apps.app.ID, "delivery-operation-2")},
+		{"application mismatch", withDeliveryUpgrade(ctx, apps.app.ID+1, policy.operationID)},
+		{"operation mismatch", withDeliveryUpgrade(ctx, apps.app.ID, "delivery-operation-2")},
 		{"missing capability", ctx},
 	}
 	for _, tt := range tests {
@@ -320,7 +320,7 @@ func TestService_GovernanceDeliveryUpgradeCapabilityMustMatch(t *testing.T) {
 		})
 	}
 
-	upgradeCtx := WithDeliveryUpgrade(ctx, apps.app.ID, policy.operationID)
+	upgradeCtx := withDeliveryUpgrade(ctx, apps.app.ID, policy.operationID)
 	res, err := s.Upgrade(upgradeCtx, 1, "", "", apps.app.ID, UpgradeRequest{ChartVersion: "1.1.0"})
 	require.NoError(t, err)
 	require.Equal(t, 2, res.Revision)
@@ -347,7 +347,8 @@ func TestService_GovernanceLookupFailureReturnsStableSafeError(t *testing.T) {
 	loader := &countingChartLoader{}
 	apps := newStubAppService()
 	s := NewService(factory, apps, loader, &inMemoryRecorder{})
-	s.SetGovernance(&managedGovernance{err: errors.New("postgres exposed sensitive topology")})
+	wantErr := errors.New("postgres exposed sensitive topology")
+	s.SetGovernance(&managedGovernance{err: wantErr})
 
 	_, err := s.Install(context.Background(), 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
 	be, ok := apperr.AsBiz(err)
@@ -355,6 +356,7 @@ func TestService_GovernanceLookupFailureReturnsStableSafeError(t *testing.T) {
 	require.Equal(t, apperr.CodeDeliveryApplicationUnavailable, be.Code)
 	require.Equal(t, "delivery.application.unavailable", be.MessageKey)
 	require.NotContains(t, be.Message, "sensitive topology")
+	require.ErrorIs(t, err, wantErr)
 	require.Zero(t, loader.calls)
 	require.Zero(t, factory.calls)
 }

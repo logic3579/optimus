@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"optimus-be/internal/infra/advisorylock"
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/delivery/errs"
@@ -52,6 +53,10 @@ func (r *Repo) LockProject(ctx context.Context, id uint64) (*models.DeliveryProj
 	var row models.DeliveryProject
 	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, id).Error
 	return &row, mapProjectReadError(err)
+}
+
+func (r *Repo) LockApplication(ctx context.Context, id uint64) error {
+	return advisorylock.LockApplication(ctx, r.db, id)
 }
 
 func (r *Repo) CreateProject(ctx context.Context, row *models.DeliveryProject) error {
@@ -101,6 +106,13 @@ func (r *Repo) ApplicationBound(ctx context.Context, applicationID uint64) (bool
 	err := r.db.WithContext(ctx).Model(&models.DeliveryEnvironment{}).
 		Where("application_id = ?", applicationID).Count(&count).Error
 	return count > 0, err
+}
+
+func (r *Repo) CountByApplicationID(ctx context.Context, applicationID uint64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&models.DeliveryEnvironment{}).
+		Where("application_id = ?", applicationID).Count(&count).Error
+	return count, err
 }
 
 func (r *Repo) CreateEnvironment(ctx context.Context, row *models.DeliveryEnvironment) error {

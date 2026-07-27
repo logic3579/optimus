@@ -228,42 +228,11 @@ func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id 
 // if the HelmInstalledChecker seam reports the underlying helm release is still
 // installed on the cluster.
 func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id uint64) error {
-	m, err := s.repo.Get(ctx, id)
+	m, err := deleteApplication(ctx, s.repo, s.deliveryCounter, s.checker, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return apperr.New(apperr.CodeNotFound, "apps.application.not_found", "application not found")
 		}
-		return err
-	}
-	if s.deliveryCounter != nil {
-		count, countErr := s.deliveryCounter.CountByApplicationID(ctx, id)
-		if countErr != nil {
-			return apperr.New(
-				apperr.CodeDeliveryApplicationUnavailable,
-				"delivery.application.unavailable",
-				"delivery application binding lookup is unavailable",
-			)
-		}
-		if count != 0 {
-			return apperr.New(
-				apperr.CodeDeliveryEnvironmentInUse,
-				"delivery.environment.in_use",
-				"application is bound to an active delivery environment",
-			)
-		}
-	}
-	if s.checker != nil {
-		installed, cerr := s.checker.IsReleaseInstalled(ctx, m)
-		if cerr != nil {
-			return cerr
-		}
-		if installed {
-			return apperr.New(apperr.CodeAppsReleaseStillPresent,
-				"apps.application.release_still_installed",
-				"helm release still installed; uninstall before deleting the application record")
-		}
-	}
-	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.writeAudit(ctx, ptrIfNonZero(actorID), "apps.application.delete", id, ip, ua, map[string]any{
@@ -272,6 +241,74 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 		"namespace":    m.Namespace,
 		"release_name": m.ReleaseName,
 	})
+	return nil
+}
+
+type applicationDeletionRepository interface {
+	transaction(ctx context.Context, fn func(applicationDeletionRepository) error) error
+	lockApplication(ctx context.Context, id uint64) error
+	Get(ctx context.Context, id uint64) (*models.AppsApplication, error)
+	Delete(ctx context.Context, id uint64) error
+}
+
+func deleteApplication(
+	ctx context.Context,
+	repo applicationDeletionRepository,
+	counter DeliveryApplicationCounter,
+	checker HelmInstalledChecker,
+	id uint64,
+) (*models.AppsApplication, error) {
+	var application *models.AppsApplication
+	err := repo.transaction(ctx, func(tx applicationDeletionRepository) error {
+		if err := tx.lockApplication(ctx, id); err != nil {
+			return err
+		}
+		var err error
+		application, err = tx.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err := checkDeliveryApplicationUse(ctx, counter, id); err != nil {
+			return err
+		}
+		if checker != nil {
+			installed, err := checker.IsReleaseInstalled(ctx, application)
+			if err != nil {
+				return err
+			}
+			if installed {
+				return apperr.New(
+					apperr.CodeAppsReleaseStillPresent,
+					"apps.application.release_still_installed",
+					"helm release still installed; uninstall before deleting the application record",
+				)
+			}
+		}
+		return tx.Delete(ctx, id)
+	})
+	return application, err
+}
+
+func checkDeliveryApplicationUse(ctx context.Context, counter DeliveryApplicationCounter, id uint64) error {
+	if counter == nil {
+		return nil
+	}
+	count, err := counter.CountByApplicationID(ctx, id)
+	if err != nil {
+		return apperr.Wrap(
+			err,
+			apperr.CodeDeliveryApplicationUnavailable,
+			"delivery.application.unavailable",
+			"delivery application binding lookup is unavailable",
+		)
+	}
+	if count != 0 {
+		return apperr.New(
+			apperr.CodeDeliveryEnvironmentInUse,
+			"delivery.environment.in_use",
+			"application is bound to an active delivery environment",
+		)
+	}
 	return nil
 }
 

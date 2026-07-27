@@ -8,11 +8,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/apps/application"
 	"optimus-be/internal/modules/audit"
+	deliveryproject "optimus-be/internal/modules/delivery/project"
 )
 
 // setupSvc returns a Service + Repo + (clusterID, chartRepoID) for use by
@@ -68,6 +70,19 @@ type fakeDeliveryApplicationCounter struct {
 func (f *fakeDeliveryApplicationCounter) CountByApplicationID(_ context.Context, _ uint64) (int64, error) {
 	f.calls++
 	return f.count, f.err
+}
+
+type databaseApplicationReader struct{ repo *application.Repo }
+
+func (r databaseApplicationReader) GetApplication(ctx context.Context, id uint64) (*deliveryproject.Application, error) {
+	row, err := r.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &deliveryproject.Application{
+		ID: row.ID, Name: row.Name, ChartRepoID: row.ChartRepoID, ChartName: row.ChartName,
+		Installed: true, ClusterID: row.ClusterID, Namespace: row.Namespace, ReleaseName: row.ReleaseName,
+	}, nil
 }
 
 func TestService_Create_NameConflict(t *testing.T) {
@@ -222,9 +237,8 @@ func TestService_Delete_DeliveryCounterLookupFailureFailsClosed(t *testing.T) {
 		ChartRepoID: crID, ChartName: "nginx",
 	})
 	require.NoError(t, err)
-	svc.SetDeliveryApplicationCounter(&fakeDeliveryApplicationCounter{
-		err: errors.New("postgres exposed sensitive topology"),
-	})
+	wantErr := errors.New("postgres exposed sensitive topology")
+	svc.SetDeliveryApplicationCounter(&fakeDeliveryApplicationCounter{err: wantErr})
 
 	err = svc.Delete(ctx, 0, "", "", d.ID)
 	be, ok := apperr.AsBiz(err)
@@ -232,6 +246,7 @@ func TestService_Delete_DeliveryCounterLookupFailureFailsClosed(t *testing.T) {
 	require.Equal(t, apperr.CodeDeliveryApplicationUnavailable, be.Code)
 	require.Equal(t, "delivery.application.unavailable", be.MessageKey)
 	require.NotContains(t, be.Message, "sensitive topology")
+	require.ErrorIs(t, err, wantErr)
 	_, getErr := r.Get(ctx, d.ID)
 	require.NoError(t, getErr, "lookup failure must fail closed")
 }
@@ -257,6 +272,60 @@ func TestService_Delete_DeliveryCounterNilSafeAndZeroAllowsExistingBehavior(t *t
 	svc.SetDeliveryApplicationCounter(counter)
 	require.NoError(t, svc.Delete(ctx, 0, "", "", d.ID))
 	require.Equal(t, 1, counter.calls)
+}
+
+func TestService_DeleteAndDeliveryBindSerializeWithoutDanglingBinding(t *testing.T) {
+	svc, appRepo, clID, crID := setupSvc(t)
+	ctx := context.Background()
+	app, err := svc.Create(ctx, 0, "", "", application.CreateRequest{
+		Name: "bind-delete-race", ClusterID: clID, Namespace: "default", ReleaseName: "bind-delete-race",
+		ChartRepoID: crID, ChartName: "nginx",
+	})
+	require.NoError(t, err)
+
+	deliveryRepo := deliveryproject.NewRepo(appRepo.DB())
+	deliverySvc := deliveryproject.NewService(deliveryRepo, databaseApplicationReader{repo: appRepo}, nil, nil)
+	project, err := deliverySvc.CreateProject(ctx, 0, "", "", deliveryproject.CreateProjectRequest{Name: "race-project"})
+	require.NoError(t, err)
+	svc.SetDeliveryApplicationCounter(deliveryRepo)
+
+	start := make(chan struct{})
+	bindDone := make(chan error, 1)
+	deleteDone := make(chan error, 1)
+	go func() {
+		<-start
+		_, bindErr := deliverySvc.BindEnvironment(ctx, 0, "", "", project.ID, deliveryproject.BindEnvironmentRequest{
+			EnvironmentKey: "prod", DisplayName: "Production", ApplicationID: app.ID,
+		})
+		bindDone <- bindErr
+	}()
+	go func() {
+		<-start
+		deleteDone <- svc.Delete(ctx, 0, "", "", app.ID)
+	}()
+	close(start)
+	bindErr := <-bindDone
+	deleteErr := <-deleteDone
+
+	_, appErr := appRepo.Get(ctx, app.ID)
+	bindings, countErr := deliveryRepo.CountByApplicationID(ctx, app.ID)
+	require.NoError(t, countErr)
+	require.False(t, errors.Is(appErr, gorm.ErrRecordNotFound) && bindings > 0,
+		"active delivery binding must never reference a deleted application")
+	if bindErr == nil {
+		be, ok := apperr.AsBiz(deleteErr)
+		require.True(t, ok)
+		require.Equal(t, apperr.CodeDeliveryEnvironmentInUse, be.Code)
+		require.NoError(t, appErr)
+		require.EqualValues(t, 1, bindings)
+		return
+	}
+	require.NoError(t, deleteErr)
+	be, ok := apperr.AsBiz(bindErr)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeDeliveryApplicationUnavailable, be.Code)
+	require.ErrorIs(t, appErr, gorm.ErrRecordNotFound)
+	require.Zero(t, bindings)
 }
 
 func TestService_Update_OnlyAllowedFields(t *testing.T) {
