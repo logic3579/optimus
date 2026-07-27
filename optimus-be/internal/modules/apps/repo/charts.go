@@ -140,6 +140,7 @@ func chartTgzHTTP(
 	if client == nil {
 		client = http.DefaultClient
 	}
+	client = secureArtifactHTTPClient(client, m.URL)
 	indexBytes, err := downloadHTTPBytes(ctx, client, absoluteURL(m.URL, "index.yaml"), m.URL, m.Username, pwd)
 	if indexBytes != nil {
 		defer wipeChartBytes(indexBytes)
@@ -170,6 +171,31 @@ func chartTgzHTTP(
 	}
 	tgzURL := absoluteURL(m.URL, picked.URLs[0])
 	return downloadHTTPBytes(ctx, client, tgzURL, m.URL, m.Username, pwd)
+}
+
+const maxArtifactRedirects = 3
+
+func secureArtifactHTTPClient(base *http.Client, authBase string) *http.Client {
+	client := *base
+	prior := client.CheckRedirect
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if !sameOrigin(authBase, req.URL.String()) {
+			req.Header.Del("Authorization")
+		}
+		if len(via) > maxArtifactRedirects {
+			return errors.New("chart repository redirect limit exceeded")
+		}
+		if prior != nil {
+			if err := prior(req, via); err != nil {
+				return err
+			}
+		}
+		if !sameOrigin(authBase, req.URL.String()) {
+			req.Header.Del("Authorization")
+		}
+		return nil
+	}
+	return &client
 }
 
 func downloadHTTPBytes(ctx context.Context, client *http.Client, rawURL, authBase, username, password string) ([]byte, error) {

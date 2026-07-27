@@ -46,8 +46,13 @@ func digestOf(b []byte) string {
 }
 
 func artifactServiceForTest(m *models.AppsChartRepo) *Service {
-	return &Service{artifactLookup: func(context.Context, uint64) (*models.AppsChartRepo, string, error) {
-		return m, "secret", nil
+	return &Service{artifacts: &artifactSource{
+		lookupFn: func(context.Context, uint64) (*models.AppsChartRepo, string, error) {
+			if m.Type == "http" {
+				return m, "secret", nil
+			}
+			return m, "", nil
+		},
 	}}
 }
 
@@ -95,7 +100,7 @@ entries:
 		}, nil
 	})}
 	svc := artifactServiceForTest(m)
-	svc.artifactHTTPClient = client
+	svc.artifacts.httpClient = client
 
 	got, err := svc.ResolveArtifact(ctx, m.ID, "demo", "1.2.3")
 	require.NoError(t, err)
@@ -111,7 +116,7 @@ func TestResolveArtifactHTTPCanceledContextStopsRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	svc := artifactServiceForTest(m)
-	svc.artifactHTTPClient = &http.Client{Transport: artifactRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+	svc.artifacts.httpClient = &http.Client{Transport: artifactRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return nil, req.Context().Err()
 	})}
 
@@ -152,18 +157,109 @@ entries:
 		}, nil
 	})}
 	svc := artifactServiceForTest(m)
-	svc.artifactHTTPClient = client
+	svc.artifacts.httpClient = client
 
 	got, err := svc.ResolveArtifact(context.Background(), m.ID, "demo", "1.2.3")
 	require.NoError(t, err)
 	require.Equal(t, digestOf(archive), got.Digest)
 }
 
+func TestResolveArtifactHTTPStripsAuthOnRedirect(t *testing.T) {
+	for _, target := range []string{
+		"https://cdn.example.test/demo-1.2.3.tgz",
+		"https://cdn.charts.example.test/demo-1.2.3.tgz",
+	} {
+		t.Run(target, func(t *testing.T) {
+			archive := artifactChartArchive(t, "demo", "1.2.3")
+			m := &models.AppsChartRepo{
+				ID: 42, Type: "http", URL: "https://charts.example.test/repository", Username: "robot",
+			}
+			client := &http.Client{Transport: artifactRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				var status = http.StatusOK
+				var body []byte
+				headers := make(http.Header)
+				switch req.URL.String() {
+				case "https://charts.example.test/repository/index.yaml":
+					body = []byte(`apiVersion: v1
+entries:
+  demo:
+    - name: demo
+      version: 1.2.3
+      urls: ["archive.tgz"]
+`)
+				case "https://charts.example.test/repository/archive.tgz":
+					_, _, ok := req.BasicAuth()
+					require.True(t, ok)
+					status = http.StatusFound
+					headers.Set("Location", target)
+				case target:
+					_, _, ok := req.BasicAuth()
+					require.False(t, ok, "redirected credentials must require exact same origin")
+					body = archive
+				default:
+					return nil, fmt.Errorf("unexpected request URL: %s", req.URL)
+				}
+				return &http.Response{
+					StatusCode: status,
+					Header:     headers,
+					Body:       io.NopCloser(bytes.NewReader(body)),
+					Request:    req,
+				}, nil
+			})}
+			svc := artifactServiceForTest(m)
+			svc.artifacts.httpClient = client
+
+			got, err := svc.ResolveArtifact(context.Background(), m.ID, "demo", "1.2.3")
+			require.NoError(t, err)
+			require.Equal(t, digestOf(archive), got.Digest)
+		})
+	}
+}
+
+func TestResolveArtifactHTTPBoundsRedirects(t *testing.T) {
+	m := &models.AppsChartRepo{ID: 42, Type: "http", URL: "https://charts.example.test/repository"}
+	var redirectRequests int
+	client := &http.Client{Transport: artifactRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		status := http.StatusFound
+		headers := make(http.Header)
+		var body []byte
+		switch req.URL.Path {
+		case "/repository/index.yaml":
+			status = http.StatusOK
+			body = []byte(`apiVersion: v1
+entries:
+  demo:
+    - name: demo
+      version: 1.2.3
+      urls: ["redirect/0"]
+`)
+		case "/repository/redirect/0", "/repository/redirect/1", "/repository/redirect/2", "/repository/redirect/3":
+			redirectRequests++
+			next := redirectRequests
+			headers.Set("Location", fmt.Sprintf("https://charts.example.test/repository/redirect/%d", next))
+		default:
+			return nil, fmt.Errorf("redirect limit was not enforced: %s", req.URL)
+		}
+		return &http.Response{
+			StatusCode: status,
+			Header:     headers,
+			Body:       io.NopCloser(bytes.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+	svc := artifactServiceForTest(m)
+	svc.artifacts.httpClient = client
+
+	_, err := svc.ResolveArtifact(context.Background(), m.ID, "demo", "1.2.3")
+	require.Error(t, err)
+	require.Equal(t, 4, redirectRequests)
+}
+
 func TestResolveArtifactOCIHashesInjectedPullBytes(t *testing.T) {
 	archive := artifactChartArchive(t, "demo", "2.0.0")
 	wantDigest := digestOf(archive)
 	var pulls int
-	m := &models.AppsChartRepo{Name: "demo", Type: "oci", URL: "oci://registry.example/org/demo"}
+	m := &models.AppsChartRepo{ID: 42, Name: "demo", Type: "oci", URL: "oci://registry.example/org/demo"}
 	pull := func(ctx context.Context, _ *registry.Client, ref string, _ ...registry.PullOption) (*registry.PullResult, error) {
 		pulls++
 		require.NoError(t, ctx.Err())
@@ -173,7 +269,12 @@ func TestResolveArtifactOCIHashesInjectedPullBytes(t *testing.T) {
 		}}, nil
 	}
 
-	got, err := resolveArtifactOCI(context.Background(), m, "", 42, "demo", "2.0.0", pull)
+	svc := artifactServiceForTest(m)
+	svc.artifacts.ociFn = func(ctx context.Context, got *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+		require.Same(t, m, got)
+		return chartTgzOCIWithPull(ctx, got, pwd, chartName, version, pull)
+	}
+	got, err := svc.ResolveArtifact(context.Background(), m.ID, "demo", "2.0.0")
 	require.NoError(t, err)
 	require.Equal(t, &Artifact{
 		RepoID: 42, ChartName: "demo", Version: "2.0.0", Digest: wantDigest,
@@ -188,7 +289,7 @@ func TestResolveArtifactOCICanceledContextStopsPull(t *testing.T) {
 	cancel()
 	var pulls int
 	svc := artifactServiceForTest(m)
-	svc.artifactOCIDownload = func(got context.Context, _ *models.AppsChartRepo, _, _, _ string) ([]byte, error) {
+	svc.artifacts.ociFn = func(got context.Context, _ *models.AppsChartRepo, _, _, _ string) ([]byte, error) {
 		pulls++
 		require.ErrorIs(t, got.Err(), context.Canceled)
 		return nil, got.Err()
@@ -208,17 +309,21 @@ func TestResolveArtifactWipesPartialBytesOnDownloadError(t *testing.T) {
 			var err error
 			if repoType == "http" {
 				svc := artifactServiceForTest(m)
-				svc.artifactHTTPDownload = func(context.Context, *models.AppsChartRepo, string, string, string) ([]byte, error) {
+				svc.artifacts.httpFn = func(context.Context, *models.AppsChartRepo, string, string, string) ([]byte, error) {
 					return partial, wantErr
 				}
 				_, err = svc.ResolveArtifact(context.Background(), m.ID, "demo", "1.2.3")
 			} else {
+				svc := artifactServiceForTest(m)
 				pull := func(context.Context, *registry.Client, string, ...registry.PullOption) (*registry.PullResult, error) {
 					return &registry.PullResult{Chart: &registry.DescriptorPullSummaryWithMeta{
 						DescriptorPullSummary: registry.DescriptorPullSummary{Data: partial},
 					}}, wantErr
 				}
-				_, err = resolveArtifactOCI(context.Background(), m, "", m.ID, "demo", "1.2.3", pull)
+				svc.artifacts.ociFn = func(ctx context.Context, m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+					return chartTgzOCIWithPull(ctx, m, pwd, chartName, version, pull)
+				}
+				_, err = svc.ResolveArtifact(context.Background(), m.ID, "demo", "1.2.3")
 			}
 
 			require.ErrorIs(t, err, wantErr)
@@ -230,15 +335,17 @@ func TestResolveArtifactWipesPartialBytesOnDownloadError(t *testing.T) {
 func TestLoadVerifiedChartRejectsDigestMismatchBeforeParse(t *testing.T) {
 	invalidArchive := []byte("not a helm chart")
 	var downloads int
-	download := func() ([]byte, error) {
+	m := &models.AppsChartRepo{ID: 42, Type: "oci", URL: "oci://registry.example/org/demo"}
+	svc := artifactServiceForTest(m)
+	svc.artifacts.ociFn = func(context.Context, *models.AppsChartRepo, string, string, string) ([]byte, error) {
 		downloads++
 		return invalidArchive, nil
 	}
 
-	_, err := loadVerifiedChart(Artifact{
-		RepoID: 42, ChartName: "demo", Version: "1.2.3",
+	_, err := svc.LoadVerifiedChart(context.Background(), Artifact{
+		RepoID: m.ID, ChartName: "demo", Version: "1.2.3",
 		Digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	}, download)
+	})
 	require.ErrorIs(t, err, ErrArtifactDigestMismatch)
 	require.Equal(t, 1, downloads, "chart archive must be downloaded once")
 	require.Equal(t, make([]byte, len(invalidArchive)), invalidArchive, "downloaded chart bytes must be wiped")
@@ -247,9 +354,9 @@ func TestLoadVerifiedChartRejectsDigestMismatchBeforeParse(t *testing.T) {
 func TestLoadVerifiedChartParsesAndWipesVerifiedBytes(t *testing.T) {
 	archive := artifactChartArchive(t, "demo", "1.2.3")
 	digest := digestOf(archive)
-	m := &models.AppsChartRepo{ID: 42, Type: "http", URL: "https://charts.example.test/repository"}
+	m := &models.AppsChartRepo{ID: 42, Type: "oci", URL: "oci://registry.example/org/demo"}
 	svc := artifactServiceForTest(m)
-	svc.artifactHTTPDownload = func(context.Context, *models.AppsChartRepo, string, string, string) ([]byte, error) {
+	svc.artifacts.ociFn = func(context.Context, *models.AppsChartRepo, string, string, string) ([]byte, error) {
 		return archive, nil
 	}
 

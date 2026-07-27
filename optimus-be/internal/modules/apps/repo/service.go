@@ -3,7 +3,6 @@ package repo
 import (
 	"context"
 	"errors"
-	"net/http"
 	"strconv"
 
 	"gorm.io/gorm"
@@ -30,14 +29,11 @@ type InUseCounter interface {
 
 // Service owns vault encrypt/decrypt for password and audit emission.
 type Service struct {
-	repo                 *Repo
-	cipher               Cipher
-	audit                *audit.Recorder
-	inuse                InUseCounter
-	artifactLookup       artifactLookupFunc
-	artifactHTTPClient   *http.Client
-	artifactHTTPDownload httpChartDownloadFunc
-	artifactOCIDownload  ociChartDownloadFunc
+	repo      *Repo
+	cipher    Cipher
+	audit     *audit.Recorder
+	inuse     InUseCounter
+	artifacts *artifactSource
 }
 
 // NewService returns a Service. The vault.Cipher is injected (NOT constructed

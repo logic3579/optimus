@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"net/http"
 
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -30,25 +31,17 @@ type Artifact struct {
 // ResolveArtifact downloads one chart archive and freezes its exact bytes to a
 // lowercase SHA-256 digest. The archive is not cached or persisted.
 func (s *Service) ResolveArtifact(ctx context.Context, repoID uint64, chartName, version string) (*Artifact, error) {
-	m, pwd, err := s.artifactRepo(ctx, repoID)
+	source := s.artifactSource()
+	m, pwd, err := source.lookupRepo(ctx, repoID)
 	if err != nil {
 		return nil, err
 	}
 
 	switch m.Type {
 	case "http":
-		download := s.artifactHTTPDownload
-		if download == nil {
-			download = func(ctx context.Context, m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
-				return chartTgzHTTP(ctx, s.artifactHTTPClient, m, pwd, chartName, version)
-			}
-		}
-		return resolveArtifactHTTP(ctx, m, pwd, repoID, chartName, version, download)
+		return resolveArtifactHTTP(ctx, m, pwd, repoID, chartName, version, source.downloadHTTP)
 	case "oci":
-		if s.artifactOCIDownload != nil {
-			return resolveArtifactDownload(ctx, m, pwd, repoID, chartName, version, s.artifactOCIDownload)
-		}
-		return resolveArtifactOCI(ctx, m, pwd, repoID, chartName, version, defaultOCIPull)
+		return resolveArtifactDownload(ctx, m, pwd, repoID, chartName, version, source.downloadOCI)
 	default:
 		return nil, apperr.New(apperr.CodeAppsRepoOther, "apps.repo.unknown_type", "unsupported chart repository type")
 	}
@@ -57,7 +50,8 @@ func (s *Service) ResolveArtifact(ctx context.Context, repoID uint64, chartName,
 // LoadVerifiedChart downloads an artifact once, verifies its digest before
 // invoking Helm's parser, and wipes the downloaded archive after parsing.
 func (s *Service) LoadVerifiedChart(ctx context.Context, artifact Artifact) (*chart.Chart, error) {
-	m, pwd, err := s.artifactRepo(ctx, artifact.RepoID)
+	source := s.artifactSource()
+	m, pwd, err := source.lookupRepo(ctx, artifact.RepoID)
 	if err != nil {
 		return nil, err
 	}
@@ -65,24 +59,12 @@ func (s *Service) LoadVerifiedChart(ctx context.Context, artifact Artifact) (*ch
 	var download func() ([]byte, error)
 	switch m.Type {
 	case "http":
-		httpDownload := s.artifactHTTPDownload
-		if httpDownload == nil {
-			httpDownload = func(ctx context.Context, m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
-				return chartTgzHTTP(ctx, s.artifactHTTPClient, m, pwd, chartName, version)
-			}
-		}
 		download = func() ([]byte, error) {
-			return httpDownload(ctx, m, pwd, artifact.ChartName, artifact.Version)
+			return source.downloadHTTP(ctx, m, pwd, artifact.ChartName, artifact.Version)
 		}
 	case "oci":
-		ociDownload := s.artifactOCIDownload
-		if ociDownload == nil {
-			ociDownload = func(ctx context.Context, m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
-				return chartTgzOCI(ctx, m, pwd, chartName, version)
-			}
-		}
 		download = func() ([]byte, error) {
-			return ociDownload(ctx, m, pwd, artifact.ChartName, artifact.Version)
+			return source.downloadOCI(ctx, m, pwd, artifact.ChartName, artifact.Version)
 		}
 	default:
 		return nil, apperr.New(apperr.CodeAppsRepoOther, "apps.repo.unknown_type", "unsupported chart repository type")
@@ -111,10 +93,7 @@ func loadVerifiedChart(artifact Artifact, download func() ([]byte, error)) (*cha
 	return ch, nil
 }
 
-func (s *Service) artifactRepo(ctx context.Context, repoID uint64) (*models.AppsChartRepo, string, error) {
-	if s.artifactLookup != nil {
-		return s.artifactLookup(ctx, repoID)
-	}
+func (s *Service) storedArtifactRepo(ctx context.Context, repoID uint64) (*models.AppsChartRepo, string, error) {
 	m, err := s.repo.Get(ctx, repoID)
 	if err != nil {
 		return nil, "", mapNotFound(err)
@@ -132,6 +111,53 @@ type httpChartDownloadFunc func(context.Context, *models.AppsChartRepo, string, 
 
 type ociChartDownloadFunc func(context.Context, *models.AppsChartRepo, string, string, string) ([]byte, error)
 
+// artifactSource is the narrow repository/transport collaborator used by the
+// public artifact methods. Service keeps one optional collaborator so
+// tests and alternate transports do not require mutable package globals.
+type artifactSource struct {
+	service    *Service
+	lookupFn   artifactLookupFunc
+	httpClient *http.Client
+	httpFn     httpChartDownloadFunc
+	ociFn      ociChartDownloadFunc
+}
+
+func (s *Service) artifactSource() *artifactSource {
+	if s.artifacts != nil {
+		return s.artifacts
+	}
+	return &artifactSource{service: s}
+}
+
+func (s *artifactSource) lookupRepo(ctx context.Context, repoID uint64) (*models.AppsChartRepo, string, error) {
+	if s.lookupFn != nil {
+		return s.lookupFn(ctx, repoID)
+	}
+	return s.service.storedArtifactRepo(ctx, repoID)
+}
+
+func (s *artifactSource) downloadHTTP(
+	ctx context.Context,
+	m *models.AppsChartRepo,
+	pwd, chartName, version string,
+) ([]byte, error) {
+	if s.httpFn != nil {
+		return s.httpFn(ctx, m, pwd, chartName, version)
+	}
+	return chartTgzHTTP(ctx, s.httpClient, m, pwd, chartName, version)
+}
+
+func (s *artifactSource) downloadOCI(
+	ctx context.Context,
+	m *models.AppsChartRepo,
+	pwd, chartName, version string,
+) ([]byte, error) {
+	if s.ociFn != nil {
+		return s.ociFn(ctx, m, pwd, chartName, version)
+	}
+	return chartTgzOCI(ctx, m, pwd, chartName, version)
+}
+
 func resolveArtifactHTTP(
 	ctx context.Context,
 	m *models.AppsChartRepo,
@@ -141,24 +167,6 @@ func resolveArtifactHTTP(
 	download httpChartDownloadFunc,
 ) (*Artifact, error) {
 	tgz, err := download(ctx, m, pwd, chartName, version)
-	if tgz != nil {
-		defer wipeChartBytes(tgz)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return artifactForBytes(repoID, chartName, version, tgz), nil
-}
-
-func resolveArtifactOCI(
-	ctx context.Context,
-	m *models.AppsChartRepo,
-	pwd string,
-	repoID uint64,
-	chartName, version string,
-	pull ociPullFunc,
-) (*Artifact, error) {
-	tgz, err := chartTgzOCIWithPull(ctx, m, pwd, chartName, version, pull)
 	if tgz != nil {
 		defer wipeChartBytes(tgz)
 	}
