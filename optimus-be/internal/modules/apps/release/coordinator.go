@@ -55,7 +55,6 @@ type AcquireResult struct {
 // coordinate through PostgreSQL row locks.
 type Coordinator struct {
 	store operationStore
-	now   func() time.Time
 }
 
 // NewCoordinator constructs a database-backed release operation coordinator.
@@ -63,17 +62,14 @@ func NewCoordinator(db *gorm.DB) *Coordinator {
 	if db == nil {
 		panic("release: NewCoordinator: db is nil")
 	}
-	return newCoordinator(&gormOperationStore{db: db}, time.Now)
+	return newCoordinator(&gormOperationStore{db: db})
 }
 
-func newCoordinator(store operationStore, now func() time.Time) *Coordinator {
+func newCoordinator(store operationStore) *Coordinator {
 	if store == nil {
 		panic("release: newCoordinator: store is nil")
 	}
-	if now == nil {
-		panic("release: newCoordinator: clock is nil")
-	}
-	return &Coordinator{store: store, now: now}
+	return &Coordinator{store: store}
 }
 
 // Acquire creates or replays a stable operation. Acquired is the sole
@@ -90,9 +86,13 @@ func (c *Coordinator) Acquire(
 		return AcquireResult{}, executionUnavailableError()
 	}
 
-	now := c.now().UTC()
 	var result AcquireResult
 	err := c.store.WithApplicationLock(ctx, applicationID, func(tx operationTransaction) error {
+		now, err := tx.Now(ctx)
+		if err != nil {
+			return err
+		}
+		now = now.UTC()
 		existing, err := tx.FindByOperationID(ctx, operationID)
 		switch {
 		case err == nil:
@@ -191,15 +191,21 @@ func (c *Coordinator) Renew(ctx context.Context, operationID, owner string, unti
 	if !validBounded(operationID, 64) || !validBounded(owner, 128) || until.IsZero() {
 		return executionUnavailableError()
 	}
-	now := c.now().UTC()
 	until = until.UTC()
-	if !until.After(now) {
-		return executionUnavailableError()
-	}
 	var committedError error
-	err := c.withLockedOperation(ctx, operationID, func(tx operationTransaction, row *models.AppsReleaseOperation) error {
+	err := c.withLockedOperation(ctx, operationID, func(
+		tx operationTransaction,
+		row *models.AppsReleaseOperation,
+		now time.Time,
+	) error {
 		if row.State != models.AppsReleaseOperationActive && row.State != models.AppsReleaseOperationReconciling {
 			return operationBusyError()
+		}
+		if row.LeaseOwner == nil || *row.LeaseOwner != owner {
+			return operationBusyError()
+		}
+		if !until.After(now) {
+			return executionUnavailableError()
 		}
 		if leaseExpired(row, now) {
 			if row.State == models.AppsReleaseOperationReconciling {
@@ -210,9 +216,6 @@ func (c *Coordinator) Renew(ctx context.Context, operationID, owner string, unti
 			}
 			committedError = reconciliationRequiredError()
 			return nil
-		}
-		if row.LeaseOwner == nil || *row.LeaseOwner != owner {
-			return operationBusyError()
 		}
 		if row.LeaseExpiresAt == nil || row.LeaseExpiresAt.Before(until) {
 			row.LeaseExpiresAt = &until
@@ -233,9 +236,12 @@ func (c *Coordinator) Complete(ctx context.Context, operationID, owner string, r
 	if !validBounded(operationID, 64) || !validBounded(owner, 128) || !validSafeOperationResult(result) {
 		return executionUnavailableError()
 	}
-	now := c.now().UTC()
 	var committedError error
-	err := c.withLockedOperation(ctx, operationID, func(tx operationTransaction, row *models.AppsReleaseOperation) error {
+	err := c.withLockedOperation(ctx, operationID, func(
+		tx operationTransaction,
+		row *models.AppsReleaseOperation,
+		now time.Time,
+	) error {
 		switch row.State {
 		case models.AppsReleaseOperationReconciling:
 			if leaseExpired(row, now) || row.LeaseOwner == nil || *row.LeaseOwner != owner {
@@ -297,18 +303,22 @@ func (c *Coordinator) Inspect(ctx context.Context, operationID string) (*Operati
 func (c *Coordinator) withLockedOperation(
 	ctx context.Context,
 	operationID string,
-	fn func(operationTransaction, *models.AppsReleaseOperation) error,
+	fn func(operationTransaction, *models.AppsReleaseOperation, time.Time) error,
 ) error {
 	snapshot, err := c.store.Inspect(ctx, operationID)
 	if err != nil {
 		return mapCoordinatorStoreError(err)
 	}
 	err = c.store.WithApplicationLock(ctx, snapshot.ApplicationID, func(tx operationTransaction) error {
+		now, err := tx.Now(ctx)
+		if err != nil {
+			return err
+		}
 		row, err := tx.FindByOperationID(ctx, operationID)
 		if err != nil {
 			return err
 		}
-		return fn(tx, row)
+		return fn(tx, row, now.UTC())
 	})
 	return mapCoordinatorStoreError(err)
 }
@@ -387,7 +397,12 @@ func mapCoordinatorStoreError(err error) error {
 		if _, ok := apperr.AsBiz(err); ok {
 			return err
 		}
-		return executionUnavailableError()
+		return apperr.Wrap(
+			err,
+			apperr.CodeDeliveryExecutionUnavailable,
+			executionUnavailableKey,
+			"release operation is unavailable",
+		)
 	}
 }
 
@@ -397,6 +412,7 @@ type operationStore interface {
 }
 
 type operationTransaction interface {
+	Now(context.Context) (time.Time, error)
 	FindByOperationID(context.Context, string) (*models.AppsReleaseOperation, error)
 	FindBlockingByApplication(context.Context, uint64) (*models.AppsReleaseOperation, error)
 	Create(context.Context, *models.AppsReleaseOperation) error
@@ -434,6 +450,15 @@ func (s *gormOperationStore) Inspect(ctx context.Context, operationID string) (*
 }
 
 type gormOperationTransaction struct{ db *gorm.DB }
+
+// Now samples PostgreSQL wall time after the application row lock is held.
+// clock_timestamp is intentional: CURRENT_TIMESTAMP is fixed at transaction
+// start and can be stale after waiting for a contended row lock.
+func (tx *gormOperationTransaction) Now(ctx context.Context) (time.Time, error) {
+	var now time.Time
+	err := tx.db.WithContext(ctx).Raw("SELECT clock_timestamp()").Scan(&now).Error
+	return now.UTC(), err
+}
 
 func (tx *gormOperationTransaction) FindByOperationID(ctx context.Context, operationID string) (*models.AppsReleaseOperation, error) {
 	var row models.AppsReleaseOperation

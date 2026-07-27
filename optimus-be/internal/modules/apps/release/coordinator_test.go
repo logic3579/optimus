@@ -176,6 +176,22 @@ func TestCoordinatorRenewExtendsReconciliationLease(t *testing.T) {
 	)
 }
 
+func TestCoordinatorRenewNonOwnerCannotClaimExpiredMutation(t *testing.T) {
+	coordinator, clock, _ := newCoordinatorHarness()
+	ctx := context.Background()
+
+	_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", time.Minute)
+	require.NoError(t, err)
+	clock.Advance(2 * time.Minute)
+
+	err = coordinator.Renew(ctx, "operation-1", "worker-2", clock.Now().Add(time.Minute))
+	requireBizError(t, err, apperr.CodeDeliveryOperationBusy, "delivery.execution.operation_busy")
+	operation, inspectErr := coordinator.Inspect(ctx, "operation-1")
+	require.NoError(t, inspectErr)
+	require.Equal(t, models.AppsReleaseOperationActive, operation.State)
+	require.Equal(t, "worker-1", derefString(operation.LeaseOwner))
+}
+
 func TestCoordinatorExpiredReconciliationLeaseAllowsTakeover(t *testing.T) {
 	coordinator, clock, _ := newCoordinatorHarness()
 	ctx := context.Background()
@@ -276,7 +292,7 @@ func TestCoordinatorReconciliationOwnerCanCompleteAndReleaseApplication(t *testi
 
 func TestCoordinatorMapsUnexpectedStoreErrorsToSafeUnavailable(t *testing.T) {
 	raw := errors.New("postgres leaked upstream-secret-value")
-	coordinator := newCoordinator(&failingOperationStore{err: raw}, time.Now)
+	coordinator := newCoordinator(&failingOperationStore{err: raw})
 	ctx := context.Background()
 	calls := map[string]func() error{
 		"acquire": func() error {
@@ -298,10 +314,82 @@ func TestCoordinatorMapsUnexpectedStoreErrorsToSafeUnavailable(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := call()
 			requireBizError(t, err, apperr.CodeDeliveryExecutionUnavailable, "delivery.execution.unavailable")
-			require.NotContains(t, err.Error(), raw.Error())
-			require.NotContains(t, err.Error(), "upstream-secret-value")
+			business, ok := apperr.AsBiz(err)
+			require.True(t, ok)
+			require.Equal(t, "release operation is unavailable", business.Message)
+			require.NotContains(t, business.Message, raw.Error())
+			require.NotContains(t, business.Message, "upstream-secret-value")
+			require.ErrorIs(t, err, raw)
 		})
 	}
+}
+
+func TestCoordinatorSamplesDatabaseTimeAfterLockBeforeDecision(t *testing.T) {
+	tests := []struct {
+		name string
+		seed func(*Coordinator) error
+		call func(*Coordinator, time.Time) error
+		want []string
+	}{
+		{
+			name: "acquire",
+			seed: func(*Coordinator) error { return nil },
+			call: func(coordinator *Coordinator, _ time.Time) error {
+				_, err := coordinator.Acquire(context.Background(), 41, "operation-1", "upgrade", "worker-1", time.Minute)
+				return err
+			},
+			want: []string{"lock", "db-now", "find"},
+		},
+		{
+			name: "renew",
+			seed: func(coordinator *Coordinator) error {
+				_, err := coordinator.Acquire(context.Background(), 41, "operation-1", "upgrade", "worker-1", time.Minute)
+				return err
+			},
+			call: func(coordinator *Coordinator, base time.Time) error {
+				return coordinator.Renew(context.Background(), "operation-1", "worker-1", base.Add(2*time.Minute))
+			},
+			want: []string{"inspect", "lock", "db-now", "find"},
+		},
+		{
+			name: "complete",
+			seed: func(coordinator *Coordinator) error {
+				_, err := coordinator.Acquire(context.Background(), 41, "operation-1", "upgrade", "worker-1", time.Minute)
+				return err
+			},
+			call: func(coordinator *Coordinator, _ time.Time) error {
+				return coordinator.Complete(context.Background(), "operation-1", "worker-1", SafeOperationResult{Succeeded: false})
+			},
+			want: []string{"inspect", "lock", "db-now", "find"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var events []string
+			coordinator, clock, store, base := newCoordinatorHarnessWithStore()
+			require.NoError(t, test.seed(coordinator))
+			store.events = &events
+			clock.onNow = func() { events = append(events, "db-now") }
+			require.NoError(t, test.call(coordinator, base))
+			require.Equal(t, test.want, events)
+		})
+	}
+}
+
+func TestCoordinatorUsesDatabaseTimeAfterLockWait(t *testing.T) {
+	coordinator, clock, store, base := newCoordinatorHarnessWithStore()
+	ctx := context.Background()
+
+	_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", time.Minute)
+	require.NoError(t, err)
+	store.onLocked = func() { clock.Advance(2 * time.Minute) }
+
+	result, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "reconciler-1", time.Minute)
+	require.NoError(t, err)
+	require.False(t, result.Acquired)
+	require.True(t, result.NeedsReconciliation)
+	require.Equal(t, models.AppsReleaseOperationReconciling, result.Operation.State)
+	require.Equal(t, base.Add(3*time.Minute), derefTime(result.Operation.LeaseExpiresAt))
 }
 
 func TestCoordinatorValidatesSafeCompletionResult(t *testing.T) {
@@ -335,19 +423,30 @@ func TestCoordinatorValidatesSafeCompletionResult(t *testing.T) {
 }
 
 func newCoordinatorHarness() (*Coordinator, *fakeClock, time.Time) {
+	coordinator, clock, _, now := newCoordinatorHarnessWithStore()
+	return coordinator, clock, now
+}
+
+func newCoordinatorHarnessWithStore() (*Coordinator, *fakeClock, *memoryOperationStore, time.Time) {
 	now := time.Date(2026, time.July, 27, 12, 0, 0, 0, time.UTC)
 	clock := &fakeClock{now: now}
-	return newCoordinator(newMemoryOperationStore(), clock.Now), clock, now
+	store := newMemoryOperationStore()
+	store.now = clock.Now
+	return newCoordinator(store), clock, store, now
 }
 
 type fakeClock struct {
-	mu  sync.Mutex
-	now time.Time
+	mu    sync.Mutex
+	now   time.Time
+	onNow func()
 }
 
 func (c *fakeClock) Now() time.Time {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.onNow != nil {
+		c.onNow()
+	}
 	return c.now
 }
 
@@ -362,6 +461,9 @@ type memoryOperationStore struct {
 	nextID        uint64
 	byOperation   map[string]*models.AppsReleaseOperation
 	byApplication map[uint64][]*models.AppsReleaseOperation
+	now           func() time.Time
+	events        *[]string
+	onLocked      func()
 }
 
 func newMemoryOperationStore() *memoryOperationStore {
@@ -369,18 +471,26 @@ func newMemoryOperationStore() *memoryOperationStore {
 		nextID:        1,
 		byOperation:   make(map[string]*models.AppsReleaseOperation),
 		byApplication: make(map[uint64][]*models.AppsReleaseOperation),
+		now:           time.Now,
 	}
 }
 
 func (s *memoryOperationStore) WithApplicationLock(_ context.Context, _ uint64, fn func(operationTransaction) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.record("lock")
+	if s.onLocked != nil {
+		onLocked := s.onLocked
+		s.onLocked = nil
+		onLocked()
+	}
 	return fn((*memoryOperationTransaction)(s))
 }
 
 func (s *memoryOperationStore) Inspect(_ context.Context, operationID string) (*models.AppsReleaseOperation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.record("inspect")
 	row := s.byOperation[operationID]
 	if row == nil {
 		return nil, errOperationNotFound
@@ -389,6 +499,16 @@ func (s *memoryOperationStore) Inspect(_ context.Context, operationID string) (*
 }
 
 type memoryOperationTransaction memoryOperationStore
+
+func (s *memoryOperationStore) record(event string) {
+	if s.events != nil {
+		*s.events = append(*s.events, event)
+	}
+}
+
+func (tx *memoryOperationTransaction) Now(context.Context) (time.Time, error) {
+	return tx.now().UTC(), nil
+}
 
 type failingOperationStore struct{ err error }
 
@@ -401,6 +521,7 @@ func (s *failingOperationStore) Inspect(context.Context, string) (*models.AppsRe
 }
 
 func (tx *memoryOperationTransaction) FindByOperationID(_ context.Context, operationID string) (*models.AppsReleaseOperation, error) {
+	(*memoryOperationStore)(tx).record("find")
 	row := tx.byOperation[operationID]
 	if row == nil {
 		return nil, errOperationNotFound
