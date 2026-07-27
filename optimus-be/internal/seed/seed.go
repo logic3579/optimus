@@ -168,6 +168,10 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			{Code: "observability.dashboards", Name: "menu.observability.dashboards", Path: "/observability/dashboards", Component: "observability/dashboards/List", PermissionCode: sp("observability:dashboard:read")},
 			{Code: "observability.datasources", Name: "menu.observability.datasources", Path: "/observability/datasources", Component: "observability/datasources/List", PermissionCode: sp("observability:datasource:read")},
 		}},
+		{Code: "delivery", Name: "menu.delivery_group", Path: "/delivery", Component: "", Icon: "deployment-unit", Children: []spec{
+			{Code: "delivery.projects", Name: "menu.delivery.projects", Path: "/delivery/projects", Component: "delivery/projects/List", PermissionCode: sp("delivery:project:read")},
+			{Code: "delivery.approvals", Name: "menu.delivery.approvals", Path: "/delivery/approvals", Component: "delivery/approvals/List", PermissionCode: sp("delivery:approval:read")},
+		}},
 	}
 	var insert func(parentID *uint64, nodes []spec, sortStart int) error
 	insert = func(parentID *uint64, nodes []spec, sortStart int) error {

@@ -118,4 +118,43 @@ const (
 	CodeObservabilityDashboardNameTaken       Code = 44202 // observability.dashboard.name_taken
 	CodeObservabilityDashboardInvalidPanel    Code = 44203 // observability.dashboard.invalid_panel
 	CodeObservabilityDashboardBuiltinNotFound Code = 44204 // observability.dashboard.builtin_not_found
+
+	// 45xxx P6 delivery domain — application delivery orchestration.
+	// Message keys are defined by internal/modules/delivery/errs.
+	// 45001-45099 project, environment, and pipeline validation/conflict.
+	CodeDeliveryProjectNotFound         Code = 45001
+	CodeDeliveryProjectNameConflict     Code = 45002
+	CodeDeliveryApplicationAlreadyBound Code = 45003
+	CodeDeliveryApplicationUnavailable  Code = 45004
+	CodeDeliveryChartIdentityMismatch   Code = 45005
+	CodeDeliveryPipelineMissing         Code = 45006
+	CodeDeliveryPipelineInvalid         Code = 45007
+	CodeDeliveryPipelineVersionConflict Code = 45008
+	CodeDeliveryEnvironmentNotFound     Code = 45009
+	CodeDeliveryEnvironmentInUse        Code = 45010
+
+	// 45101-45199 run state, active-run conflict, idempotency, and cancellation.
+	CodeDeliveryRunNotFound         Code = 45101
+	CodeDeliveryActiveRun           Code = 45102
+	CodeDeliveryIdempotencyConflict Code = 45103
+	CodeDeliveryIdempotencyMissing  Code = 45104
+	CodeDeliveryRunInvalidState     Code = 45105
+	CodeDeliveryRunCancelConflict   Code = 45106
+	CodeDeliveryRunRetryUnavailable Code = 45107
+
+	// 45201-45299 approval validation and conflict.
+	CodeDeliveryApprovalNotFound         Code = 45201
+	CodeDeliveryApprovalSelfApproval     Code = 45202
+	CodeDeliveryApprovalAlreadyDecided   Code = 45203
+	CodeDeliveryApprovalDecisionConflict Code = 45204
+	CodeDeliveryApprovalCommentRequired  Code = 45205
+	CodeDeliveryApprovalCommentInvalid   Code = 45206
+
+	// 45301-45399 execution coordination and outcome safety.
+	CodeDeliveryOperationBusy          Code = 45301
+	CodeDeliveryArtifactDrift          Code = 45302
+	CodeDeliveryReconciliationRequired Code = 45303
+	CodeDeliveryOutcomeUnknown         Code = 45304
+	CodeDeliveryExecutionTimeout       Code = 45305
+	CodeDeliveryExecutionUnavailable   Code = 45306
 )
