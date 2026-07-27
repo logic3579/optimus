@@ -17,7 +17,7 @@ import (
 	"optimus-be/tests/dbtest"
 )
 
-func TestAppsReleaseOperationConcurrentAcquisitionAcrossCoordinatorInstances(t *testing.T) {
+func TestAppsReleaseOperationConcurrency(t *testing.T) {
 	_, database := setupServer(t)
 	cluster := dbtest.SeedCluster(t, database, "release-operation-race")
 	chartRepo := &models.AppsChartRepo{

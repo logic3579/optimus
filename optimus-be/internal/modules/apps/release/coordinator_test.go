@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,8 @@ import (
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 )
+
+const validOperationDigest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 func TestCoordinatorAcquireFirstOperation(t *testing.T) {
 	coordinator, _, now := newCoordinatorHarness()
@@ -84,7 +87,7 @@ func TestCoordinatorLostOwnerCannotComplete(t *testing.T) {
 	err = coordinator.Complete(ctx, "operation-1", "worker-1", SafeOperationResult{
 		Succeeded: true,
 		Revision:  7,
-		Digest:    "sha256:safe",
+		Digest:    validOperationDigest,
 	})
 	requireBizError(t, err, apperr.CodeDeliveryReconciliationRequired, "delivery.execution.reconciliation_required")
 	operation, err := coordinator.Inspect(ctx, "operation-1")
@@ -103,14 +106,14 @@ func TestCoordinatorCompleteStoresOnlySafeResult(t *testing.T) {
 	require.NoError(t, coordinator.Complete(ctx, "operation-1", "worker-1", SafeOperationResult{
 		Succeeded: true,
 		Revision:  7,
-		Digest:    "sha256:safe",
+		Digest:    validOperationDigest,
 	}))
 
 	operation, err := coordinator.Inspect(ctx, "operation-1")
 	require.NoError(t, err)
 	require.Equal(t, models.AppsReleaseOperationSucceeded, operation.State)
 	require.EqualValues(t, 7, derefInt64(operation.ResultRevision))
-	require.Equal(t, "sha256:safe", derefString(operation.ResultDigest))
+	require.Equal(t, validOperationDigest, derefString(operation.ResultDigest))
 	require.NotNil(t, operation.FinishedAt)
 
 	replay, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-2", time.Minute)
@@ -120,7 +123,7 @@ func TestCoordinatorCompleteStoresOnlySafeResult(t *testing.T) {
 	require.Equal(t, models.AppsReleaseOperationSucceeded, replay.Operation.State)
 }
 
-func TestCoordinatorExpiredLeaseRequiresReconciliationWithoutTakeover(t *testing.T) {
+func TestCoordinatorExpiredLeaseAssignsReconciliationWithoutMutation(t *testing.T) {
 	coordinator, clock, _ := newCoordinatorHarness()
 	ctx := context.Background()
 
@@ -135,10 +138,122 @@ func TestCoordinatorExpiredLeaseRequiresReconciliationWithoutTakeover(t *testing
 	require.True(t, result.NeedsReconciliation)
 	require.Equal(t, "operation-1", result.Operation.OperationID)
 	require.Equal(t, models.AppsReleaseOperationReconciling, result.Operation.State)
-	require.Equal(t, "worker-1", derefString(result.Operation.LeaseOwner))
+	require.Equal(t, "worker-2", derefString(result.Operation.LeaseOwner))
 
-	_, err = coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "worker-2", time.Minute)
-	requireBizError(t, err, apperr.CodeDeliveryReconciliationRequired, "delivery.execution.reconciliation_required")
+	replay, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "worker-2", time.Minute)
+	require.NoError(t, err)
+	require.False(t, replay.Acquired)
+	require.True(t, replay.NeedsReconciliation)
+	require.Equal(t, "operation-1", replay.Operation.OperationID)
+	require.Equal(t, "worker-2", derefString(replay.Operation.LeaseOwner))
+}
+
+func TestCoordinatorReconciliationRejectsOtherOwner(t *testing.T) {
+	coordinator, clock, _ := newCoordinatorHarness()
+	ctx := context.Background()
+
+	_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", time.Minute)
+	require.NoError(t, err)
+	clock.Advance(2 * time.Minute)
+	result, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "worker-2", time.Minute)
+	require.NoError(t, err)
+	require.False(t, result.Acquired)
+	require.True(t, result.NeedsReconciliation)
+
+	_, err = coordinator.Acquire(ctx, 41, "operation-3", "upgrade", "worker-3", time.Minute)
+	requireBizError(t, err, apperr.CodeDeliveryOperationBusy, "delivery.execution.operation_busy")
+	requireBizError(t,
+		coordinator.Complete(ctx, "operation-1", "worker-3", SafeOperationResult{Succeeded: false}),
+		apperr.CodeDeliveryOperationBusy,
+		"delivery.execution.operation_busy",
+	)
+}
+
+func TestCoordinatorReconciliationOwnerCanCompleteAndReleaseApplication(t *testing.T) {
+	coordinator, clock, _ := newCoordinatorHarness()
+	ctx := context.Background()
+
+	_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", time.Minute)
+	require.NoError(t, err)
+	clock.Advance(2 * time.Minute)
+	result, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "reconciler-1", time.Minute)
+	require.NoError(t, err)
+	require.False(t, result.Acquired, "reconciliation ownership must never authorize mutation")
+	require.True(t, result.NeedsReconciliation)
+
+	require.NoError(t, coordinator.Complete(ctx, "operation-1", "reconciler-1", SafeOperationResult{
+		Succeeded: true,
+		Revision:  9,
+		Digest:    validOperationDigest,
+	}))
+	operation, err := coordinator.Inspect(ctx, "operation-1")
+	require.NoError(t, err)
+	require.Equal(t, models.AppsReleaseOperationSucceeded, operation.State)
+
+	next, err := coordinator.Acquire(ctx, 41, "operation-2", "upgrade", "worker-2", time.Minute)
+	require.NoError(t, err)
+	require.True(t, next.Acquired)
+	require.False(t, next.NeedsReconciliation)
+}
+
+func TestCoordinatorMapsUnexpectedStoreErrorsToSafeUnavailable(t *testing.T) {
+	raw := errors.New("postgres leaked upstream-secret-value")
+	coordinator := newCoordinator(&failingOperationStore{err: raw}, time.Now)
+	ctx := context.Background()
+	calls := map[string]func() error{
+		"acquire": func() error {
+			_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", time.Minute)
+			return err
+		},
+		"inspect": func() error {
+			_, err := coordinator.Inspect(ctx, "operation-1")
+			return err
+		},
+		"renew": func() error {
+			return coordinator.Renew(ctx, "operation-1", "worker-1", time.Now().Add(time.Minute))
+		},
+		"complete": func() error {
+			return coordinator.Complete(ctx, "operation-1", "worker-1", SafeOperationResult{Succeeded: false})
+		},
+	}
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			err := call()
+			requireBizError(t, err, apperr.CodeDeliveryExecutionUnavailable, "delivery.execution.unavailable")
+			require.NotContains(t, err.Error(), raw.Error())
+			require.NotContains(t, err.Error(), "upstream-secret-value")
+		})
+	}
+}
+
+func TestCoordinatorValidatesSafeCompletionResult(t *testing.T) {
+	tests := []struct {
+		name   string
+		result SafeOperationResult
+	}{
+		{name: "success requires revision", result: SafeOperationResult{Succeeded: true, Digest: validOperationDigest}},
+		{name: "success requires digest", result: SafeOperationResult{Succeeded: true, Revision: 1}},
+		{name: "success rejects uppercase digest", result: SafeOperationResult{Succeeded: true, Revision: 1, Digest: "sha256:ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef0123456789"}},
+		{name: "success rejects short digest", result: SafeOperationResult{Succeeded: true, Revision: 1, Digest: "sha256:abcd"}},
+		{name: "failure rejects revision", result: SafeOperationResult{Succeeded: false, Revision: 1}},
+		{name: "failure rejects digest", result: SafeOperationResult{Succeeded: false, Digest: validOperationDigest}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			coordinator, _, _ := newCoordinatorHarness()
+			ctx := context.Background()
+			_, err := coordinator.Acquire(ctx, 41, "operation-1", "upgrade", "worker-1", time.Minute)
+			require.NoError(t, err)
+
+			err = coordinator.Complete(ctx, "operation-1", "worker-1", test.result)
+			requireBizError(t, err, apperr.CodeDeliveryExecutionUnavailable, "delivery.execution.unavailable")
+			operation, inspectErr := coordinator.Inspect(ctx, "operation-1")
+			require.NoError(t, inspectErr)
+			require.Equal(t, models.AppsReleaseOperationActive, operation.State)
+			require.Nil(t, operation.ResultRevision)
+			require.Nil(t, operation.ResultDigest)
+		})
+	}
 }
 
 func newCoordinatorHarness() (*Coordinator, *fakeClock, time.Time) {
@@ -196,6 +311,16 @@ func (s *memoryOperationStore) Inspect(_ context.Context, operationID string) (*
 }
 
 type memoryOperationTransaction memoryOperationStore
+
+type failingOperationStore struct{ err error }
+
+func (s *failingOperationStore) WithApplicationLock(context.Context, uint64, func(operationTransaction) error) error {
+	return s.err
+}
+
+func (s *failingOperationStore) Inspect(context.Context, string) (*models.AppsReleaseOperation, error) {
+	return nil, s.err
+}
 
 func (tx *memoryOperationTransaction) FindByOperationID(_ context.Context, operationID string) (*models.AppsReleaseOperation, error) {
 	row := tx.byOperation[operationID]

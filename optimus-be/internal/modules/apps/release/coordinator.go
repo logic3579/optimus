@@ -3,6 +3,7 @@ package release
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ const (
 var (
 	errOperationNotFound = errors.New("release operation not found")
 	errOperationConflict = errors.New("release operation conflict")
+	operationDigestRE    = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
 // Operation is the durable, safe release-operation record. It contains only
@@ -102,11 +104,14 @@ func (c *Coordinator) Acquire(
 			case models.AppsReleaseOperationSucceeded, models.AppsReleaseOperationFailed:
 				return nil
 			case models.AppsReleaseOperationReconciling:
+				if existing.LeaseOwner == nil || *existing.LeaseOwner != owner {
+					return operationBusyError()
+				}
 				result.NeedsReconciliation = true
 				return nil
 			case models.AppsReleaseOperationActive:
 				if leaseExpired(existing, now) {
-					if err := markReconciling(ctx, tx, existing, now); err != nil {
+					if err := markReconciling(ctx, tx, existing, owner, now); err != nil {
 						return err
 					}
 					result.Operation = existing
@@ -136,10 +141,14 @@ func (c *Coordinator) Acquire(
 		switch {
 		case err == nil:
 			if blocking.State == models.AppsReleaseOperationReconciling {
-				return reconciliationRequiredError()
+				if blocking.LeaseOwner == nil || *blocking.LeaseOwner != owner {
+					return operationBusyError()
+				}
+				result = AcquireResult{Operation: blocking, NeedsReconciliation: true}
+				return nil
 			}
 			if leaseExpired(blocking, now) {
-				if err := markReconciling(ctx, tx, blocking, now); err != nil {
+				if err := markReconciling(ctx, tx, blocking, owner, now); err != nil {
 					return err
 				}
 				result = AcquireResult{Operation: blocking, NeedsReconciliation: true}
@@ -191,12 +200,15 @@ func (c *Coordinator) Renew(ctx context.Context, operationID, owner string, unti
 	err := c.withLockedOperation(ctx, operationID, func(tx operationTransaction, row *models.AppsReleaseOperation) error {
 		if row.State != models.AppsReleaseOperationActive {
 			if row.State == models.AppsReleaseOperationReconciling {
+				if row.LeaseOwner == nil || *row.LeaseOwner != owner {
+					return operationBusyError()
+				}
 				return reconciliationRequiredError()
 			}
 			return operationBusyError()
 		}
 		if leaseExpired(row, now) {
-			if err := markReconciling(ctx, tx, row, now); err != nil {
+			if err := markReconciling(ctx, tx, row, owner, now); err != nil {
 				return err
 			}
 			committedError = reconciliationRequiredError()
@@ -221,26 +233,29 @@ func (c *Coordinator) Renew(ctx context.Context, operationID, owner string, unti
 // Complete records a definite terminal result. Completion is denied after
 // lease loss, because the upstream outcome must first be reconciled.
 func (c *Coordinator) Complete(ctx context.Context, operationID, owner string, result SafeOperationResult) error {
-	if !validBounded(operationID, 64) || !validBounded(owner, 128) || len(result.Digest) > 128 || result.Revision < 0 {
+	if !validBounded(operationID, 64) || !validBounded(owner, 128) || !validSafeOperationResult(result) {
 		return executionUnavailableError()
 	}
 	now := c.now().UTC()
 	var committedError error
 	err := c.withLockedOperation(ctx, operationID, func(tx operationTransaction, row *models.AppsReleaseOperation) error {
-		if row.State != models.AppsReleaseOperationActive {
-			if row.State == models.AppsReleaseOperationReconciling {
-				return reconciliationRequiredError()
+		switch row.State {
+		case models.AppsReleaseOperationReconciling:
+			if row.LeaseOwner == nil || *row.LeaseOwner != owner {
+				return operationBusyError()
 			}
-			return operationBusyError()
-		}
-		if leaseExpired(row, now) {
-			if err := markReconciling(ctx, tx, row, now); err != nil {
-				return err
+		case models.AppsReleaseOperationActive:
+			if leaseExpired(row, now) {
+				if err := markReconciling(ctx, tx, row, owner, now); err != nil {
+					return err
+				}
+				committedError = reconciliationRequiredError()
+				return nil
 			}
-			committedError = reconciliationRequiredError()
-			return nil
-		}
-		if row.LeaseOwner == nil || *row.LeaseOwner != owner {
+			if row.LeaseOwner == nil || *row.LeaseOwner != owner {
+				return operationBusyError()
+			}
+		default:
 			return operationBusyError()
 		}
 
@@ -301,10 +316,26 @@ func leaseExpired(row *models.AppsReleaseOperation, now time.Time) bool {
 	return row.LeaseExpiresAt == nil || !row.LeaseExpiresAt.After(now)
 }
 
-func markReconciling(ctx context.Context, tx operationTransaction, row *models.AppsReleaseOperation, now time.Time) error {
+func markReconciling(
+	ctx context.Context,
+	tx operationTransaction,
+	row *models.AppsReleaseOperation,
+	owner string,
+	now time.Time,
+) error {
+	ownerCopy := owner
 	row.State = models.AppsReleaseOperationReconciling
+	row.LeaseOwner = &ownerCopy
+	row.LeaseExpiresAt = nil
 	row.UpdatedAt = now
 	return tx.Save(ctx, row)
+}
+
+func validSafeOperationResult(result SafeOperationResult) bool {
+	if result.Succeeded {
+		return result.Revision > 0 && operationDigestRE.MatchString(result.Digest)
+	}
+	return result.Revision == 0 && result.Digest == ""
 }
 
 func validBounded(value string, maximum int) bool {
@@ -332,7 +363,10 @@ func mapCoordinatorStoreError(err error) error {
 	case errors.Is(err, errOperationConflict):
 		return operationBusyError()
 	default:
-		return err
+		if _, ok := apperr.AsBiz(err); ok {
+			return err
+		}
+		return executionUnavailableError()
 	}
 }
 
