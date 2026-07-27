@@ -1,6 +1,6 @@
 # P6 — Application Delivery Orchestration Design
 
-**Status**: Draft for user review  
+**Status**: Approved  
 **Date**: 2026-07-27  
 **Owner**: P6 sub-project  
 **Depends on**: P0 platform, P1 credentials vault, P3 applications  
@@ -747,4 +747,3 @@ consumption, access to another module's private repository/table, a second Helm
 lifecycle implementation, an arbitrary execution field, a managed-application
 approval bypass, non-durable state advancement, or an external result inferred
 without reconciliation.
-
