@@ -93,3 +93,46 @@ func TestHTTPStatus_ObservabilityDomainCodes(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPStatus_DeliveryDomainCodes(t *testing.T) {
+	tests := []struct {
+		name string
+		code apperr.Code
+		want int
+	}{
+		{"project not found", apperr.CodeDeliveryProjectNotFound, 404},
+		{"project name conflict", apperr.CodeDeliveryProjectNameConflict, 409},
+		{"application already bound", apperr.CodeDeliveryApplicationAlreadyBound, 409},
+		{"application unavailable", apperr.CodeDeliveryApplicationUnavailable, 422},
+		{"chart identity mismatch", apperr.CodeDeliveryChartIdentityMismatch, 422},
+		{"pipeline missing", apperr.CodeDeliveryPipelineMissing, 404},
+		{"pipeline invalid", apperr.CodeDeliveryPipelineInvalid, 422},
+		{"pipeline version conflict", apperr.CodeDeliveryPipelineVersionConflict, 409},
+		{"environment not found", apperr.CodeDeliveryEnvironmentNotFound, 404},
+		{"environment in use", apperr.CodeDeliveryEnvironmentInUse, 409},
+		{"run not found", apperr.CodeDeliveryRunNotFound, 404},
+		{"active run", apperr.CodeDeliveryActiveRun, 409},
+		{"idempotency conflict", apperr.CodeDeliveryIdempotencyConflict, 409},
+		{"idempotency missing", apperr.CodeDeliveryIdempotencyMissing, 400},
+		{"run invalid state", apperr.CodeDeliveryRunInvalidState, 409},
+		{"run cancel conflict", apperr.CodeDeliveryRunCancelConflict, 409},
+		{"run retry unavailable", apperr.CodeDeliveryRunRetryUnavailable, 409},
+		{"approval not found", apperr.CodeDeliveryApprovalNotFound, 404},
+		{"self approval", apperr.CodeDeliveryApprovalSelfApproval, 403},
+		{"approval already decided", apperr.CodeDeliveryApprovalAlreadyDecided, 409},
+		{"approval decision conflict", apperr.CodeDeliveryApprovalDecisionConflict, 409},
+		{"approval comment required", apperr.CodeDeliveryApprovalCommentRequired, 400},
+		{"approval comment invalid", apperr.CodeDeliveryApprovalCommentInvalid, 400},
+		{"operation busy", apperr.CodeDeliveryOperationBusy, 409},
+		{"artifact drift", apperr.CodeDeliveryArtifactDrift, 409},
+		{"reconciliation required", apperr.CodeDeliveryReconciliationRequired, 409},
+		{"outcome unknown", apperr.CodeDeliveryOutcomeUnknown, 409},
+		{"execution timeout", apperr.CodeDeliveryExecutionTimeout, 504},
+		{"execution unavailable", apperr.CodeDeliveryExecutionUnavailable, 503},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, apperr.HTTPStatus(tt.code))
+		})
+	}
+}

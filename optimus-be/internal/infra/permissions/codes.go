@@ -44,20 +44,8 @@ const (
 	PermDeliveryApprovalDecide = "delivery:approval:decide"
 )
 
-// All P0 permission codes. Future modules append to this list.
+// All registered permission codes. Future phases append to this list.
 var All = []Permission{
-	// delivery
-	{Code: PermDeliveryProjectRead, Name: "perm.delivery.project.read", Category: "delivery", Description: "Read delivery projects and environments"},
-	{Code: PermDeliveryProjectWrite, Name: "perm.delivery.project.write", Category: "delivery", Description: "Create and update delivery projects and environments"},
-	{Code: PermDeliveryProjectDelete, Name: "perm.delivery.project.delete", Category: "delivery", Description: "Delete delivery projects"},
-	{Code: PermDeliveryPipelineRead, Name: "perm.delivery.pipeline.read", Category: "delivery", Description: "Read delivery pipelines"},
-	{Code: PermDeliveryPipelineWrite, Name: "perm.delivery.pipeline.write", Category: "delivery", Description: "Publish delivery pipeline versions"},
-	{Code: PermDeliveryRunRead, Name: "perm.delivery.run.read", Category: "delivery", Description: "Read delivery runs and events"},
-	{Code: PermDeliveryRunCreate, Name: "perm.delivery.run.create", Category: "delivery", Description: "Create, reconcile, and retry delivery runs"},
-	{Code: PermDeliveryRunCancel, Name: "perm.delivery.run.cancel", Category: "delivery", Description: "Cancel delivery runs"},
-	{Code: PermDeliveryApprovalRead, Name: "perm.delivery.approval.read", Category: "delivery", Description: "Read delivery approvals"},
-	{Code: PermDeliveryApprovalDecide, Name: "perm.delivery.approval.decide", Category: "delivery", Description: "Approve or reject delivery stages"},
-
 	// system: user
 	{Code: "system:user:read", Name: "perm.system.user.read", Category: "system", Description: "Read users"},
 	{Code: "system:user:write", Name: "perm.system.user.write", Category: "system", Description: "Create/update users"},
@@ -142,6 +130,18 @@ var All = []Permission{
 	{Code: PermObservabilityDashboardRead, Name: "perm.observability.dashboard.read", Category: "observability", Description: "Read observability dashboards"},
 	{Code: PermObservabilityDashboardWrite, Name: "perm.observability.dashboard.write", Category: "observability", Description: "Create or update observability dashboards"},
 	{Code: PermObservabilityDashboardDelete, Name: "perm.observability.dashboard.delete", Category: "observability", Description: "Delete observability dashboards"},
+
+	// P6 delivery domain
+	{Code: PermDeliveryProjectRead, Name: "perm.delivery.project.read", Category: "delivery", Description: "Read delivery projects and environments"},
+	{Code: PermDeliveryProjectWrite, Name: "perm.delivery.project.write", Category: "delivery", Description: "Create and update delivery projects and environments"},
+	{Code: PermDeliveryProjectDelete, Name: "perm.delivery.project.delete", Category: "delivery", Description: "Delete delivery projects"},
+	{Code: PermDeliveryPipelineRead, Name: "perm.delivery.pipeline.read", Category: "delivery", Description: "Read delivery pipelines"},
+	{Code: PermDeliveryPipelineWrite, Name: "perm.delivery.pipeline.write", Category: "delivery", Description: "Publish delivery pipeline versions"},
+	{Code: PermDeliveryRunRead, Name: "perm.delivery.run.read", Category: "delivery", Description: "Read delivery runs and events"},
+	{Code: PermDeliveryRunCreate, Name: "perm.delivery.run.create", Category: "delivery", Description: "Create, reconcile, and retry delivery runs"},
+	{Code: PermDeliveryRunCancel, Name: "perm.delivery.run.cancel", Category: "delivery", Description: "Cancel delivery runs"},
+	{Code: PermDeliveryApprovalRead, Name: "perm.delivery.approval.read", Category: "delivery", Description: "Read delivery approvals"},
+	{Code: PermDeliveryApprovalDecide, Name: "perm.delivery.approval.decide", Category: "delivery", Description: "Approve or reject delivery stages"},
 }
 
 // CodeSet returns a set for O(1) membership testing.

@@ -78,6 +78,9 @@ func TestRun_ViewerRoleHasOnlyReadPermissions(t *testing.T) {
 
 	_, err := permissions.Register(context.Background(), gdb, permissions.All)
 	require.NoError(t, err)
+	var operatorBeforeSeed int64
+	require.NoError(t, gdb.Model(&models.Role{}).Where("code = ?", "k8s_operator").Count(&operatorBeforeSeed).Error)
+	require.Zero(t, operatorBeforeSeed, "delivery must not require a k8s_operator role")
 	_, err = seed.Run(context.Background(), gdb, seed.Options{
 		AdminUsername: "admin", AdminEmail: "admin@example.com",
 	})
@@ -231,10 +234,33 @@ func TestRun_DeliveryPermissionsAndMenus(t *testing.T) {
 	}
 	var children []models.Menu
 	require.NoError(t, gdb.Where("parent_id = ?", parent.ID).Order("sort_order").Find(&children).Error)
+	require.Len(t, children, 2)
 	require.Equal(t, []string{"delivery.projects", "delivery.approvals"}, []string{children[0].Code, children[1].Code})
 	var deliveryMenus int64
 	require.NoError(t, gdb.Model(&models.Menu{}).Where("code = ? OR code LIKE ?", "delivery", "delivery.%").Count(&deliveryMenus).Error)
 	require.Equal(t, int64(3), deliveryMenus)
+}
+
+func TestRun_DeliveryDoesNotGrantExistingK8sOperator(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	operator := models.Role{Code: "k8s_operator", Name: "role.k8s_operator", Description: "Pre-existing Kubernetes operator", IsBuiltin: true}
+	require.NoError(t, gdb.Create(&operator).Error)
+
+	_, err = seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.NoError(t, err)
+
+	var deliveryGrants int64
+	require.NoError(t, gdb.Table("permissions").
+		Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
+		Where("role_permissions.role_id = ? AND permissions.code LIKE ?", operator.ID, "delivery:%").
+		Count(&deliveryGrants).Error)
+	require.Zero(t, deliveryGrants, "seed must not grant delivery permissions to an existing k8s_operator role")
 }
 
 // TestRun_AdminRoleIncludesAppsPermissions covers the implicit P3 grant:

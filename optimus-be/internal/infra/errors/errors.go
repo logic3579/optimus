@@ -47,6 +47,42 @@ func HTTPStatus(c Code) int {
 		return 500
 	case c == CodeRateLimited:
 		return 429
+	case c == CodeDeliveryProjectNotFound ||
+		c == CodeDeliveryPipelineMissing ||
+		c == CodeDeliveryEnvironmentNotFound ||
+		c == CodeDeliveryRunNotFound ||
+		c == CodeDeliveryApprovalNotFound:
+		return 404
+	case c == CodeDeliveryProjectNameConflict ||
+		c == CodeDeliveryApplicationAlreadyBound ||
+		c == CodeDeliveryPipelineVersionConflict ||
+		c == CodeDeliveryEnvironmentInUse ||
+		c == CodeDeliveryActiveRun ||
+		c == CodeDeliveryIdempotencyConflict ||
+		c == CodeDeliveryRunInvalidState ||
+		c == CodeDeliveryRunCancelConflict ||
+		c == CodeDeliveryRunRetryUnavailable ||
+		c == CodeDeliveryApprovalAlreadyDecided ||
+		c == CodeDeliveryApprovalDecisionConflict ||
+		c == CodeDeliveryOperationBusy ||
+		c == CodeDeliveryArtifactDrift ||
+		c == CodeDeliveryReconciliationRequired ||
+		c == CodeDeliveryOutcomeUnknown:
+		return 409
+	case c == CodeDeliveryApprovalSelfApproval:
+		return 403
+	case c == CodeDeliveryExecutionTimeout:
+		return 504
+	case c == CodeDeliveryExecutionUnavailable:
+		return 503
+	case c == CodeDeliveryApplicationUnavailable ||
+		c == CodeDeliveryChartIdentityMismatch ||
+		c == CodeDeliveryPipelineInvalid:
+		return 422
+	case c == CodeDeliveryIdempotencyMissing ||
+		c == CodeDeliveryApprovalCommentRequired ||
+		c == CodeDeliveryApprovalCommentInvalid:
+		return 400
 	case c == CodeAssetsCloudAccountInUse || c == CodeAssetsSyncBusy:
 		return 409
 	case c == CodeObservabilityDatasourceNotFound ||
