@@ -211,6 +211,9 @@ func downloadHTTPBytes(ctx context.Context, client *http.Client, rawURL, authBas
 		return nil, apps.MapError(err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, apperr.New(apperr.CodeAppsRepoUnauthorized, "apps.repo.unauthorized", "chart repository authentication failed")
+	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, apperr.New(apperr.CodeAppsRepoUnreachable, "apps.repo.unreachable", "chart repository request failed")
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/registry"
 
+	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 )
 
@@ -253,6 +254,51 @@ entries:
 	_, err := svc.ResolveArtifact(context.Background(), m.ID, "demo", "1.2.3")
 	require.Error(t, err)
 	require.Equal(t, 4, redirectRequests)
+}
+
+func TestResolveArtifactHTTPPreservesUnauthorizedStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		indexStatus   int
+		archiveStatus int
+	}{
+		{name: "index unauthorized", indexStatus: http.StatusUnauthorized},
+		{name: "archive forbidden", indexStatus: http.StatusOK, archiveStatus: http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &models.AppsChartRepo{ID: 42, Type: "http", URL: "https://charts.example.test/repository"}
+			client := &http.Client{Transport: artifactRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				status := tc.indexStatus
+				body := []byte("registry-token=must-not-leak")
+				if req.URL.Path == "/repository/index.yaml" && status == http.StatusOK {
+					body = []byte(`apiVersion: v1
+entries:
+  demo:
+    - name: demo
+      version: 1.2.3
+      urls: ["archive.tgz"]
+`)
+				} else if req.URL.Path == "/repository/archive.tgz" {
+					status = tc.archiveStatus
+					body = []byte("registry-token=must-not-leak")
+				}
+				return &http.Response{
+					StatusCode: status,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(bytes.NewReader(body)),
+					Request:    req,
+				}, nil
+			})}
+			svc := artifactServiceForTest(m)
+			svc.artifacts.httpClient = client
+
+			_, err := svc.ResolveArtifact(context.Background(), m.ID, "demo", "1.2.3")
+			var biz *apperr.BizError
+			require.ErrorAs(t, err, &biz)
+			require.Equal(t, apperr.CodeAppsRepoUnauthorized, biz.Code)
+			require.NotContains(t, err.Error(), "registry-token")
+		})
+	}
 }
 
 func TestResolveArtifactOCIHashesInjectedPullBytes(t *testing.T) {
