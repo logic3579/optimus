@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sort"
 	"testing"
@@ -212,6 +213,82 @@ func (s activityReaderStub) ProjectActivity(context.Context, uint64) (ProjectAct
 	return s.activity, nil
 }
 
+var errActivityCheckedOutsideProjectLock = errors.New("activity checked outside locked transaction")
+
+type orderingRepo struct {
+	*memoryRepo
+	inTransaction   bool
+	projectLocked   bool
+	activityChecked bool
+	events          []string
+}
+
+func (r *orderingRepo) Transaction(_ context.Context, fn func(projectRepository) error) error {
+	r.inTransaction = true
+	r.projectLocked = false
+	r.activityChecked = false
+	r.events = append(r.events, "transaction.begin")
+	defer func() {
+		r.events = append(r.events, "transaction.end")
+		r.inTransaction = false
+		r.projectLocked = false
+		r.activityChecked = false
+	}()
+	return fn(r)
+}
+
+func (r *orderingRepo) LockProject(ctx context.Context, id uint64) (*models.DeliveryProject, error) {
+	if !r.inTransaction {
+		return nil, errors.New("project lock requested outside transaction")
+	}
+	r.projectLocked = true
+	r.events = append(r.events, "project.lock")
+	return r.memoryRepo.GetProject(ctx, id)
+}
+
+func (r *orderingRepo) CountActiveEnvironments(ctx context.Context, projectID uint64) (int64, error) {
+	if !r.inTransaction || !r.projectLocked || !r.activityChecked {
+		return 0, errors.New("environment eligibility checked outside destructive critical section")
+	}
+	r.events = append(r.events, "environment.count")
+	return r.memoryRepo.CountActiveEnvironments(ctx, projectID)
+}
+
+func (r *orderingRepo) CountPipelineReferences(ctx context.Context, environmentID uint64) (int64, error) {
+	if !r.inTransaction || !r.projectLocked || !r.activityChecked {
+		return 0, errors.New("pipeline eligibility checked outside destructive critical section")
+	}
+	r.events = append(r.events, "pipeline.count")
+	return r.memoryRepo.CountPipelineReferences(ctx, environmentID)
+}
+
+func (r *orderingRepo) DeleteProject(ctx context.Context, id uint64) error {
+	if !r.inTransaction || !r.projectLocked || !r.activityChecked {
+		return errors.New("project deleted outside destructive critical section")
+	}
+	r.events = append(r.events, "project.delete")
+	return r.memoryRepo.DeleteProject(ctx, id)
+}
+
+func (r *orderingRepo) DeleteEnvironment(ctx context.Context, projectID, environmentID uint64) error {
+	if !r.inTransaction || !r.projectLocked || !r.activityChecked {
+		return errors.New("environment deleted outside destructive critical section")
+	}
+	r.events = append(r.events, "environment.delete")
+	return r.memoryRepo.DeleteEnvironment(ctx, projectID, environmentID)
+}
+
+type orderingActivityReader struct{ repo *orderingRepo }
+
+func (r orderingActivityReader) ProjectActivity(context.Context, uint64) (ProjectActivity, error) {
+	r.repo.events = append(r.repo.events, "activity.check")
+	if !r.repo.inTransaction || !r.repo.projectLocked {
+		return ProjectActivity{}, errActivityCheckedOutsideProjectLock
+	}
+	r.repo.activityChecked = true
+	return ProjectActivity{}, nil
+}
+
 type auditStub struct{ events []audit.Event }
 
 func (s *auditStub) Record(_ context.Context, event audit.Event) error {
@@ -393,6 +470,40 @@ func TestServiceProjectDeleteGuardsBindingsAndNilGuard(t *testing.T) {
 	nilGuard := NewService(repo, &applicationReaderStub{apps: map[uint64]Application{}, err: map[uint64]error{}}, nil, &auditStub{})
 	empty, _ := nilGuard.CreateProject(ctx, 0, "", "", CreateProjectRequest{Name: "empty"})
 	require.Equal(t, errs.CodeExecutionUnavailable, bizCode(t, nilGuard.DeleteProject(ctx, 0, "", "", empty.ID)))
+}
+
+func TestDestructiveActivityChecksRunAfterProjectLockInsideTransaction(t *testing.T) {
+	ctx := context.Background()
+	newService := func() (*Service, *orderingRepo) {
+		_, baseRepo, apps, audits := setupService()
+		repo := &orderingRepo{memoryRepo: baseRepo}
+		return NewService(repo, apps, orderingActivityReader{repo: repo}, audits), repo
+	}
+
+	t.Run("delete project", func(t *testing.T) {
+		svc, repo := newService()
+		project, err := svc.CreateProject(ctx, 0, "", "", CreateProjectRequest{Name: "delete-order"})
+		require.NoError(t, err)
+		require.NoError(t, svc.DeleteProject(ctx, 0, "", "", project.ID))
+		require.Equal(t, []string{
+			"transaction.begin", "project.lock", "activity.check", "environment.count", "project.delete", "transaction.end",
+		}, repo.events)
+	})
+
+	t.Run("unbind environment", func(t *testing.T) {
+		svc, repo := newService()
+		project, err := svc.CreateProject(ctx, 0, "", "", CreateProjectRequest{Name: "unbind-order"})
+		require.NoError(t, err)
+		environment, err := svc.BindEnvironment(ctx, 0, "", "", project.ID, BindEnvironmentRequest{
+			EnvironmentKey: "dev", DisplayName: "Development", ApplicationID: 10,
+		})
+		require.NoError(t, err)
+		repo.events = nil
+		require.NoError(t, svc.UnbindEnvironment(ctx, 0, "", "", project.ID, environment.ID))
+		require.Equal(t, []string{
+			"transaction.begin", "project.lock", "activity.check", "pipeline.count", "environment.delete", "transaction.end",
+		}, repo.events)
+	})
 }
 
 func TestServiceListAndGetUseDeterministicEnvironmentOrder(t *testing.T) {

@@ -201,17 +201,14 @@ func (s *Service) UpdateProject(ctx context.Context, actor uint64, ip, ua string
 }
 
 func (s *Service) DeleteProject(ctx context.Context, actor uint64, ip, ua string, id uint64) error {
-	if _, err := s.repo.GetProject(ctx, id); err != nil {
-		return err
-	}
-	if err := s.ensureInactive(ctx, id); err != nil {
-		return err
-	}
 	var row *models.DeliveryProject
 	if err := s.repo.Transaction(ctx, func(repo projectRepository) error {
 		var err error
 		row, err = repo.LockProject(ctx, id)
 		if err != nil {
+			return err
+		}
+		if err := s.ensureInactive(ctx, id); err != nil {
 			return err
 		}
 		count, err := repo.CountActiveEnvironments(ctx, id)
@@ -334,13 +331,13 @@ func (s *Service) UnbindEnvironment(ctx context.Context, actor uint64, ip, ua st
 	if _, err := s.repo.GetEnvironment(ctx, projectID, environmentID); err != nil {
 		return err
 	}
-	if err := s.ensureInactive(ctx, projectID); err != nil {
-		return err
-	}
 	var row *models.DeliveryEnvironment
 	var application *Application
 	if err := s.repo.Transaction(ctx, func(repo projectRepository) error {
 		if _, err := repo.LockProject(ctx, projectID); err != nil {
+			return err
+		}
+		if err := s.ensureInactive(ctx, projectID); err != nil {
 			return err
 		}
 		var err error
