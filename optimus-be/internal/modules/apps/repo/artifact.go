@@ -37,9 +37,18 @@ func (s *Service) ResolveArtifact(ctx context.Context, repoID uint64, chartName,
 
 	switch m.Type {
 	case "http":
-		return resolveArtifactHTTP(m, pwd, repoID, chartName, version, chartTgzHTTP)
+		download := s.artifactHTTPDownload
+		if download == nil {
+			download = func(ctx context.Context, m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+				return chartTgzHTTP(ctx, s.artifactHTTPClient, m, pwd, chartName, version)
+			}
+		}
+		return resolveArtifactHTTP(ctx, m, pwd, repoID, chartName, version, download)
 	case "oci":
-		return resolveArtifactOCI(m, pwd, repoID, chartName, version, defaultOCIPull)
+		if s.artifactOCIDownload != nil {
+			return resolveArtifactDownload(ctx, m, pwd, repoID, chartName, version, s.artifactOCIDownload)
+		}
+		return resolveArtifactOCI(ctx, m, pwd, repoID, chartName, version, defaultOCIPull)
 	default:
 		return nil, apperr.New(apperr.CodeAppsRepoOther, "apps.repo.unknown_type", "unsupported chart repository type")
 	}
@@ -56,12 +65,24 @@ func (s *Service) LoadVerifiedChart(ctx context.Context, artifact Artifact) (*ch
 	var download func() ([]byte, error)
 	switch m.Type {
 	case "http":
+		httpDownload := s.artifactHTTPDownload
+		if httpDownload == nil {
+			httpDownload = func(ctx context.Context, m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+				return chartTgzHTTP(ctx, s.artifactHTTPClient, m, pwd, chartName, version)
+			}
+		}
 		download = func() ([]byte, error) {
-			return chartTgzHTTP(m, pwd, artifact.ChartName, artifact.Version)
+			return httpDownload(ctx, m, pwd, artifact.ChartName, artifact.Version)
 		}
 	case "oci":
+		ociDownload := s.artifactOCIDownload
+		if ociDownload == nil {
+			ociDownload = func(ctx context.Context, m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+				return chartTgzOCI(ctx, m, pwd, chartName, version)
+			}
+		}
 		download = func() ([]byte, error) {
-			return chartTgzOCI(m, pwd, artifact.ChartName, artifact.Version)
+			return ociDownload(ctx, m, pwd, artifact.ChartName, artifact.Version)
 		}
 	default:
 		return nil, apperr.New(apperr.CodeAppsRepoOther, "apps.repo.unknown_type", "unsupported chart repository type")
@@ -71,10 +92,12 @@ func (s *Service) LoadVerifiedChart(ctx context.Context, artifact Artifact) (*ch
 
 func loadVerifiedChart(artifact Artifact, download func() ([]byte, error)) (*chart.Chart, error) {
 	tgz, err := download()
+	if tgz != nil {
+		defer wipeChartBytes(tgz)
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer wipeChartBytes(tgz)
 
 	actual := digestChartBytes(tgz)
 	if subtle.ConstantTimeCompare([]byte(actual), []byte(artifact.Digest)) != 1 {
@@ -89,6 +112,9 @@ func loadVerifiedChart(artifact Artifact, download func() ([]byte, error)) (*cha
 }
 
 func (s *Service) artifactRepo(ctx context.Context, repoID uint64) (*models.AppsChartRepo, string, error) {
+	if s.artifactLookup != nil {
+		return s.artifactLookup(ctx, repoID)
+	}
 	m, err := s.repo.Get(ctx, repoID)
 	if err != nil {
 		return nil, "", mapNotFound(err)
@@ -100,35 +126,63 @@ func (s *Service) artifactRepo(ctx context.Context, repoID uint64) (*models.Apps
 	return m, pwd, nil
 }
 
-type httpChartDownloadFunc func(*models.AppsChartRepo, string, string, string) ([]byte, error)
+type artifactLookupFunc func(context.Context, uint64) (*models.AppsChartRepo, string, error)
+
+type httpChartDownloadFunc func(context.Context, *models.AppsChartRepo, string, string, string) ([]byte, error)
+
+type ociChartDownloadFunc func(context.Context, *models.AppsChartRepo, string, string, string) ([]byte, error)
 
 func resolveArtifactHTTP(
+	ctx context.Context,
 	m *models.AppsChartRepo,
 	pwd string,
 	repoID uint64,
 	chartName, version string,
 	download httpChartDownloadFunc,
 ) (*Artifact, error) {
-	tgz, err := download(m, pwd, chartName, version)
+	tgz, err := download(ctx, m, pwd, chartName, version)
+	if tgz != nil {
+		defer wipeChartBytes(tgz)
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer wipeChartBytes(tgz)
 	return artifactForBytes(repoID, chartName, version, tgz), nil
 }
 
 func resolveArtifactOCI(
+	ctx context.Context,
 	m *models.AppsChartRepo,
 	pwd string,
 	repoID uint64,
 	chartName, version string,
 	pull ociPullFunc,
 ) (*Artifact, error) {
-	tgz, err := chartTgzOCIWithPull(m, pwd, chartName, version, pull)
+	tgz, err := chartTgzOCIWithPull(ctx, m, pwd, chartName, version, pull)
+	if tgz != nil {
+		defer wipeChartBytes(tgz)
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer wipeChartBytes(tgz)
+	return artifactForBytes(repoID, chartName, version, tgz), nil
+}
+
+func resolveArtifactDownload(
+	ctx context.Context,
+	m *models.AppsChartRepo,
+	pwd string,
+	repoID uint64,
+	chartName, version string,
+	download ociChartDownloadFunc,
+) (*Artifact, error) {
+	tgz, err := download(ctx, m, pwd, chartName, version)
+	if tgz != nil {
+		defer wipeChartBytes(tgz)
+	}
+	if err != nil {
+		return nil, err
+	}
 	return artifactForBytes(repoID, chartName, version, tgz), nil
 }
 
