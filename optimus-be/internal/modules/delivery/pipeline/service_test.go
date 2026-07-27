@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"sync"
 	"testing"
@@ -138,6 +139,50 @@ func TestPublishRequestBindingRequiresOneToTwentyStages(t *testing.T) {
 	}
 	require.Error(t, binding.Validator.ValidateStruct(PublishRequest{Stages: twentyOne}))
 	require.Error(t, binding.Validator.ValidateStruct(PublishRequest{Stages: []StageInput{{}}}))
+}
+
+func TestStageTimeoutJSONContract(t *testing.T) {
+	t.Run("valid duration string and unknown field", func(t *testing.T) {
+		var request PublishRequest
+		err := json.Unmarshal([]byte(`{"stages":[{"environment_id":10,"approval_required":true,"timeout":"10m","future_stage_field":true}],"future_request_field":true}`), &request)
+		require.NoError(t, err)
+		require.Equal(t, 10*time.Minute, request.Stages[0].Timeout)
+	})
+
+	t.Run("stage input round trip uses duration string", func(t *testing.T) {
+		input := StageInput{EnvironmentID: 10, ApprovalRequired: true, Timeout: 10 * time.Minute}
+		encoded, err := json.Marshal(input)
+		require.NoError(t, err)
+		require.JSONEq(t, `{"environment_id":10,"approval_required":true,"timeout":"10m0s"}`, string(encoded))
+		var decoded StageInput
+		require.NoError(t, json.Unmarshal(encoded, &decoded))
+		require.Equal(t, input, decoded)
+	})
+
+	t.Run("pipeline output uses duration string", func(t *testing.T) {
+		encoded, err := json.Marshal(Pipeline{Stages: []Stage{{ID: 1, EnvironmentID: 10, Order: 1, Timeout: 10 * time.Minute}}})
+		require.NoError(t, err)
+		var output struct {
+			Stages []struct {
+				Timeout any `json:"timeout"`
+			} `json:"stages"`
+		}
+		require.NoError(t, json.Unmarshal(encoded, &output))
+		require.Equal(t, "10m0s", output.Stages[0].Timeout)
+	})
+
+	for _, tc := range []struct {
+		name, timeout string
+	}{
+		{name: "invalid duration string", timeout: `"soon"`},
+		{name: "numeric duration", timeout: `600000000000`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var request PublishRequest
+			err := json.Unmarshal([]byte(`{"stages":[{"environment_id":10,"timeout":`+tc.timeout+`}]} `), &request)
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestPublishRejectsInvalidStages(t *testing.T) {
