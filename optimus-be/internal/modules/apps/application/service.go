@@ -258,6 +258,24 @@ func deleteApplication(
 	checker HelmInstalledChecker,
 	id uint64,
 ) (*models.AppsApplication, error) {
+	if checker != nil {
+		application, err := repo.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		installed, err := checker.IsReleaseInstalled(ctx, application)
+		if err != nil {
+			return nil, err
+		}
+		if installed {
+			return nil, apperr.New(
+				apperr.CodeAppsReleaseStillPresent,
+				"apps.application.release_still_installed",
+				"helm release still installed; uninstall before deleting the application record",
+			)
+		}
+	}
+
 	var application *models.AppsApplication
 	err := repo.transaction(ctx, func(tx applicationDeletionRepository) error {
 		if err := tx.lockApplication(ctx, id); err != nil {
@@ -270,19 +288,6 @@ func deleteApplication(
 		}
 		if err := checkDeliveryApplicationUse(ctx, counter, id); err != nil {
 			return err
-		}
-		if checker != nil {
-			installed, err := checker.IsReleaseInstalled(ctx, application)
-			if err != nil {
-				return err
-			}
-			if installed {
-				return apperr.New(
-					apperr.CodeAppsReleaseStillPresent,
-					"apps.application.release_still_installed",
-					"helm release still installed; uninstall before deleting the application record",
-				)
-			}
 		}
 		return tx.Delete(ctx, id)
 	})

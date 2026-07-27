@@ -54,6 +54,17 @@ type deliveryCounterFake struct {
 	err    error
 }
 
+type installedCheckerFake struct {
+	events    *[]string
+	installed bool
+	err       error
+}
+
+func (c installedCheckerFake) IsReleaseInstalled(context.Context, *models.AppsApplication) (bool, error) {
+	*c.events = append(*c.events, "helm.probe")
+	return c.installed, c.err
+}
+
 func (c deliveryCounterFake) CountByApplicationID(context.Context, uint64) (int64, error) {
 	*c.events = append(*c.events, "delivery.count")
 	return c.count, c.err
@@ -127,4 +138,43 @@ func TestDeleteApplicationDeliveryUseLookupWrapsCauseSafely(t *testing.T) {
 		"transaction.begin", "application.lock", "application.get", "delivery.count", "transaction.end",
 	}, repo.events)
 	require.False(t, repo.deleted)
+}
+
+func TestDeleteApplicationHelmProbePrecedesLifecycleTransaction(t *testing.T) {
+	t.Run("safe probe then short locked transaction", func(t *testing.T) {
+		repo := &deletionRepositoryFake{row: &models.AppsApplication{ID: 42, Name: "app"}}
+		checker := installedCheckerFake{events: &repo.events}
+		counter := deliveryCounterFake{events: &repo.events}
+
+		_, err := deleteApplication(context.Background(), repo, counter, checker, 42)
+		require.NoError(t, err)
+		require.Equal(t, []string{
+			"application.get", "helm.probe",
+			"transaction.begin", "application.lock", "application.get", "delivery.count", "application.delete", "transaction.end",
+		}, repo.events)
+		require.True(t, repo.deleted)
+	})
+
+	t.Run("installed release avoids transaction", func(t *testing.T) {
+		repo := &deletionRepositoryFake{row: &models.AppsApplication{ID: 42, Name: "app"}}
+		checker := installedCheckerFake{events: &repo.events, installed: true}
+
+		_, err := deleteApplication(context.Background(), repo, nil, checker, 42)
+		be, ok := apperr.AsBiz(err)
+		require.True(t, ok)
+		require.Equal(t, apperr.CodeAppsReleaseStillPresent, be.Code)
+		require.Equal(t, []string{"application.get", "helm.probe"}, repo.events)
+		require.False(t, repo.deleted)
+	})
+
+	t.Run("probe error avoids transaction", func(t *testing.T) {
+		repo := &deletionRepositoryFake{row: &models.AppsApplication{ID: 42, Name: "app"}}
+		wantErr := errors.New("helm unavailable")
+		checker := installedCheckerFake{events: &repo.events, err: wantErr}
+
+		_, err := deleteApplication(context.Background(), repo, nil, checker, 42)
+		require.ErrorIs(t, err, wantErr)
+		require.Equal(t, []string{"application.get", "helm.probe"}, repo.events)
+		require.False(t, repo.deleted)
+	})
 }

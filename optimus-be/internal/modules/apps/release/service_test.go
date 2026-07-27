@@ -141,7 +141,7 @@ func (g *managedGovernance) AuthorizeMutation(ctx context.Context, applicationID
 	if action == MutationActionRollback {
 		return nil
 	}
-	if action == MutationActionUpgrade && deliveryUpgradeAuthorized(ctx, applicationID, g.operationID) {
+	if DeliveryUpgradeAuthorized(ctx, applicationID, g.operationID, action) {
 		return nil
 	}
 	return apperr.New(

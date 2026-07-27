@@ -58,18 +58,23 @@ func withDeliveryUpgrade(ctx context.Context, applicationID uint64, operationID 
 	})
 }
 
-// deliveryUpgradeAuthorized reports whether ctx contains the exact private
-// capability expected by a governance provider. Both identifiers and the
-// closed action must match; malformed or empty operation IDs are denied.
-func deliveryUpgradeAuthorized(ctx context.Context, applicationID uint64, operationID string) bool {
-	if ctx == nil || applicationID == 0 || !validDeliveryOperationID(operationID) {
+// DeliveryUpgradeAuthorized is the read-only capability verifier used by the
+// external P6 governance provider. It cannot mint or expose the private
+// capability; every identifier and the closed upgrade action must match.
+func DeliveryUpgradeAuthorized(
+	ctx context.Context,
+	applicationID uint64,
+	operationID string,
+	action MutationAction,
+) bool {
+	if ctx == nil || applicationID == 0 || action != MutationActionUpgrade || !validDeliveryOperationID(operationID) {
 		return false
 	}
 	capability, ok := ctx.Value(deliveryMutationCapabilityKey{}).(deliveryMutationCapability)
 	return ok &&
 		capability.applicationID == applicationID &&
 		capability.operationID == operationID &&
-		capability.action == MutationActionUpgrade
+		capability.action == action
 }
 
 func validDeliveryOperationID(operationID string) bool {

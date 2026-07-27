@@ -224,7 +224,7 @@ func TestService_Delete_RefusedWhenApplicationIsDeliveryManaged(t *testing.T) {
 	require.Equal(t, apperr.CodeDeliveryEnvironmentInUse, be.Code)
 	require.Equal(t, "delivery.environment.in_use", be.MessageKey)
 	require.Equal(t, 1, counter.calls)
-	require.Zero(t, checker.calls, "delivery binding check must precede the Helm lookup")
+	require.Equal(t, 1, checker.calls, "Helm probe must complete before entering the lifecycle transaction")
 	_, getErr := r.Get(ctx, d.ID)
 	require.NoError(t, getErr, "blocked application must remain active")
 }
