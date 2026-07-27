@@ -47,13 +47,13 @@ const (
 	DeliveryApprovalRejected DeliveryApprovalDecision = "rejected"
 )
 
-type DeliveryOperationState string
+type AppsReleaseOperationState string
 
 const (
-	DeliveryOperationActive      DeliveryOperationState = "active"
-	DeliveryOperationSucceeded   DeliveryOperationState = "succeeded"
-	DeliveryOperationFailed      DeliveryOperationState = "failed"
-	DeliveryOperationReconciling DeliveryOperationState = "reconciling"
+	AppsReleaseOperationActive      AppsReleaseOperationState = "active"
+	AppsReleaseOperationSucceeded   AppsReleaseOperationState = "succeeded"
+	AppsReleaseOperationFailed      AppsReleaseOperationState = "failed"
+	AppsReleaseOperationReconciling AppsReleaseOperationState = "reconciling"
 )
 
 type DeliveryExecutor string
@@ -213,7 +213,7 @@ type AppsReleaseOperation struct {
 	ApplicationID  uint64 `gorm:"not null;index"`
 	OperationID    string `gorm:"size:64;not null"`
 	Kind           string `gorm:"size:64;not null"`
-	State          DeliveryOperationState
+	State          AppsReleaseOperationState
 	LeaseOwner     *string
 	LeaseExpiresAt *time.Time
 	ResultRevision *int64

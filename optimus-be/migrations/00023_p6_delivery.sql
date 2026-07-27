@@ -128,6 +128,7 @@ CREATE TABLE delivery_run_stages (
     'pending', 'waiting_approval', 'queued', 'running', 'reconciling',
     'succeeded', 'failed', 'rejected', 'canceled', 'timed_out', 'outcome_unknown'
   )),
+  CONSTRAINT delivery_run_stages_id_run_unique UNIQUE (id, run_id),
   CONSTRAINT delivery_run_stages_run_order_unique UNIQUE (run_id, stage_order),
   CONSTRAINT delivery_run_stages_operation_unique UNIQUE (operation_id)
 );
@@ -135,7 +136,7 @@ CREATE TABLE delivery_run_stages (
 CREATE TABLE delivery_approvals (
   id BIGSERIAL PRIMARY KEY,
   run_id BIGINT NOT NULL REFERENCES delivery_runs(id) ON DELETE CASCADE,
-  run_stage_id BIGINT NOT NULL REFERENCES delivery_run_stages(id) ON DELETE CASCADE,
+  run_stage_id BIGINT NOT NULL,
   requested_at TIMESTAMPTZ NOT NULL,
   decision VARCHAR(16) NOT NULL DEFAULT 'pending',
   decided_by_user_id BIGINT REFERENCES users(id) ON DELETE RESTRICT,
@@ -144,6 +145,8 @@ CREATE TABLE delivery_approvals (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT delivery_approvals_decision_check CHECK (decision IN ('pending', 'approved', 'rejected')),
+  CONSTRAINT delivery_approvals_stage_run_fk FOREIGN KEY (run_stage_id, run_id)
+    REFERENCES delivery_run_stages(id, run_id) ON DELETE CASCADE,
   CONSTRAINT delivery_approvals_stage_unique UNIQUE (run_stage_id),
   CONSTRAINT delivery_approvals_decision_fields_check CHECK (
     (decision = 'pending' AND decided_by_user_id IS NULL AND decided_at IS NULL AND comment = '') OR
@@ -154,7 +157,7 @@ CREATE TABLE delivery_approvals (
 CREATE TABLE delivery_run_events (
   id BIGSERIAL PRIMARY KEY,
   run_id BIGINT NOT NULL REFERENCES delivery_runs(id) ON DELETE CASCADE,
-  run_stage_id BIGINT REFERENCES delivery_run_stages(id) ON DELETE CASCADE,
+  run_stage_id BIGINT,
   event_type VARCHAR(64) NOT NULL,
   old_state VARCHAR(32),
   new_state VARCHAR(32),
@@ -174,6 +177,8 @@ CREATE TABLE delivery_run_events (
     'pending', 'queued', 'running', 'waiting_approval', 'cancel_requested', 'reconciling',
     'succeeded', 'failed', 'rejected', 'canceled', 'timed_out', 'outcome_unknown'
   )),
+  CONSTRAINT delivery_run_events_stage_run_fk FOREIGN KEY (run_stage_id, run_id)
+    REFERENCES delivery_run_stages(id, run_id) ON DELETE CASCADE,
   CONSTRAINT delivery_run_events_actor_type_check CHECK (actor_type IN ('system', 'user')),
   CONSTRAINT delivery_run_events_metadata_check CHECK (
     jsonb_typeof(metadata) = 'object' AND octet_length(metadata::TEXT) <= 4096
@@ -196,7 +201,7 @@ CREATE TABLE apps_release_operations (
   finished_at TIMESTAMPTZ,
   CONSTRAINT apps_release_operations_kind_check CHECK (length(btrim(kind)) BETWEEN 1 AND 64),
   CONSTRAINT apps_release_operations_state_check CHECK (state IN ('active', 'succeeded', 'failed', 'reconciling')),
-  CONSTRAINT apps_release_operations_application_operation_unique UNIQUE (application_id, operation_id)
+  CONSTRAINT apps_release_operations_operation_unique UNIQUE (operation_id)
 );
 CREATE UNIQUE INDEX apps_release_operations_active_application_unique
   ON apps_release_operations(application_id) WHERE state IN ('active', 'reconciling');
