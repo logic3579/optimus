@@ -57,7 +57,7 @@ CREATE TABLE delivery_pipeline_stages (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT delivery_pipeline_stages_order_check CHECK (stage_order > 0),
   CONSTRAINT delivery_pipeline_stages_executor_check CHECK (executor IN ('helm_upgrade_existing_release')),
-  CONSTRAINT delivery_pipeline_stages_timeout_check CHECK (timeout_seconds BETWEEN 1 AND 1800),
+  CONSTRAINT delivery_pipeline_stages_timeout_check CHECK (timeout_seconds BETWEEN 1 AND 86400),
   CONSTRAINT delivery_pipeline_stages_pipeline_order_unique UNIQUE (pipeline_id, stage_order),
   CONSTRAINT delivery_pipeline_stages_pipeline_environment_unique UNIQUE (pipeline_id, environment_id)
 );
@@ -123,7 +123,7 @@ CREATE TABLE delivery_run_stages (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT delivery_run_stages_order_check CHECK (stage_order > 0),
   CONSTRAINT delivery_run_stages_executor_check CHECK (executor IN ('helm_upgrade_existing_release')),
-  CONSTRAINT delivery_run_stages_timeout_check CHECK (timeout_seconds BETWEEN 1 AND 1800),
+  CONSTRAINT delivery_run_stages_timeout_check CHECK (timeout_seconds BETWEEN 1 AND 86400),
   CONSTRAINT delivery_run_stages_state_check CHECK (state IN (
     'pending', 'waiting_approval', 'queued', 'running', 'reconciling',
     'succeeded', 'failed', 'rejected', 'canceled', 'timed_out', 'outcome_unknown'

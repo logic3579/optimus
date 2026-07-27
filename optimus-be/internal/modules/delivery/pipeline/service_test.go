@@ -162,6 +162,23 @@ func TestPublishRejectsInvalidStages(t *testing.T) {
 	}
 }
 
+func TestPublishHonorsConfiguredTimeoutAboveThirtyMinutes(t *testing.T) {
+	repo := newMemoryRepository()
+	recorder := &auditRecorder{}
+	svc := NewService(repo, recorder, 45*time.Minute)
+
+	result, err := svc.Publish(context.Background(), 7, "", "", 1, PublishRequest{
+		Stages: []StageInput{{EnvironmentID: 10, Timeout: 45 * time.Minute}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 45*time.Minute, result.Stages[0].Timeout)
+
+	_, err = svc.Publish(context.Background(), 7, "", "", 1, PublishRequest{
+		Stages: []StageInput{{EnvironmentID: 10, Timeout: 45*time.Minute + time.Second}},
+	})
+	require.Equal(t, errs.CodePipelineInvalid, businessCode(t, err))
+}
+
 func TestPublishNormalizesOrderPersistsClosedExecutorAndAuditsSafeIDs(t *testing.T) {
 	svc, repo, recorder := newServiceForTest()
 	result, err := svc.Publish(context.Background(), 7, "127.0.0.1", "test", 1, PublishRequest{Stages: []StageInput{

@@ -65,7 +65,7 @@ func TestDeliverySchemaConstraints(t *testing.T) {
 		StageOrder:       1,
 		Executor:         models.DeliveryExecutorHelmUpgradeExistingRelease,
 		ApprovalRequired: true,
-		TimeoutSeconds:   60,
+		TimeoutSeconds:   24 * 60 * 60,
 	}
 	require.NoError(t, db.Create(pipelineStage).Error)
 	run := &models.DeliveryRun{
@@ -94,7 +94,7 @@ func TestDeliverySchemaConstraints(t *testing.T) {
 		StageOrder:       1,
 		Executor:         models.DeliveryExecutorHelmUpgradeExistingRelease,
 		ApprovalRequired: true,
-		TimeoutSeconds:   60,
+		TimeoutSeconds:   24 * 60 * 60,
 		State:            models.DeliveryStagePending,
 		OperationID:      "delivery-schema-operation",
 	}

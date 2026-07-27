@@ -50,3 +50,12 @@ func TestP6DeliveryMigrationIsEmbedded(t *testing.T) {
 	_, err := FS.ReadFile("00023_p6_delivery.sql")
 	require.NoError(t, err)
 }
+
+func TestP6DeliveryStageTimeoutsMatchConfiguredCeiling(t *testing.T) {
+	sql, err := FS.ReadFile("00023_p6_delivery.sql")
+	require.NoError(t, err)
+
+	const timeoutConstraint = "timeout_seconds BETWEEN 1 AND 86400"
+	require.Equal(t, 2, strings.Count(string(sql), timeoutConstraint),
+		"pipeline and run stages must both accept the configured 24-hour ceiling")
+}
