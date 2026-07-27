@@ -46,6 +46,36 @@ func TestLoad_AssetsDefaultsWhenBlockIsOmitted(t *testing.T) {
 	require.Equal(t, 30*time.Second, cfg.Assets.AWSRequestTimeout)
 }
 
+func TestLoadDeliveryDefaults(t *testing.T) {
+	for _, key := range []string{
+		"OPTIMUS_DELIVERY_WORKER_CONCURRENCY",
+		"OPTIMUS_DELIVERY_LEASE_DURATION",
+		"OPTIMUS_DELIVERY_LEASE_RENEW_INTERVAL",
+		"OPTIMUS_DELIVERY_DEFAULT_STAGE_TIMEOUT",
+		"OPTIMUS_DELIVERY_MAX_STAGE_TIMEOUT",
+		"OPTIMUS_DELIVERY_RECONCILE_INTERVAL",
+		"OPTIMUS_DELIVERY_EVENT_RETENTION_DAYS",
+		"OPTIMUS_DELIVERY_SSE_HEARTBEAT",
+		"OPTIMUS_DELIVERY_SSE_MAX_CONNECTIONS",
+	} {
+		t.Setenv(key, "")
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  port: 8080\n"), 0o600))
+
+	cfg, err := config.Load(path)
+	require.NoError(t, err)
+	require.Equal(t, 4, cfg.Delivery.WorkerConcurrency)
+	require.Equal(t, 30*time.Second, cfg.Delivery.LeaseDuration)
+	require.Equal(t, 10*time.Second, cfg.Delivery.LeaseRenewInterval)
+	require.Equal(t, 10*time.Minute, cfg.Delivery.DefaultStageTimeout)
+	require.Equal(t, 30*time.Minute, cfg.Delivery.MaxStageTimeout)
+	require.Equal(t, 15*time.Second, cfg.Delivery.ReconcileInterval)
+	require.Equal(t, 180, cfg.Delivery.EventRetentionDays)
+	require.Equal(t, 20*time.Second, cfg.Delivery.SSEHeartbeat)
+	require.Equal(t, 100, cfg.Delivery.SSEMaxConnections)
+}
+
 func TestLoad_EnvOverride(t *testing.T) {
 	t.Setenv("OPTIMUS_SERVER_PORT", "9090")
 	t.Setenv("OPTIMUS_JWT_SECRET", "x_very_long_jwt_secret_for_testing_only_32+")
@@ -149,6 +179,35 @@ func TestValidateStrict_RejectsInvalidObservabilityConfig(t *testing.T) {
 	require.NoError(t, valid.ValidateStrict())
 }
 
+func TestValidateDelivery(t *testing.T) {
+	valid := validStrictConfig()
+	tests := []struct {
+		name     string
+		mutate   func(*config.Config)
+		expected string
+	}{
+		{"zero worker concurrency", func(c *config.Config) { c.Delivery.WorkerConcurrency = 0 }, "delivery.worker_concurrency must be > 0"},
+		{"zero lease duration", func(c *config.Config) { c.Delivery.LeaseDuration = 0 }, "delivery.lease_duration must be > 0"},
+		{"zero lease renew interval", func(c *config.Config) { c.Delivery.LeaseRenewInterval = 0 }, "delivery.lease_renew_interval must be > 0"},
+		{"zero default stage timeout", func(c *config.Config) { c.Delivery.DefaultStageTimeout = 0 }, "delivery.default_stage_timeout must be > 0"},
+		{"zero max stage timeout", func(c *config.Config) { c.Delivery.MaxStageTimeout = 0 }, "delivery.max_stage_timeout must be > 0"},
+		{"zero reconcile interval", func(c *config.Config) { c.Delivery.ReconcileInterval = 0 }, "delivery.reconcile_interval must be > 0"},
+		{"zero event retention days", func(c *config.Config) { c.Delivery.EventRetentionDays = 0 }, "delivery.event_retention_days must be > 0"},
+		{"zero SSE heartbeat", func(c *config.Config) { c.Delivery.SSEHeartbeat = 0 }, "delivery.sse_heartbeat must be > 0"},
+		{"zero SSE max connections", func(c *config.Config) { c.Delivery.SSEMaxConnections = 0 }, "delivery.sse_max_connections must be > 0"},
+		{"renew interval equals lease duration", func(c *config.Config) { c.Delivery.LeaseRenewInterval = c.Delivery.LeaseDuration }, "delivery.lease_renew_interval must be < delivery.lease_duration"},
+		{"default timeout exceeds maximum", func(c *config.Config) { c.Delivery.DefaultStageTimeout = c.Delivery.MaxStageTimeout + time.Second }, "delivery.default_stage_timeout must be <= delivery.max_stage_timeout"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := valid
+			tt.mutate(&cfg)
+			require.EqualError(t, cfg.ValidateStrict(), tt.expected)
+		})
+	}
+	require.NoError(t, valid.ValidateStrict())
+}
+
 func validStrictConfig() config.Config {
 	return config.Config{
 		Database: config.DatabaseConfig{DSN: "postgres://test"},
@@ -158,6 +217,12 @@ func validStrictConfig() config.Config {
 			QueryTimeout: 15 * time.Second, MaxBatchQueries: 12, MaxConcurrent: 4,
 			MaxRange: 168 * time.Hour, MinStep: 15 * time.Second, MaxPointsPerSeries: 11000,
 			MaxSeries: 1000, MaxResponseBytes: 16777216, MaxEnrichmentIPs: 100,
+		},
+		Delivery: config.DeliveryConfig{
+			WorkerConcurrency: 4, LeaseDuration: 30 * time.Second, LeaseRenewInterval: 10 * time.Second,
+			DefaultStageTimeout: 10 * time.Minute, MaxStageTimeout: 30 * time.Minute,
+			ReconcileInterval: 15 * time.Second, EventRetentionDays: 180, SSEHeartbeat: 20 * time.Second,
+			SSEMaxConnections: 100,
 		},
 	}
 }

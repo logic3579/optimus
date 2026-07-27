@@ -53,6 +53,17 @@ assets:
   sync_run_retention_days: 90
   aws_request_timeout: 30s
 
+delivery:
+  worker_concurrency: 4
+  lease_duration: 30s
+  lease_renew_interval: 10s
+  default_stage_timeout: 10m
+  max_stage_timeout: 30m
+  reconcile_interval: 15s
+  event_retention_days: 180
+  sse_heartbeat: 20s
+  sse_max_connections: 100
+
 observability:
   allowed_private_cidrs: []
   query_timeout: 15s

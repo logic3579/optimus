@@ -23,6 +23,7 @@ type Config struct {
 	Vault         VaultConfig         `mapstructure:"vault"`
 	Assets        AssetsConfig        `mapstructure:"assets"`
 	Observability ObservabilityConfig `mapstructure:"observability"`
+	Delivery      DeliveryConfig      `mapstructure:"delivery"`
 }
 
 type ServerConfig struct {
@@ -106,6 +107,18 @@ type ObservabilityConfig struct {
 	MaxEnrichmentIPs    int           `mapstructure:"max_enrichment_ips"`
 }
 
+type DeliveryConfig struct {
+	WorkerConcurrency   int           `mapstructure:"worker_concurrency"`
+	LeaseDuration       time.Duration `mapstructure:"lease_duration"`
+	LeaseRenewInterval  time.Duration `mapstructure:"lease_renew_interval"`
+	DefaultStageTimeout time.Duration `mapstructure:"default_stage_timeout"`
+	MaxStageTimeout     time.Duration `mapstructure:"max_stage_timeout"`
+	ReconcileInterval   time.Duration `mapstructure:"reconcile_interval"`
+	EventRetentionDays  int           `mapstructure:"event_retention_days"`
+	SSEHeartbeat        time.Duration `mapstructure:"sse_heartbeat"`
+	SSEMaxConnections   int           `mapstructure:"sse_max_connections"`
+}
+
 func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
@@ -126,6 +139,15 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("observability.max_series", 1000)
 	v.SetDefault("observability.max_response_bytes", int64(16777216))
 	v.SetDefault("observability.max_enrichment_ips", 100)
+	v.SetDefault("delivery.worker_concurrency", 4)
+	v.SetDefault("delivery.lease_duration", 30*time.Second)
+	v.SetDefault("delivery.lease_renew_interval", 10*time.Second)
+	v.SetDefault("delivery.default_stage_timeout", 10*time.Minute)
+	v.SetDefault("delivery.max_stage_timeout", 30*time.Minute)
+	v.SetDefault("delivery.reconcile_interval", 15*time.Second)
+	v.SetDefault("delivery.event_retention_days", 180)
+	v.SetDefault("delivery.sse_heartbeat", 20*time.Second)
+	v.SetDefault("delivery.sse_max_connections", 100)
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
@@ -169,6 +191,9 @@ func (c *Config) ValidateStrict() error {
 	if err := c.validateObservability(); err != nil {
 		return err
 	}
+	if err := c.validateDelivery(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -193,6 +218,44 @@ func (c *Config) validateObservability() error {
 	}
 	if o.MaxConcurrent > o.MaxBatchQueries {
 		return errors.New("observability.max_concurrent must not exceed max_batch_queries")
+	}
+	return nil
+}
+
+func (c *Config) validateDelivery() error {
+	d := c.Delivery
+	if d.WorkerConcurrency <= 0 {
+		return errors.New("delivery.worker_concurrency must be > 0")
+	}
+	if d.LeaseDuration <= 0 {
+		return errors.New("delivery.lease_duration must be > 0")
+	}
+	if d.LeaseRenewInterval <= 0 {
+		return errors.New("delivery.lease_renew_interval must be > 0")
+	}
+	if d.DefaultStageTimeout <= 0 {
+		return errors.New("delivery.default_stage_timeout must be > 0")
+	}
+	if d.MaxStageTimeout <= 0 {
+		return errors.New("delivery.max_stage_timeout must be > 0")
+	}
+	if d.ReconcileInterval <= 0 {
+		return errors.New("delivery.reconcile_interval must be > 0")
+	}
+	if d.EventRetentionDays <= 0 {
+		return errors.New("delivery.event_retention_days must be > 0")
+	}
+	if d.SSEHeartbeat <= 0 {
+		return errors.New("delivery.sse_heartbeat must be > 0")
+	}
+	if d.SSEMaxConnections <= 0 {
+		return errors.New("delivery.sse_max_connections must be > 0")
+	}
+	if d.LeaseRenewInterval >= d.LeaseDuration {
+		return errors.New("delivery.lease_renew_interval must be < delivery.lease_duration")
+	}
+	if d.DefaultStageTimeout > d.MaxStageTimeout {
+		return errors.New("delivery.default_stage_timeout must be <= delivery.max_stage_timeout")
 	}
 	return nil
 }
