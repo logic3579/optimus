@@ -1,41 +1,18 @@
-//go:build dbtest
-
 package repo
 
 import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"context"
 	"crypto/sha256"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"path/filepath"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/registry"
 
-	"optimus-be/internal/infra/db"
 	"optimus-be/internal/models"
 )
-
-const artifactMigrationsPath = "../../../../migrations"
-
-type artifactCipher struct{}
-
-func (artifactCipher) Seal(b []byte) ([]byte, error) { return b, nil }
-func (artifactCipher) Open(b []byte) ([]byte, error) { return b, nil }
-
-func newArtifactService(t *testing.T) (*Service, *Repo) {
-	t.Helper()
-	gdb, teardown := db.StartTestPostgres(t, filepath.Join(artifactMigrationsPath))
-	t.Cleanup(teardown)
-	r := NewRepo(gdb)
-	return NewService(r, artifactCipher{}, nil), r
-}
 
 func artifactChartArchive(t *testing.T, name, version string) []byte {
 	t.Helper()
@@ -58,40 +35,27 @@ func digestOf(b []byte) string {
 	return fmt.Sprintf("sha256:%x", sum)
 }
 
-func TestServiceResolveArtifactHTTPHashesExactDownloadedBytes(t *testing.T) {
+func TestResolveArtifactHTTPHashesExactDownloadedBytes(t *testing.T) {
 	archive := artifactChartArchive(t, "demo", "1.2.3")
-	var archiveRequests atomic.Int32
-	var serverURL string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/index.yaml":
-			_, _ = fmt.Fprintf(w, `apiVersion: v1
-entries:
-  demo:
-    - name: demo
-      version: 1.2.3
-      urls: ["%s/demo-1.2.3.tgz"]
-`, serverURL)
-		case "/demo-1.2.3.tgz":
-			archiveRequests.Add(1)
-			_, _ = w.Write(archive)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-	serverURL = server.URL
+	wantDigest := digestOf(archive)
+	var downloads int
+	m := &models.AppsChartRepo{Name: "demo", Type: "http", URL: "https://charts.example.test"}
+	download := func(got *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+		downloads++
+		require.Same(t, m, got)
+		require.Empty(t, pwd)
+		require.Equal(t, "demo", chartName)
+		require.Equal(t, "1.2.3", version)
+		return archive, nil
+	}
 
-	svc, r := newArtifactService(t)
-	m := &models.AppsChartRepo{Name: "demo", Type: "http", URL: server.URL}
-	require.NoError(t, r.Create(context.Background(), m))
-
-	got, err := svc.ResolveArtifact(context.Background(), m.ID, "demo", "1.2.3")
+	got, err := resolveArtifactHTTP(m, "", 42, "demo", "1.2.3", download)
 	require.NoError(t, err)
 	require.Equal(t, &Artifact{
-		RepoID: m.ID, ChartName: "demo", Version: "1.2.3", Digest: digestOf(archive),
+		RepoID: 42, ChartName: "demo", Version: "1.2.3", Digest: wantDigest,
 	}, got)
-	require.EqualValues(t, 1, archiveRequests.Load(), "chart archive must be downloaded once")
+	require.Equal(t, 1, downloads, "chart archive must be downloaded once")
+	require.Equal(t, make([]byte, len(archive)), archive, "downloaded chart bytes must be wiped")
 }
 
 func TestResolveArtifactOCIHashesInjectedPullBytes(t *testing.T) {
@@ -116,38 +80,19 @@ func TestResolveArtifactOCIHashesInjectedPullBytes(t *testing.T) {
 	require.Equal(t, make([]byte, len(archive)), archive, "downloaded chart bytes must be wiped")
 }
 
-func TestServiceLoadVerifiedChartRejectsDigestMismatchBeforeParsing(t *testing.T) {
+func TestLoadVerifiedChartRejectsDigestMismatchBeforeParse(t *testing.T) {
 	invalidArchive := []byte("not a helm chart")
-	var archiveRequests atomic.Int32
-	var serverURL string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/index.yaml":
-			_, _ = fmt.Fprintf(w, `apiVersion: v1
-entries:
-  demo:
-    - name: demo
-      version: 1.2.3
-      urls: ["%s/demo-1.2.3.tgz"]
-`, serverURL)
-		case "/demo-1.2.3.tgz":
-			archiveRequests.Add(1)
-			_, _ = w.Write(invalidArchive)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-	serverURL = server.URL
+	var downloads int
+	download := func() ([]byte, error) {
+		downloads++
+		return invalidArchive, nil
+	}
 
-	svc, r := newArtifactService(t)
-	m := &models.AppsChartRepo{Name: "demo", Type: "http", URL: server.URL}
-	require.NoError(t, r.Create(context.Background(), m))
-
-	_, err := svc.LoadVerifiedChart(context.Background(), Artifact{
-		RepoID: m.ID, ChartName: "demo", Version: "1.2.3",
+	_, err := loadVerifiedChart(Artifact{
+		RepoID: 42, ChartName: "demo", Version: "1.2.3",
 		Digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	})
+	}, download)
 	require.ErrorIs(t, err, ErrArtifactDigestMismatch)
-	require.EqualValues(t, 1, archiveRequests.Load(), "chart archive must be downloaded once")
+	require.Equal(t, 1, downloads, "chart archive must be downloaded once")
+	require.Equal(t, make([]byte, len(invalidArchive)), invalidArchive, "downloaded chart bytes must be wiped")
 }

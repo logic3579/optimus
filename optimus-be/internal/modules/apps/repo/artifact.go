@@ -37,12 +37,7 @@ func (s *Service) ResolveArtifact(ctx context.Context, repoID uint64, chartName,
 
 	switch m.Type {
 	case "http":
-		tgz, err := chartTgzHTTP(m, pwd, chartName, version)
-		if err != nil {
-			return nil, err
-		}
-		defer wipeChartBytes(tgz)
-		return artifactForBytes(repoID, chartName, version, tgz), nil
+		return resolveArtifactHTTP(m, pwd, repoID, chartName, version, chartTgzHTTP)
 	case "oci":
 		return resolveArtifactOCI(m, pwd, repoID, chartName, version, defaultOCIPull)
 	default:
@@ -58,15 +53,24 @@ func (s *Service) LoadVerifiedChart(ctx context.Context, artifact Artifact) (*ch
 		return nil, err
 	}
 
-	var tgz []byte
+	var download func() ([]byte, error)
 	switch m.Type {
 	case "http":
-		tgz, err = chartTgzHTTP(m, pwd, artifact.ChartName, artifact.Version)
+		download = func() ([]byte, error) {
+			return chartTgzHTTP(m, pwd, artifact.ChartName, artifact.Version)
+		}
 	case "oci":
-		tgz, err = chartTgzOCI(m, pwd, artifact.ChartName, artifact.Version)
+		download = func() ([]byte, error) {
+			return chartTgzOCI(m, pwd, artifact.ChartName, artifact.Version)
+		}
 	default:
 		return nil, apperr.New(apperr.CodeAppsRepoOther, "apps.repo.unknown_type", "unsupported chart repository type")
 	}
+	return loadVerifiedChart(artifact, download)
+}
+
+func loadVerifiedChart(artifact Artifact, download func() ([]byte, error)) (*chart.Chart, error) {
+	tgz, err := download()
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +98,23 @@ func (s *Service) artifactRepo(ctx context.Context, repoID uint64) (*models.Apps
 		return nil, "", err
 	}
 	return m, pwd, nil
+}
+
+type httpChartDownloadFunc func(*models.AppsChartRepo, string, string, string) ([]byte, error)
+
+func resolveArtifactHTTP(
+	m *models.AppsChartRepo,
+	pwd string,
+	repoID uint64,
+	chartName, version string,
+	download httpChartDownloadFunc,
+) (*Artifact, error) {
+	tgz, err := download(m, pwd, chartName, version)
+	if err != nil {
+		return nil, err
+	}
+	defer wipeChartBytes(tgz)
+	return artifactForBytes(repoID, chartName, version, tgz), nil
 }
 
 func resolveArtifactOCI(
