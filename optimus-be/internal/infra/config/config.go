@@ -119,6 +119,32 @@ type DeliveryConfig struct {
 	SSEMaxConnections   int           `mapstructure:"sse_max_connections"`
 }
 
+const (
+	DeliveryMinWorkerConcurrency = 1
+	DeliveryMaxWorkerConcurrency = 32
+
+	DeliveryMinSSEMaxConnections = 1
+	DeliveryMaxSSEMaxConnections = 1000
+
+	DeliveryMinEventRetentionDays = 1
+	DeliveryMaxEventRetentionDays = 3650
+
+	DeliveryMinLeaseDuration = 10 * time.Second
+	DeliveryMaxLeaseDuration = 5 * time.Minute
+
+	DeliveryMinLeaseRenewInterval = time.Second
+	DeliveryMaxLeaseRenewInterval = time.Minute
+
+	DeliveryMinStageTimeout = time.Minute
+	DeliveryMaxStageTimeout = 24 * time.Hour
+
+	DeliveryMinReconcileInterval = time.Second
+	DeliveryMaxReconcileInterval = 5 * time.Minute
+
+	DeliveryMinSSEHeartbeat = 5 * time.Second
+	DeliveryMaxSSEHeartbeat = 5 * time.Minute
+)
+
 func Load(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
@@ -224,38 +250,52 @@ func (c *Config) validateObservability() error {
 
 func (c *Config) validateDelivery() error {
 	d := c.Delivery
-	if d.WorkerConcurrency <= 0 {
-		return errors.New("delivery.worker_concurrency must be > 0")
+	if err := validateDeliveryIntRange("delivery.worker_concurrency", d.WorkerConcurrency, DeliveryMinWorkerConcurrency, DeliveryMaxWorkerConcurrency); err != nil {
+		return err
 	}
-	if d.LeaseDuration <= 0 {
-		return errors.New("delivery.lease_duration must be > 0")
+	if err := validateDeliveryDurationRange("delivery.lease_duration", d.LeaseDuration, DeliveryMinLeaseDuration, DeliveryMaxLeaseDuration); err != nil {
+		return err
 	}
-	if d.LeaseRenewInterval <= 0 {
-		return errors.New("delivery.lease_renew_interval must be > 0")
+	if err := validateDeliveryDurationRange("delivery.lease_renew_interval", d.LeaseRenewInterval, DeliveryMinLeaseRenewInterval, DeliveryMaxLeaseRenewInterval); err != nil {
+		return err
 	}
-	if d.DefaultStageTimeout <= 0 {
-		return errors.New("delivery.default_stage_timeout must be > 0")
+	if err := validateDeliveryDurationRange("delivery.default_stage_timeout", d.DefaultStageTimeout, DeliveryMinStageTimeout, DeliveryMaxStageTimeout); err != nil {
+		return err
 	}
-	if d.MaxStageTimeout <= 0 {
-		return errors.New("delivery.max_stage_timeout must be > 0")
+	if err := validateDeliveryDurationRange("delivery.max_stage_timeout", d.MaxStageTimeout, DeliveryMinStageTimeout, DeliveryMaxStageTimeout); err != nil {
+		return err
 	}
-	if d.ReconcileInterval <= 0 {
-		return errors.New("delivery.reconcile_interval must be > 0")
+	if err := validateDeliveryDurationRange("delivery.reconcile_interval", d.ReconcileInterval, DeliveryMinReconcileInterval, DeliveryMaxReconcileInterval); err != nil {
+		return err
 	}
-	if d.EventRetentionDays <= 0 {
-		return errors.New("delivery.event_retention_days must be > 0")
+	if err := validateDeliveryIntRange("delivery.event_retention_days", d.EventRetentionDays, DeliveryMinEventRetentionDays, DeliveryMaxEventRetentionDays); err != nil {
+		return err
 	}
-	if d.SSEHeartbeat <= 0 {
-		return errors.New("delivery.sse_heartbeat must be > 0")
+	if err := validateDeliveryDurationRange("delivery.sse_heartbeat", d.SSEHeartbeat, DeliveryMinSSEHeartbeat, DeliveryMaxSSEHeartbeat); err != nil {
+		return err
 	}
-	if d.SSEMaxConnections <= 0 {
-		return errors.New("delivery.sse_max_connections must be > 0")
+	if err := validateDeliveryIntRange("delivery.sse_max_connections", d.SSEMaxConnections, DeliveryMinSSEMaxConnections, DeliveryMaxSSEMaxConnections); err != nil {
+		return err
 	}
 	if d.LeaseRenewInterval >= d.LeaseDuration {
 		return errors.New("delivery.lease_renew_interval must be < delivery.lease_duration")
 	}
 	if d.DefaultStageTimeout > d.MaxStageTimeout {
 		return errors.New("delivery.default_stage_timeout must be <= delivery.max_stage_timeout")
+	}
+	return nil
+}
+
+func validateDeliveryIntRange(field string, value, min, max int) error {
+	if value < min || value > max {
+		return fmt.Errorf("%s must be within allowed range [%d, %d]", field, min, max)
+	}
+	return nil
+}
+
+func validateDeliveryDurationRange(field string, value, min, max time.Duration) error {
+	if value < min || value > max {
+		return fmt.Errorf("%s must be within allowed range [%s, %s]", field, min, max)
 	}
 	return nil
 }
