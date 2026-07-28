@@ -91,9 +91,28 @@ func TestDeliveryApprovalFirstDecisionWins(t *testing.T) {
 		require.Equal(t, models.DeliveryStageRejected, stage.State)
 		require.Equal(t, models.DeliveryRunRejected, run.State)
 	}
-	var eventCount int64
-	require.NoError(t, db.Model(&models.DeliveryRunEvent{}).Where("run_id = ?", run.ID).Count(&eventCount).Error)
-	require.Equal(t, int64(1), eventCount)
+	var events []models.DeliveryRunEvent
+	require.NoError(t, db.Where("run_id = ?", run.ID).Order("id ASC").Find(&events).Error)
+	require.Len(t, events, 2)
+
+	decision := string(row.Decision)
+	stageEvent, runEvent := events[0], events[1]
+	require.Equal(t, "stage."+decision, stageEvent.EventType)
+	require.NotNil(t, stageEvent.RunStageID)
+	require.Equal(t, stage.ID, *stageEvent.RunStageID)
+	require.Equal(t, string(models.DeliveryStageWaitingApproval), *stageEvent.OldState)
+	require.Equal(t, string(stage.State), *stageEvent.NewState)
+	require.JSONEq(t, `{}`, string(stageEvent.Metadata))
+
+	require.Equal(t, "run."+decision, runEvent.EventType)
+	require.Nil(t, runEvent.RunStageID)
+	require.Equal(t, string(models.DeliveryRunWaitingApproval), *runEvent.OldState)
+	require.Equal(t, string(run.State), *runEvent.NewState)
+	require.JSONEq(t, `{}`, string(runEvent.Metadata))
+	for _, event := range events {
+		require.NotContains(t, string(event.Metadata), "approve race")
+		require.NotContains(t, string(event.Metadata), "reject race")
+	}
 }
 
 type allowApprovalPermission struct{}
