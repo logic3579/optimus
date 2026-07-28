@@ -353,14 +353,30 @@ func TestDeliveryUpgrade(t *testing.T) {
 		require.Equal(t, "-0000000000000001", secondToken[64:])
 	})
 
-	t.Run("claim counter wrap fails closed before acquire", func(t *testing.T) {
+	t.Run("claim counter issues max once then remains saturated", func(t *testing.T) {
+		var state deliveryRuntimeState
+		state.claims.Store(math.MaxUint64 - 1)
+		lastToken, lastOK := state.nextClaimOwner("worker")
+		require.True(t, lastOK)
+		require.Equal(t, "-ffffffffffffffff", lastToken[64:])
+		_, firstExhausted := state.nextClaimOwner("worker")
+		_, secondExhausted := state.nextClaimOwner("worker")
+		require.False(t, firstExhausted)
+		require.False(t, secondExhausted)
+		require.Equal(t, uint64(math.MaxUint64), state.claims.Load())
+	})
+
+	t.Run("saturated claim counter always fails closed before acquire", func(t *testing.T) {
 		service, apps, _, _, _, coordinator := newDeliveryService(t)
 		service.delivery.claims.Store(math.MaxUint64)
 
-		_, err := service.UpgradeForDelivery(context.Background(), deliveryRequest(apps.app.ID))
-		requireBizError(t, err, apperr.CodeDeliveryExecutionUnavailable, "delivery.execution.unavailable")
+		for i := 0; i < 2; i++ {
+			_, err := service.UpgradeForDelivery(context.Background(), deliveryRequest(apps.app.ID))
+			requireBizError(t, err, apperr.CodeDeliveryExecutionUnavailable, "delivery.execution.unavailable")
+		}
 		_, inspectErr := coordinator.Inspect(context.Background(), "delivery-operation-1")
 		require.Error(t, inspectErr)
+		require.Equal(t, uint64(math.MaxUint64), service.delivery.claims.Load())
 	})
 
 	t.Run("terminal failed replay returns safe failure without external calls", func(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -62,9 +63,16 @@ func (s *deliveryRuntimeState) store(runtime *deliveryRuntime) {
 }
 
 func (s *deliveryRuntimeState) nextClaimOwner(workerOwner string) (string, bool) {
-	sequence := s.claims.Add(1)
-	if sequence == 0 {
-		return "", false
+	var sequence uint64
+	for {
+		current := s.claims.Load()
+		if current == math.MaxUint64 {
+			return "", false
+		}
+		sequence = current + 1
+		if s.claims.CompareAndSwap(current, sequence) {
+			break
+		}
 	}
 	digest := sha256.Sum256([]byte(workerOwner))
 	return hex.EncodeToString(digest[:]) + fmt.Sprintf("-%016x", sequence), true
