@@ -215,6 +215,14 @@ func TestDeliveryUpgrade(t *testing.T) {
 		deployed, err := factory.storage.Last(apps.app.ReleaseName)
 		require.NoError(t, err)
 		require.Equal(t, "environment-secret-reference", deployed.Config["preserved"], "ReuseValues must retain existing values")
+		marker, err := deliveryDigestMarker(deliveryDigest)
+		require.NoError(t, err)
+		require.Equal(t, marker, deployed.Labels[deliveryDigestLabel])
+		evidence, err := service.InspectDeliveryRelease(ctx, apps.app)
+		require.NoError(t, err)
+		require.Equal(t, int64(2), evidence.Revision)
+		require.Equal(t, deliveryDigest, evidence.Digest)
+		require.False(t, evidence.ObservedAt.IsZero())
 		require.Empty(t, resultDigestForbiddenStrings(result))
 
 		operation, err := coordinator.Inspect(ctx, "delivery-operation-1")
@@ -240,6 +248,41 @@ func TestDeliveryUpgrade(t *testing.T) {
 			require.NotContains(t, text, "environment-secret-reference")
 			require.NotContains(t, text, "raw_error")
 		}
+	})
+
+	t.Run("live inspection rejects missing or malformed digest marker without leaking raw errors", func(t *testing.T) {
+		service, apps, _, factory, _, _ := newDeliveryService(t)
+		ctx := context.Background()
+		_, err := service.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+		require.NoError(t, err)
+		deployed, err := factory.storage.Last(apps.app.ReleaseName)
+		require.NoError(t, err)
+		for _, marker := range []string{"", "authorization=secret", "YWJj"} {
+			deployed.Labels = map[string]string{deliveryDigestLabel: marker}
+			require.NoError(t, factory.storage.Update(deployed))
+			_, inspectErr := service.InspectDeliveryRelease(ctx, apps.app)
+			require.Error(t, inspectErr)
+			if marker != "" {
+				require.NotContains(t, inspectErr.Error(), marker)
+			}
+			require.NotContains(t, inspectErr.Error(), "secret")
+		}
+	})
+
+	t.Run("live inspection rejects zero deployment timestamp", func(t *testing.T) {
+		service, apps, _, factory, _, _ := newDeliveryService(t)
+		ctx := context.Background()
+		_, err := service.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+		require.NoError(t, err)
+		deployed, err := factory.storage.Last(apps.app.ReleaseName)
+		require.NoError(t, err)
+		marker, err := deliveryDigestMarker(deliveryDigest)
+		require.NoError(t, err)
+		deployed.Labels = map[string]string{deliveryDigestLabel: marker}
+		deployed.Info.LastDeployed.Time = time.Time{}
+		require.NoError(t, factory.storage.Update(deployed))
+		_, inspectErr := service.InspectDeliveryRelease(ctx, apps.app)
+		require.EqualError(t, inspectErr, "delivery release inspection unavailable")
 	})
 
 	t.Run("terminal success replays persisted result without external calls", func(t *testing.T) {

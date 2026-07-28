@@ -2,7 +2,11 @@ package release
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
+	"errors"
 	"log/slog"
+	"time"
 
 	"helm.sh/helm/v3/pkg/action"
 
@@ -10,6 +14,36 @@ import (
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/apps"
 )
+
+// DeliveryInspection is the narrow, safe live-release evidence exposed to P6.
+type DeliveryInspection struct {
+	Revision   int64
+	Digest     string
+	ObservedAt time.Time
+}
+
+// InspectDeliveryRelease reads only Helm's live revision and the P3-owned
+// digest marker. Missing or malformed markers fail closed; values, manifests,
+// notes, credentials, and raw upstream errors never cross this seam.
+func (s *Service) InspectDeliveryRelease(ctx context.Context, app *models.AppsApplication) (DeliveryInspection, error) {
+	cfg, err := s.factory.NewForCluster(ctx, app.ClusterID, app.Namespace, "apps.release.delivery_inspect")
+	if err != nil {
+		return DeliveryInspection{}, errors.New("delivery release inspection unavailable")
+	}
+	rel, err := action.NewStatus(cfg).Run(app.ReleaseName)
+	if err != nil || rel == nil || rel.Info == nil || rel.Info.Status != "deployed" || rel.Version <= 0 {
+		return DeliveryInspection{}, errors.New("delivery release inspection unavailable")
+	}
+	if rel.Info.LastDeployed.Time.IsZero() {
+		return DeliveryInspection{}, errors.New("delivery release inspection unavailable")
+	}
+	marker := rel.Labels[deliveryDigestLabel]
+	raw, err := base64.RawURLEncoding.DecodeString(marker)
+	if err != nil || len(raw) != 32 || base64.RawURLEncoding.EncodeToString(raw) != marker {
+		return DeliveryInspection{}, errors.New("delivery release inspection unavailable")
+	}
+	return DeliveryInspection{Revision: int64(rel.Version), Digest: "sha256:" + hex.EncodeToString(raw), ObservedAt: rel.Info.LastDeployed.Time.UTC()}, nil
+}
 
 // StatusForApplication satisfies application.HelmStatusProbe. Wired by
 // main.go via application.Service.SetHelmStatusProbe(releaseSvc).

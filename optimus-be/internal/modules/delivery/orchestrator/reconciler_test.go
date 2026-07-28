@@ -19,6 +19,17 @@ type reconcileMemoryStore struct {
 	candidate         *reconcileCandidate
 	outcomes          []reconcileOutcome
 	resolveContextErr error
+	next              chan uint64
+	resolved          chan struct{}
+}
+
+func (s *reconcileMemoryStore) ClaimNextReconcileRun(ctx context.Context, _ time.Time, _ time.Duration) (*reconcileClaim, error) {
+	select {
+	case id := <-s.next:
+		return &reconcileClaim{RunID: id}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func TestRecoveryIntentSurvivesManualReconciliationEvent(t *testing.T) {
@@ -31,12 +42,45 @@ func TestRecoveryIntentSurvivesManualReconciliationEvent(t *testing.T) {
 	require.Equal(t, recoveryTimedOut, recoveryIntentFromEvents(events))
 }
 
+func TestLeaseLostRecoveryIntentFailsClosed(t *testing.T) {
+	events := []models.DeliveryRunEvent{{Metadata: datatypes.JSON(`{"recovery_intent":"lease_lost"}`)}}
+	require.Equal(t, recoveryFailed, recoveryIntentFromEvents(events))
+}
+
+func TestBoundedAdvisoryReleaseDiscardsSessionOnTimeoutOrUnlockFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		unlock func(context.Context) (bool, error)
+	}{
+		{"timeout", func(ctx context.Context) (bool, error) { <-ctx.Done(); return false, ctx.Err() }},
+		{"not unlocked", func(context.Context) (bool, error) { return false, nil }},
+		{"driver failure", func(context.Context) (bool, error) { return false, errors.New("driver") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			discarded := false
+			started := time.Now()
+			boundedAdvisoryRelease(context.Background(), time.Millisecond, tc.unlock, func() { discarded = true })
+			require.True(t, discarded)
+			require.Less(t, time.Since(started), time.Second)
+		})
+	}
+	discarded := false
+	boundedAdvisoryRelease(context.Background(), time.Second, func(context.Context) (bool, error) { return true, nil }, func() { discarded = true })
+	require.False(t, discarded)
+}
+
 func (s *reconcileMemoryStore) Load(context.Context, uint64, time.Time) (*reconcileCandidate, error) {
 	return s.candidate, nil
 }
 func (s *reconcileMemoryStore) Resolve(ctx context.Context, _ reconcileCandidate, outcome reconcileOutcome, _ time.Time) error {
 	s.resolveContextErr = ctx.Err()
 	s.outcomes = append(s.outcomes, outcome)
+	if s.resolved != nil {
+		select {
+		case s.resolved <- struct{}{}:
+		default:
+		}
+	}
 	return nil
 }
 
@@ -106,6 +150,31 @@ func TestReconcileUsesOnlyDefiniteInspectionEvidence(t *testing.T) {
 			require.Equal(t, "op", inspector.operation)
 		})
 	}
+}
+
+func TestReconcilerRunIsSequentialAndStopsWithContext(t *testing.T) {
+	target := "sha256:" + strings.Repeat("a", 64)
+	store := &reconcileMemoryStore{candidate: &reconcileCandidate{Run: models.DeliveryRun{ID: 1, ChartDigest: target}, Stage: models.DeliveryRunStage{ID: 2, ApplicationID: 3, OperationID: "op"}}, next: make(chan uint64, 2), resolved: make(chan struct{}, 1)}
+	store.next <- 1
+	store.next <- 1
+	r := newReconciler(store, &inspectionStub{evidence: Inspection{Revision: 1, Digest: target}}, time.Now)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { r.Run(ctx, time.Millisecond, nil); close(done) }()
+	select {
+	case <-store.resolved:
+	case <-time.After(time.Second):
+		t.Fatal("reconciler did not process candidate")
+	}
+	cancel()
+	require.Eventually(t, func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, time.Millisecond)
 }
 
 func TestReconcilePersistsUnknownAfterInspectionCancelsRequest(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 const (
 	deliveryUpgradeKind            = "upgrade"
 	deliveryUpgradeSucceededStatus = "deployed"
+	deliveryDigestLabel            = "optimus.io/delivery-digest"
 )
 
 // VerifiedChartLoader is the Task 6 artifact-verification boundary required
@@ -179,6 +181,11 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 	}
 
 	upgrade := action.NewUpgrade(cfg)
+	marker, err := deliveryDigestMarker(req.Digest)
+	if err != nil {
+		return nil, s.completeDefiniteDeliveryFailure(ctx, runtime, req.OperationID, claimOwner, deliveryArtifactDriftError(err))
+	}
+	upgrade.Labels = map[string]string{deliveryDigestLabel: marker}
 	upgrade.Namespace = app.Namespace
 	upgrade.ReuseValues = true
 	upgrade.Wait = false
@@ -217,6 +224,14 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 		"status":        result.Status,
 	})
 	return result, nil
+}
+
+func deliveryDigestMarker(digest string) (string, error) {
+	raw, err := hex.DecodeString(strings.TrimPrefix(digest, "sha256:"))
+	if err != nil || len(raw) != sha256.Size || "sha256:"+hex.EncodeToString(raw) != digest {
+		return "", errors.New("invalid delivery digest")
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
 func (s *Service) completeDefiniteDeliveryFailure(

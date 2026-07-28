@@ -36,6 +36,7 @@ import (
 	"optimus-be/internal/modules/auth"
 	"optimus-be/internal/modules/credentials"
 	"optimus-be/internal/modules/credentials/vault"
+	deliverymodule "optimus-be/internal/modules/delivery/module"
 	"optimus-be/internal/modules/health"
 	"optimus-be/internal/modules/k8s"
 	"optimus-be/internal/modules/menu"
@@ -220,11 +221,30 @@ func main() {
 
 	helmFactory := helmclient.NewFactory(credsModule.Consumer, k8sModule.Cluster)
 	appsRelSvc := release.NewService(helmFactory, appsAppSvc, &appsmodule.HelmChartLoader{Repo: appsRepoSvc}, auditRec)
+	appsCoordinator := release.NewCoordinator(gdb)
+	workerOwner := deliveryWorkerOwner()
+	appsRelSvc.SetDeliveryCoordinator(appsCoordinator, workerOwner, cfg.Delivery.LeaseDuration)
 	appsAppSvc.SetHelmStatusProbe(appsRelSvc)
 	appsAppSvc.SetHelmInstalledChecker(appsRelSvc)
 
 	appsModule := appsmodule.New(appsRepoSvc, appsAppSvc, appsRelSvc)
 	appsModule.MountRoutes(protected, permCache)
+	appsDelivery := appsModule.DeliveryAdapters(appsCoordinator)
+	deliveryModule, err := deliverymodule.Wire(deliverymodule.Input{
+		DB: gdb, Audit: auditRec, Config: cfg.Delivery,
+		ProjectApplications: appsDelivery.ProjectApplications,
+		RunApplications:     appsDelivery.RunApplications,
+		Artifacts:           appsDelivery.Artifacts, ArtifactVersions: appsDelivery.ArtifactVersions,
+		ApprovalPermissions: permissionChecker{cache: permCache},
+		Executor:            appsDelivery.Executor, Inspector: appsDelivery.Inspector,
+		WorkerOwner: workerOwner, Logger: logger,
+	})
+	if err != nil {
+		fail("wire delivery", err)
+	}
+	appsModule.SetDeliveryGovernance(deliveryModule.Governance)
+	appsAppSvc.SetDeliveryApplicationCounter(deliveryModule.ApplicationCounter)
+	deliveryModule.MountRoutes(protected, permCache)
 
 	// P4 assets: cloud-account CRUD, AWS discovery, read-only inventory,
 	// sync-run history, scheduler, and the Go-only Consumer seam for P5/P6.
@@ -253,6 +273,8 @@ func main() {
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 	}
+	deliveryCtx, cancelDelivery := context.WithCancel(context.Background())
+	deliveryModule.Start(deliveryCtx, cfg.Delivery.ReconcileInterval, logger)
 
 	go func() {
 		logger.Info("listening", "addr", srv.Addr)
@@ -266,11 +288,18 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	logger.Info("shutting down")
+	cancelDelivery()
 	httpShutdownCtx, cancelHTTPShutdown := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	if err := srv.Shutdown(httpShutdownCtx); err != nil {
 		logger.Error("shutdown", "err", err)
 	}
 	cancelHTTPShutdown()
+	deliveryShutdownCtx, cancelDeliveryShutdown := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	deliveryShutdownErr := deliveryModule.Shutdown(deliveryShutdownCtx)
+	if deliveryShutdownErr != nil {
+		logger.Error("delivery shutdown", "err", deliveryShutdownErr)
+	}
+	cancelDeliveryShutdown()
 
 	cancelAssets()
 	assetsShutdownCtx, cancelAssetsShutdown := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
@@ -280,10 +309,46 @@ func main() {
 		// Do not close the DB underneath workers that did not drain. Returning
 		// from main is the forced-shutdown path and lets the process reclaim it.
 		logger.Error("assets shutdown", "err", assetsShutdownErr)
-	} else if sqlDB, _ := gdb.DB(); sqlDB != nil {
-		_ = sqlDB.Close()
+	}
+	if sqlDB, _ := gdb.DB(); sqlDB != nil {
+		closeDBIfDrained(deliveryShutdownErr, assetsShutdownErr, sqlDB.Close)
 	}
 	logger.Info("stopped")
+}
+
+func closeDBIfDrained(deliveryErr, assetsErr error, closeFn func() error) bool {
+	if deliveryErr != nil || assetsErr != nil || closeFn == nil {
+		return false
+	}
+	_ = closeFn()
+	return true
+}
+
+type permissionChecker struct{ cache *rbac.PermissionCache }
+
+func deliveryWorkerOwner() string {
+	hostname, err := os.Hostname()
+	if err != nil || hostname == "" {
+		hostname = "optimus"
+	}
+	owner := fmt.Sprintf("%s-%d", hostname, os.Getpid())
+	if len(owner) > 128 {
+		owner = owner[len(owner)-128:]
+	}
+	return owner
+}
+
+func (p permissionChecker) Has(ctx context.Context, userID uint64, code string) (bool, error) {
+	codes, err := p.cache.Get(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	for _, candidate := range codes {
+		if candidate == code {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func fail(stage string, err error) {

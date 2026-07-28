@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +22,129 @@ import (
 	deliveryrun "optimus-be/internal/modules/delivery/run"
 	"optimus-be/tests/dbtest"
 )
+
+func TestDeliveryReconcilerRecoversOnlyExpiredRunningLeaseOnce(t *testing.T) {
+	_, db := setupServer(t)
+	expiredRun, expiredStage, _ := seedExpiredRunningRun(t, db, "expired", time.Now().UTC().Add(-time.Minute))
+	unexpiredRun, unexpiredStage, _ := seedExpiredRunningRun(t, db, "unexpired", time.Now().UTC().Add(time.Minute))
+	inspector := &blockingRecoveryInspector{evidence: orchestrator.Inspection{Revision: 8, Digest: expiredRun.ChartDigest}, entered: make(chan struct{}), release: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{}, 2)
+	for range 2 {
+		go func() {
+			orchestrator.NewReconciler(db, inspector).Run(ctx, 10*time.Millisecond, nil)
+			done <- struct{}{}
+		}()
+	}
+	select {
+	case <-inspector.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("expired lease was not discovered")
+	}
+	time.Sleep(40 * time.Millisecond)
+	require.Equal(t, int32(1), inspector.calls.Load(), "advisory claim must permit one live inspector")
+
+	var recoveredRun models.DeliveryRun
+	require.NoError(t, db.First(&recoveredRun, expiredRun.ID).Error)
+	require.Equal(t, models.DeliveryRunReconciling, recoveredRun.State)
+	var recoveredStage models.DeliveryRunStage
+	require.NoError(t, db.First(&recoveredStage, expiredStage.ID).Error)
+	require.Equal(t, models.DeliveryStageReconciling, recoveredStage.State)
+	require.Nil(t, recoveredStage.LeaseOwner)
+	require.Nil(t, recoveredStage.LeaseExpiresAt)
+	var events []models.DeliveryRunEvent
+	require.NoError(t, db.Where("run_id = ?", expiredRun.ID).Order("id ASC").Find(&events).Error)
+	require.Equal(t, []string{"run.reconciling", "stage.reconciling"}, eventTypes(events))
+	for _, event := range events {
+		require.JSONEq(t, `{"recovery_intent":"lease_lost"}`, string(event.Metadata))
+	}
+
+	require.NoError(t, db.First(unexpiredRun, unexpiredRun.ID).Error)
+	require.Equal(t, models.DeliveryRunRunning, unexpiredRun.State)
+	require.NoError(t, db.First(unexpiredStage, unexpiredStage.ID).Error)
+	require.Equal(t, models.DeliveryStageRunning, unexpiredStage.State)
+	require.NotNil(t, unexpiredStage.LeaseOwner)
+	require.NotNil(t, unexpiredStage.LeaseExpiresAt)
+
+	close(inspector.release)
+	require.Eventually(t, func() bool {
+		var row models.DeliveryRun
+		return db.First(&row, expiredRun.ID).Error == nil && row.State != models.DeliveryRunReconciling
+	}, 3*time.Second, 10*time.Millisecond)
+	cancel()
+	<-done
+	<-done
+}
+
+func TestDeliveryReconcilerRecoversExpiredCanceledLeaseOnce(t *testing.T) {
+	_, db := setupServer(t)
+	expiredRun, expiredStage, _ := seedExpiredRunningRun(t, db, "cancel-expired", time.Now().UTC().Add(-time.Minute))
+	unexpiredRun, unexpiredStage, _ := seedExpiredRunningRun(t, db, "cancel-unexpired", time.Now().UTC().Add(time.Minute))
+	require.NoError(t, db.Model(expiredRun).Update("state", models.DeliveryRunCancelRequested).Error)
+	require.NoError(t, db.Model(unexpiredRun).Update("state", models.DeliveryRunCancelRequested).Error)
+	inspector := &blockingRecoveryInspector{evidence: orchestrator.Inspection{Revision: 7, Digest: "sha256:" + strings.Repeat("d", 64), PreviousDigestProven: true}, entered: make(chan struct{}), release: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{}, 2)
+	for range 2 {
+		go func() {
+			orchestrator.NewReconciler(db, inspector).Run(ctx, 10*time.Millisecond, nil)
+			done <- struct{}{}
+		}()
+	}
+	select {
+	case <-inspector.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("expired canceled lease was not discovered")
+	}
+	time.Sleep(40 * time.Millisecond)
+	require.Equal(t, int32(1), inspector.calls.Load())
+	var recoveredRun models.DeliveryRun
+	require.NoError(t, db.First(&recoveredRun, expiredRun.ID).Error)
+	require.Equal(t, models.DeliveryRunReconciling, recoveredRun.State)
+	var recoveredStage models.DeliveryRunStage
+	require.NoError(t, db.First(&recoveredStage, expiredStage.ID).Error)
+	require.Equal(t, models.DeliveryStageReconciling, recoveredStage.State)
+	require.Nil(t, recoveredStage.LeaseOwner)
+	require.Nil(t, recoveredStage.LeaseExpiresAt)
+	var events []models.DeliveryRunEvent
+	require.NoError(t, db.Where("run_id = ?", expiredRun.ID).Order("id ASC").Find(&events).Error)
+	require.Equal(t, []string{"run.reconciling", "stage.reconciling"}, eventTypes(events))
+	for _, event := range events {
+		require.JSONEq(t, `{"recovery_intent":"canceled"}`, string(event.Metadata))
+	}
+	var untouchedRun models.DeliveryRun
+	require.NoError(t, db.First(&untouchedRun, unexpiredRun.ID).Error)
+	require.Equal(t, models.DeliveryRunCancelRequested, untouchedRun.State)
+	var untouchedStage models.DeliveryRunStage
+	require.NoError(t, db.First(&untouchedStage, unexpiredStage.ID).Error)
+	require.Equal(t, models.DeliveryStageRunning, untouchedStage.State)
+	require.NotNil(t, untouchedStage.LeaseOwner)
+	require.NotNil(t, untouchedStage.LeaseExpiresAt)
+	close(inspector.release)
+	require.Eventually(t, func() bool {
+		var row models.DeliveryRun
+		return db.First(&row, expiredRun.ID).Error == nil && row.State == models.DeliveryRunCanceled
+	}, 3*time.Second, 10*time.Millisecond)
+	cancel()
+	<-done
+	<-done
+}
+
+type blockingRecoveryInspector struct {
+	evidence         orchestrator.Inspection
+	entered, release chan struct{}
+	once             sync.Once
+	calls            atomic.Int32
+}
+
+func (i *blockingRecoveryInspector) Inspect(context.Context, uint64, string) (orchestrator.Inspection, error) {
+	i.calls.Add(1)
+	i.once.Do(func() { close(i.entered) })
+	<-i.release
+	return i.evidence, nil
+}
 
 func TestDeliveryReconciliationPersistsAndAdvancesAtomically(t *testing.T) {
 	_, db := setupServer(t)
@@ -245,6 +369,20 @@ func seedReconcilingRun(t *testing.T, db *gorm.DB, suffix string, nextApproval b
 	require.NoError(t, db.Create(stage).Error)
 	require.NoError(t, db.Create(next).Error)
 	require.NoError(t, db.Create(&models.DeliveryRunEvent{RunID: run.ID, RunStageID: &stage.ID, EventType: "stage.reconciling", ActorType: models.DeliveryEventActorSystem, OccurredAt: time.Now().UTC(), Metadata: datatypes.JSON(`{"recovery_intent":"failed"}`)}).Error)
+	return run, stage, next
+}
+
+func seedExpiredRunningRun(t *testing.T, db *gorm.DB, suffix string, leaseExpiresAt time.Time) (*models.DeliveryRun, *models.DeliveryRunStage, *models.DeliveryRunStage) {
+	t.Helper()
+	run, stage, next := seedReconcilingRun(t, db, "lease-"+suffix, false)
+	owner := "dead-worker-" + suffix
+	require.NoError(t, db.Where("run_id = ?", run.ID).Delete(&models.DeliveryRunEvent{}).Error)
+	require.NoError(t, db.Model(run).Updates(map[string]any{"state": models.DeliveryRunRunning, "finished_at": nil}).Error)
+	require.NoError(t, db.Model(stage).Updates(map[string]any{"state": models.DeliveryStageRunning, "lease_owner": owner, "lease_expires_at": leaseExpiresAt}).Error)
+	run.State = models.DeliveryRunRunning
+	stage.State = models.DeliveryStageRunning
+	stage.LeaseOwner = &owner
+	stage.LeaseExpiresAt = &leaseExpiresAt
 	return run, stage, next
 }
 

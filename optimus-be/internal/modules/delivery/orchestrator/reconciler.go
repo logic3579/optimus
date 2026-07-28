@@ -2,8 +2,10 @@ package orchestrator
 
 import (
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
 	"gorm.io/datatypes"
@@ -61,10 +63,58 @@ type reconcileStore interface {
 	Resolve(context.Context, reconcileCandidate, reconcileOutcome, time.Time) error
 }
 
+type reconcileScanner interface {
+	ClaimNextReconcileRun(context.Context, time.Time, time.Duration) (*reconcileClaim, error)
+}
+
+type reconcileClaim struct {
+	RunID   uint64
+	release func(context.Context)
+}
+
+func (c *reconcileClaim) Release(ctx context.Context) {
+	if c != nil && c.release != nil {
+		c.release(ctx)
+		c.release = nil
+	}
+}
+
 type Reconciler struct {
 	store     reconcileStore
 	inspector Inspector
 	now       func() time.Time
+}
+
+// Run discovers and reconciles at most one run per interval. Work never
+// overlaps, so a slow P3 inspection cannot create an unbounded goroutine set.
+func (r *Reconciler) Run(ctx context.Context, interval time.Duration, logger *slog.Logger) {
+	if interval <= 0 {
+		return
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	scanner, ok := r.store.(reconcileScanner)
+	if !ok {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case tick := <-ticker.C:
+			claim, err := scanner.ClaimNextReconcileRun(ctx, tick.UTC(), interval)
+			if err == nil && claim != nil {
+				err = r.Reconcile(ctx, claim.RunID)
+				claim.Release(ctx)
+			}
+			if err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error("delivery reconciliation failed", "category", "database")
+			}
+		}
+	}
 }
 
 func NewReconciler(db *gorm.DB, inspector Inspector) *Reconciler {
@@ -126,6 +176,116 @@ func recoveryError(codeValue apperr.Code, keyValue string) (*int, *string) {
 
 type gormReconcileStore struct{ db *gorm.DB }
 
+func (s *gormReconcileStore) ClaimNextReconcileRun(ctx context.Context, now time.Time, retryAfter time.Duration) (*reconcileClaim, error) {
+	var runID uint64
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		expired := tx.Model(&models.DeliveryRunStage{}).Select("1").
+			Where("delivery_run_stages.run_id = delivery_runs.id AND delivery_run_stages.state = ? AND delivery_run_stages.lease_expires_at IS NOT NULL AND delivery_run_stages.lease_expires_at <= ?", models.DeliveryStageRunning, now)
+		retryable := tx.Model(&models.DeliveryRunStage{}).Select("1").
+			Where("delivery_run_stages.run_id = delivery_runs.id AND delivery_run_stages.state = ? AND delivery_run_stages.updated_at <= ?", models.DeliveryStageReconciling, now.Add(-retryAfter))
+		var run models.DeliveryRun
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("(state IN ? AND EXISTS (?)) OR (state = ? AND EXISTS (?))", []models.DeliveryRunState{models.DeliveryRunRunning, models.DeliveryRunCancelRequested}, expired, models.DeliveryRunReconciling, retryable).
+			Order("CASE WHEN state IN ('running','cancel_requested') THEN 0 ELSE 1 END,id ASC").Limit(1).Take(&run).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		var stage models.DeliveryRunStage
+		stageQuery := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Where("run_id = ?", run.ID)
+		if run.State == models.DeliveryRunRunning || run.State == models.DeliveryRunCancelRequested {
+			stageQuery = stageQuery.Where("state = ? AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?", models.DeliveryStageRunning, now)
+		} else {
+			stageQuery = stageQuery.Where("state = ? AND updated_at <= ?", models.DeliveryStageReconciling, now.Add(-retryAfter))
+		}
+		if err := stageQuery.Order("stage_order ASC,id ASC").Take(&stage).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if run.State == models.DeliveryRunReconciling {
+			res := tx.Model(&models.DeliveryRunStage{}).Where("id = ? AND state = ? AND updated_at <= ?", stage.ID, models.DeliveryStageReconciling, now.Add(-retryAfter)).Update("updated_at", now)
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected != 1 {
+				return nil
+			}
+			runID = run.ID
+			return nil
+		}
+
+		intent := "lease_lost"
+		if run.State == models.DeliveryRunCancelRequested {
+			intent = "canceled"
+		}
+		metadata, _ := json.Marshal(map[string]any{"recovery_intent": intent})
+		oldRunState := run.State
+		if err := transitionStage(tx, &stage, models.DeliveryStageReconciling, now, map[string]any{"lease_owner": nil, "lease_expires_at": nil}); err != nil {
+			return err
+		}
+		if err := transitionRun(tx, &run, models.DeliveryRunReconciling, now, nil); err != nil {
+			return err
+		}
+		if err := appendTransition(tx, run.ID, nil, "run.reconciling", oldRunState, models.DeliveryRunReconciling, now, nil, nil, datatypes.JSON(metadata)); err != nil {
+			return err
+		}
+		if err := appendTransition(tx, run.ID, &stage.ID, "stage.reconciling", models.DeliveryStageRunning, models.DeliveryStageReconciling, now, nil, nil, datatypes.JSON(metadata)); err != nil {
+			return err
+		}
+		runID = run.ID
+		return nil
+	})
+	if err != nil || runID == 0 {
+		return nil, err
+	}
+	return s.advisoryClaim(ctx, runID)
+}
+
+const reconcileAdvisoryNamespace int64 = 0x5046523600000000
+const reconcileUnlockTimeout = time.Second
+
+func (s *gormReconcileStore) advisoryClaim(ctx context.Context, runID uint64) (*reconcileClaim, error) {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	conn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	key := reconcileAdvisoryNamespace ^ int64(runID)
+	var acquired bool
+	if err := conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&acquired); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if !acquired {
+		_ = conn.Close()
+		return nil, nil
+	}
+	return &reconcileClaim{RunID: runID, release: func(parent context.Context) {
+		boundedAdvisoryRelease(parent, reconcileUnlockTimeout, func(unlockCtx context.Context) (bool, error) {
+			var unlocked bool
+			err := conn.QueryRowContext(unlockCtx, "SELECT pg_advisory_unlock($1)", key).Scan(&unlocked)
+			return unlocked, err
+		}, func() { _ = conn.Raw(func(any) error { return driver.ErrBadConn }) })
+		_ = conn.Close()
+	}}, nil
+}
+
+func boundedAdvisoryRelease(parent context.Context, timeout time.Duration, unlock func(context.Context) (bool, error), discard func()) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+	unlocked, err := unlock(ctx)
+	if err != nil || !unlocked {
+		discard()
+	}
+}
+
 func (s *gormReconcileStore) Load(ctx context.Context, runID uint64, _ time.Time) (*reconcileCandidate, error) {
 	var run models.DeliveryRun
 	if err := s.db.WithContext(ctx).First(&run, runID).Error; err != nil {
@@ -173,6 +333,8 @@ func recoveryIntentFromEvents(events []models.DeliveryRunEvent) recoveryIntent {
 		case "timed_out":
 			return recoveryTimedOut
 		case "failed":
+			return recoveryFailed
+		case "lease_lost":
 			return recoveryFailed
 		}
 	}

@@ -3,8 +3,11 @@ package module
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"reflect"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -17,6 +20,7 @@ import (
 	"optimus-be/internal/modules/delivery/approval"
 	deliveryerrs "optimus-be/internal/modules/delivery/errs"
 	"optimus-be/internal/modules/delivery/event"
+	"optimus-be/internal/modules/delivery/orchestrator"
 	"optimus-be/internal/modules/delivery/pipeline"
 	"optimus-be/internal/modules/delivery/project"
 	"optimus-be/internal/modules/delivery/run"
@@ -34,20 +38,32 @@ type Input struct {
 	Artifacts           run.ArtifactResolver
 	ArtifactVersions    pipeline.VersionLister
 	ApprovalPermissions approval.PermissionChecker
+	Executor            orchestrator.Executor
+	Inspector           orchestrator.Inspector
+	WorkerOwner         string
+	Logger              *slog.Logger
 }
 type Module struct {
-	project  *project.Handler
-	pipeline *pipeline.Handler
-	run      *run.Handler
-	approval *approval.Handler
-	event    *event.Handler
+	project            *project.Handler
+	pipeline           *pipeline.Handler
+	run                *run.Handler
+	approval           *approval.Handler
+	event              *event.Handler
+	Governance         *Governance
+	ApplicationCounter *project.Repo
+	worker             *orchestrator.Worker
+	reconciler         *orchestrator.Reconciler
+	pruner             *event.Pruner
+	cancel             context.CancelFunc
+	done               chan struct{}
+	startOnce          sync.Once
 }
 
 func Wire(in Input) (*Module, error) {
-	if nilValue(in.DB) || nilValue(in.Audit) || nilValue(in.ProjectApplications) || nilValue(in.RunApplications) || nilValue(in.Artifacts) || nilValue(in.ArtifactVersions) || nilValue(in.ApprovalPermissions) {
+	if nilValue(in.DB) || nilValue(in.Audit) || nilValue(in.ProjectApplications) || nilValue(in.RunApplications) || nilValue(in.Artifacts) || nilValue(in.ArtifactVersions) || nilValue(in.ApprovalPermissions) || nilValue(in.Executor) || nilValue(in.Inspector) || strings.TrimSpace(in.WorkerOwner) == "" {
 		return nil, errors.New("delivery database, audit, application, artifact, and permission seams are required")
 	}
-	if in.Config.MaxStageTimeout <= 0 || in.Config.SSEHeartbeat <= 0 || in.Config.SSEMaxConnections <= 0 {
+	if in.Config.MaxStageTimeout <= 0 || in.Config.SSEHeartbeat <= 0 || in.Config.SSEMaxConnections <= 0 || in.Config.WorkerConcurrency <= 0 || in.Config.LeaseDuration <= 0 || in.Config.LeaseRenewInterval <= 0 || in.Config.ReconcileInterval <= 0 || in.Config.EventRetentionDays <= 0 {
 		return nil, errors.New("invalid delivery HTTP limits")
 	}
 	projectRepo := project.NewRepo(in.DB)
@@ -58,7 +74,57 @@ func Wire(in Input) (*Module, error) {
 	runSvc := run.NewService(runRepo, in.RunApplications, in.Artifacts, in.Audit)
 	approvalSvc := approval.NewService(approval.NewRepo(in.DB), in.ApprovalPermissions, in.Audit)
 	eventSvc := event.NewService(event.NewRepo(in.DB))
-	return &Module{project: project.NewHandler(projectSvc), pipeline: pipeline.NewHandler(pipeline.NewHTTPService(pipelineSvc, pipelineRepo, artifactCatalog{projects: projectSvc, versions: in.ArtifactVersions})), run: run.NewHandler(run.NewHTTPService(runSvc, runRepo)), approval: approval.NewHandler(approvalSvc), event: event.NewHandler(eventSvc, in.Config.SSEHeartbeat, in.Config.SSEMaxConnections)}, nil
+	worker := orchestrator.NewWorker(in.DB, in.Executor, orchestrator.Config{Concurrency: in.Config.WorkerConcurrency, LeaseDuration: in.Config.LeaseDuration, RenewInterval: in.Config.LeaseRenewInterval}, in.WorkerOwner)
+	return &Module{project: project.NewHandler(projectSvc), pipeline: pipeline.NewHandler(pipeline.NewHTTPService(pipelineSvc, pipelineRepo, artifactCatalog{projects: projectSvc, versions: in.ArtifactVersions})), run: run.NewHandler(run.NewHTTPService(runSvc, runRepo)), approval: approval.NewHandler(approvalSvc), event: event.NewHandler(eventSvc, in.Config.SSEHeartbeat, in.Config.SSEMaxConnections), Governance: &Governance{db: in.DB}, ApplicationCounter: projectRepo, worker: worker, reconciler: orchestrator.NewReconciler(in.DB, in.Inspector), pruner: event.NewPruner(in.DB, in.Logger, in.Config.EventRetentionDays, in.Config.ReconcileInterval), done: make(chan struct{})}, nil
+}
+
+// Governance reports whether P3 direct mutations are governed by delivery.
+// P3 owns interpretation of its private capability and action types.
+type Governance struct{ db *gorm.DB }
+
+func (g *Governance) IsManaged(ctx context.Context, applicationID uint64) (bool, error) {
+	var count int64
+	err := g.db.WithContext(ctx).Model(&models.DeliveryEnvironment{}).Where("application_id = ?", applicationID).Count(&count).Error
+	return count > 0, err
+}
+
+func (g *Governance) ActiveOperationID(ctx context.Context, applicationID uint64) (string, error) {
+	var operationID string
+	err := g.db.WithContext(ctx).Model(&models.DeliveryRunStage{}).
+		Where("application_id = ? AND state IN ?", applicationID, []models.DeliveryStageState{models.DeliveryStageRunning, models.DeliveryStageReconciling}).
+		Order("id DESC").Limit(1).Pluck("operation_id", &operationID).Error
+	return operationID, err
+}
+
+// Start launches all delivery background components with one server-owned context.
+func (m *Module) Start(parent context.Context, reconcileInterval time.Duration, logger *slog.Logger) {
+	m.startOnce.Do(func() {
+		ctx, cancel := context.WithCancel(parent)
+		m.cancel = cancel
+		go func() {
+			var wg sync.WaitGroup
+			wg.Add(3)
+			go func() { defer wg.Done(); m.worker.Run(ctx) }()
+			go func() { defer wg.Done(); m.reconciler.Run(ctx, reconcileInterval, logger) }()
+			go func() { defer wg.Done(); m.pruner.Run(ctx) }()
+			wg.Wait()
+			close(m.done)
+		}()
+	})
+}
+
+// Shutdown stops claims/cancels local execution and waits only as long as ctx.
+func (m *Module) Shutdown(ctx context.Context) error {
+	if m.cancel == nil {
+		return nil
+	}
+	m.cancel()
+	select {
+	case <-m.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 func nilValue(v any) bool {
 	if v == nil {
