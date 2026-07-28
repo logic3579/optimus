@@ -34,9 +34,15 @@ type PendingRow struct {
 	RequestedAt     time.Time
 }
 
-func (r *Repo) Transaction(ctx context.Context, fn func(repository) error) error {
+type DecisionIdentity struct {
+	ApprovalID uint64
+	RunID      uint64
+	RunStageID uint64
+}
+
+func (r *Repo) Transaction(ctx context.Context, fn func(repository, *gorm.DB) error) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return fn(&Repo{db: tx})
+		return fn(&Repo{db: tx}, tx)
 	})
 }
 
@@ -56,34 +62,44 @@ func (r *Repo) ListPending(ctx context.Context, actor uint64) ([]PendingRow, err
 	return rows, err
 }
 
-func (r *Repo) LockForDecision(ctx context.Context, stageID uint64) (*models.DeliveryApproval, *models.DeliveryRunStage, *models.DeliveryRun, error) {
-	var approval models.DeliveryApproval
-	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("run_stage_id = ?", stageID).First(&approval).Error
+func (r *Repo) FindDecisionIdentity(ctx context.Context, stageID uint64) (*DecisionIdentity, error) {
+	var identity DecisionIdentity
+	err := r.db.WithContext(ctx).Model(&models.DeliveryApproval{}).
+		Select("id AS approval_id, run_id, run_stage_id").Where("run_stage_id = ?", stageID).Take(&identity).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil, nil, approvalNotFoundError()
+		return nil, approvalNotFoundError()
 	}
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	var stage models.DeliveryRunStage
-	err = r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("id = ? AND run_id = ?", stageID, approval.RunID).First(&stage).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil, nil, approvalNotFoundError()
-	}
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	return &identity, nil
+}
+
+func (r *Repo) LockRun(ctx context.Context, runID uint64) (*models.DeliveryRun, error) {
 	var run models.DeliveryRun
-	err = r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&run, approval.RunID).Error
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&run, runID).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil, nil, approvalNotFoundError()
+		return nil, approvalNotFoundError()
 	}
-	if err != nil {
-		return nil, nil, nil, err
+	return &run, err
+}
+
+func (r *Repo) LockStage(ctx context.Context, stageID uint64) (*models.DeliveryRunStage, error) {
+	var stage models.DeliveryRunStage
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&stage, stageID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, approvalNotFoundError()
 	}
-	return &approval, &stage, &run, nil
+	return &stage, err
+}
+
+func (r *Repo) LockApproval(ctx context.Context, approvalID uint64) (*models.DeliveryApproval, error) {
+	var approval models.DeliveryApproval
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&approval, approvalID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, approvalNotFoundError()
+	}
+	return &approval, err
 }
 
 func (r *Repo) DecideApproval(ctx context.Context, id, actor uint64, decision models.DeliveryApprovalDecision, comment string, now time.Time) error {

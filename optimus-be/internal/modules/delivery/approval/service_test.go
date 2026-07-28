@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
@@ -57,7 +59,7 @@ func TestServiceApproveRequiresLiveDecisionPermission(t *testing.T) {
 	require.Equal(t, "auth.permission_denied", biz.MessageKey)
 	require.Equal(t, uint64(42), checker.actor)
 	require.Equal(t, "delivery:approval:decide", checker.code)
-	require.Equal(t, []string{"lock", "permission"}, steps)
+	require.Equal(t, []string{"identity", "run", "stage", "approval", "permission"}, steps)
 	require.Zero(t, repo.decisionCalls)
 	require.Zero(t, repo.stageCalls)
 	require.Zero(t, repo.runCalls)
@@ -85,7 +87,7 @@ func TestServicePermissionProviderErrorAfterLockReturnsSafeCause(t *testing.T) {
 	require.Equal(t, apperr.CodeInternal, biz.Code)
 	require.Equal(t, "common.internal", biz.MessageKey)
 	require.NotContains(t, biz.Message, cause.Error())
-	require.Equal(t, []string{"lock", "permission"}, steps)
+	require.Equal(t, []string{"identity", "run", "stage", "approval", "permission"}, steps)
 	require.ErrorIs(t, repo.transactionErr, cause)
 	require.Zero(t, repo.decisionCalls)
 	require.Zero(t, repo.stageCalls)
@@ -147,9 +149,17 @@ func TestServiceApproveQueuesStageAndRunWithRedactedRecords(t *testing.T) {
 	}, got)
 	require.Equal(t, models.DeliveryStageQueued, repo.stage.State)
 	require.Equal(t, models.DeliveryRunQueued, repo.run.State)
-	require.Len(t, repo.events, 1)
+	require.Len(t, repo.events, 2)
 	require.Equal(t, "stage.approved", repo.events[0].EventType)
+	require.Equal(t, repo.stage.ID, *repo.events[0].RunStageID)
+	require.Equal(t, "waiting_approval", *repo.events[0].OldState)
+	require.Equal(t, "queued", *repo.events[0].NewState)
+	require.Equal(t, "run.approved", repo.events[1].EventType)
+	require.Nil(t, repo.events[1].RunStageID)
+	require.Equal(t, "waiting_approval", *repo.events[1].OldState)
+	require.Equal(t, "queued", *repo.events[1].NewState)
 	require.NotContains(t, string(repo.events[0].Metadata), "Reviewed safely")
+	require.NotContains(t, string(repo.events[1].Metadata), "Reviewed safely")
 	require.Len(t, recorder.events, 1)
 	event := recorder.events[0]
 	require.Equal(t, "delivery.approval.approve", event.Action)
@@ -176,8 +186,89 @@ func TestServiceRejectTerminatesStageAndRun(t *testing.T) {
 	require.Equal(t, models.DeliveryRunRejected, repo.run.State)
 	require.Equal(t, decidedAt, *repo.stage.FinishedAt)
 	require.Equal(t, decidedAt, *repo.run.FinishedAt)
+	require.Len(t, repo.events, 2)
 	require.Equal(t, "stage.rejected", repo.events[0].EventType)
+	require.Equal(t, "run.rejected", repo.events[1].EventType)
 	require.Equal(t, "delivery.approval.reject", recorder.events[0].Action)
+}
+
+func TestServiceDecisionRollsBackWhenEitherEventAppendFails(t *testing.T) {
+	for _, failAt := range []int{1, 2} {
+		t.Run(fmt.Sprintf("append_%d", failAt), func(t *testing.T) {
+			repo := decisionFixture(7)
+			repo.failAppendAt = failAt
+			recorder := &fakeRecorder{}
+			svc := NewService(repo, &fakePermissionChecker{allowed: true}, recorder)
+
+			_, err := svc.Approve(context.Background(), 42, "", "", repo.stage.ID, DecisionRequest{Comment: "Reviewed"})
+
+			require.Error(t, err)
+			require.Equal(t, models.DeliveryApprovalPending, repo.approval.Decision)
+			require.Equal(t, models.DeliveryStageWaitingApproval, repo.stage.State)
+			require.Equal(t, models.DeliveryRunWaitingApproval, repo.run.State)
+			require.Empty(t, repo.events)
+			require.Empty(t, recorder.events)
+		})
+	}
+}
+
+func TestServiceAuditFailureRollsBackAndRetrySucceeds(t *testing.T) {
+	cause := errors.New("audit storage unavailable")
+	repo := decisionFixture(7)
+	recorder := &fakeRecorder{err: cause}
+	svc := NewService(repo, &fakePermissionChecker{allowed: true}, recorder)
+	req := DecisionRequest{Comment: "Reviewed"}
+
+	_, err := svc.Approve(context.Background(), 42, "", "", repo.stage.ID, req)
+
+	require.ErrorIs(t, err, cause)
+	var biz *apperr.BizError
+	require.ErrorAs(t, err, &biz)
+	require.Equal(t, apperr.CodeInternal, biz.Code)
+	require.Equal(t, "common.internal", biz.MessageKey)
+	require.NotContains(t, biz.Message, cause.Error())
+	require.Equal(t, models.DeliveryApprovalPending, repo.approval.Decision)
+	require.Equal(t, models.DeliveryStageWaitingApproval, repo.stage.State)
+	require.Equal(t, models.DeliveryRunWaitingApproval, repo.run.State)
+	require.Empty(t, repo.events)
+	require.Empty(t, recorder.events)
+
+	recorder.err = nil
+	got, err := svc.Approve(context.Background(), 42, "", "", repo.stage.ID, req)
+	require.NoError(t, err)
+	require.Equal(t, models.DeliveryApprovalApproved, got.Decision)
+	require.Len(t, repo.events, 2)
+	require.Len(t, recorder.events, 1)
+}
+
+func TestServiceDecisionRejectsPostLockIdentityMismatchWithoutWrites(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*fakeRepository)
+	}{
+		{name: "stage belongs to another run", mutate: func(r *fakeRepository) { r.stage.RunID++ }},
+		{name: "approval belongs to another run", mutate: func(r *fakeRepository) { r.approval.RunID++ }},
+		{name: "approval points to another stage", mutate: func(r *fakeRepository) { r.approval.RunStageID++ }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := decisionFixture(7)
+			tt.mutate(repo)
+			checker := &fakePermissionChecker{allowed: true}
+			recorder := &fakeRecorder{}
+			svc := NewService(repo, checker, recorder)
+
+			_, err := svc.Approve(context.Background(), 42, "", "", repo.stage.ID, DecisionRequest{Comment: "Reviewed"})
+
+			requireBizCode(t, err, apperr.CodeDeliveryApprovalNotFound)
+			require.Zero(t, checker.actor, "permission must run only after locked identity validation")
+			require.Zero(t, repo.decisionCalls)
+			require.Zero(t, repo.stageCalls)
+			require.Zero(t, repo.runCalls)
+			require.Empty(t, repo.events)
+			require.Empty(t, recorder.events)
+		})
+	}
 }
 
 func TestServiceDecisionReplayAndConflicts(t *testing.T) {
@@ -197,7 +288,7 @@ func TestServiceDecisionReplayAndConflicts(t *testing.T) {
 	replayed, err := svc.Approve(context.Background(), 42, "", "", repo.stage.ID, req)
 	require.NoError(t, err)
 	require.Equal(t, first, replayed)
-	require.Len(t, repo.events, 1)
+	require.Len(t, repo.events, 2)
 	require.Len(t, recorder.events, 1)
 
 	_, err = svc.Approve(context.Background(), 42, "", "", repo.stage.ID, DecisionRequest{Comment: "Changed"})
@@ -225,6 +316,8 @@ type fakeRepository struct {
 	stageCalls     int
 	runCalls       int
 	transactionErr error
+	failAppendAt   int
+	appendCalls    int
 }
 
 func (r *fakeRepository) ListPending(_ context.Context, actor uint64) ([]PendingRow, error) {
@@ -232,16 +325,42 @@ func (r *fakeRepository) ListPending(_ context.Context, actor uint64) ([]Pending
 	return r.pending, nil
 }
 
-func (r *fakeRepository) Transaction(_ context.Context, fn func(repository) error) error {
-	r.transactionErr = fn(r)
+func (r *fakeRepository) Transaction(_ context.Context, fn func(repository, *gorm.DB) error) error {
+	approvalBefore, stageBefore, runBefore := r.approval, r.stage, r.run
+	eventsBefore := append([]models.DeliveryRunEvent(nil), r.events...)
+	r.transactionErr = fn(r, nil)
+	if r.transactionErr != nil {
+		r.approval, r.stage, r.run, r.events = approvalBefore, stageBefore, runBefore, eventsBefore
+	}
 	return r.transactionErr
 }
 
-func (r *fakeRepository) LockForDecision(_ context.Context, _ uint64) (*models.DeliveryApproval, *models.DeliveryRunStage, *models.DeliveryRun, error) {
+func (r *fakeRepository) FindDecisionIdentity(_ context.Context, _ uint64) (*DecisionIdentity, error) {
 	if r.steps != nil {
-		*r.steps = append(*r.steps, "lock")
+		*r.steps = append(*r.steps, "identity")
 	}
-	return &r.approval, &r.stage, &r.run, nil
+	return &DecisionIdentity{ApprovalID: r.approval.ID, RunID: r.run.ID, RunStageID: r.stage.ID}, nil
+}
+
+func (r *fakeRepository) LockRun(_ context.Context, _ uint64) (*models.DeliveryRun, error) {
+	if r.steps != nil {
+		*r.steps = append(*r.steps, "run")
+	}
+	return &r.run, nil
+}
+
+func (r *fakeRepository) LockStage(_ context.Context, _ uint64) (*models.DeliveryRunStage, error) {
+	if r.steps != nil {
+		*r.steps = append(*r.steps, "stage")
+	}
+	return &r.stage, nil
+}
+
+func (r *fakeRepository) LockApproval(_ context.Context, _ uint64) (*models.DeliveryApproval, error) {
+	if r.steps != nil {
+		*r.steps = append(*r.steps, "approval")
+	}
+	return &r.approval, nil
 }
 
 func (r *fakeRepository) DecideApproval(_ context.Context, _ uint64, actor uint64, decision models.DeliveryApprovalDecision, comment string, now time.Time) error {
@@ -270,6 +389,10 @@ func (r *fakeRepository) TransitionRun(_ context.Context, _ uint64, from, to mod
 }
 
 func (r *fakeRepository) AppendEvent(_ context.Context, event *models.DeliveryRunEvent) error {
+	r.appendCalls++
+	if r.appendCalls == r.failAppendAt {
+		return errors.New("append event failed")
+	}
 	r.events = append(r.events, *event)
 	return nil
 }
@@ -299,9 +422,15 @@ func (c *fakePermissionChecker) Has(_ context.Context, actor uint64, code string
 	return c.allowed, c.err
 }
 
-type fakeRecorder struct{ events []audit.Event }
+type fakeRecorder struct {
+	events []audit.Event
+	err    error
+}
 
 func (r *fakeRecorder) Record(_ context.Context, event audit.Event) error {
+	if r.err != nil {
+		return r.err
+	}
 	r.events = append(r.events, event)
 	return nil
 }

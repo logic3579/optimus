@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
@@ -22,8 +23,11 @@ const decisionPermission = "delivery:approval:decide"
 
 type repository interface {
 	ListPending(context.Context, uint64) ([]PendingRow, error)
-	Transaction(context.Context, func(repository) error) error
-	LockForDecision(context.Context, uint64) (*models.DeliveryApproval, *models.DeliveryRunStage, *models.DeliveryRun, error)
+	Transaction(context.Context, func(repository, *gorm.DB) error) error
+	FindDecisionIdentity(context.Context, uint64) (*DecisionIdentity, error)
+	LockRun(context.Context, uint64) (*models.DeliveryRun, error)
+	LockStage(context.Context, uint64) (*models.DeliveryRunStage, error)
+	LockApproval(context.Context, uint64) (*models.DeliveryApproval, error)
 	DecideApproval(context.Context, uint64, uint64, models.DeliveryApprovalDecision, string, time.Time) error
 	TransitionStage(context.Context, uint64, models.DeliveryStageState, models.DeliveryStageState, time.Time, *time.Time) error
 	TransitionRun(context.Context, uint64, models.DeliveryRunState, models.DeliveryRunState, time.Time, *time.Time) error
@@ -41,12 +45,16 @@ type Recorder interface {
 type Service struct {
 	repo        repository
 	permissions PermissionChecker
-	audit       Recorder
+	auditTx     func(*gorm.DB) Recorder
 	now         func() time.Time
 }
 
 func NewService(repo repository, permissions PermissionChecker, recorder Recorder) *Service {
-	return &Service{repo: repo, permissions: permissions, audit: recorder, now: time.Now}
+	auditTx := func(*gorm.DB) Recorder { return recorder }
+	if concrete, ok := recorder.(*audit.Recorder); ok {
+		auditTx = func(tx *gorm.DB) Recorder { return concrete.WithTx(tx) }
+	}
+	return &Service{repo: repo, permissions: permissions, auditTx: auditTx, now: time.Now}
 }
 
 func (s *Service) Approve(ctx context.Context, actor uint64, ip, userAgent string, stageID uint64, req DecisionRequest) (*Decision, error) {
@@ -63,11 +71,25 @@ func (s *Service) decide(ctx context.Context, actor uint64, ip, userAgent string
 		return nil, err
 	}
 	var result *Decision
-	created := false
-	err = s.repo.Transaction(ctx, func(tx repository) error {
-		approvalRow, stageRow, runRow, err := tx.LockForDecision(ctx, stageID)
+	err = s.repo.Transaction(ctx, func(tx repository, dbtx *gorm.DB) error {
+		identity, err := tx.FindDecisionIdentity(ctx, stageID)
 		if err != nil {
 			return err
+		}
+		runRow, err := tx.LockRun(ctx, identity.RunID)
+		if err != nil {
+			return err
+		}
+		stageRow, err := tx.LockStage(ctx, identity.RunStageID)
+		if err != nil {
+			return err
+		}
+		approvalRow, err := tx.LockApproval(ctx, identity.ApprovalID)
+		if err != nil {
+			return err
+		}
+		if !validLockedIdentity(identity, stageID, approvalRow, stageRow, runRow) {
+			return approvalNotFoundError()
 		}
 		if err := s.requireDecisionPermission(ctx, actor); err != nil {
 			return err
@@ -100,13 +122,14 @@ func (s *Service) decide(ctx context.Context, actor uint64, ip, userAgent string
 			finishedAt = &now
 		}
 		stageNext, runNext := decisionStageState(wanted), decisionRunState(wanted)
-		if err := tx.TransitionStage(ctx, stageRow.ID, stageRow.State, stageNext, now, finishedAt); err != nil {
+		stageOld, runOld := stageRow.State, runRow.State
+		if err := tx.TransitionStage(ctx, stageRow.ID, stageOld, stageNext, now, finishedAt); err != nil {
 			return err
 		}
-		if err := tx.TransitionRun(ctx, runRow.ID, runRow.State, runNext, now, finishedAt); err != nil {
+		if err := tx.TransitionRun(ctx, runRow.ID, runOld, runNext, now, finishedAt); err != nil {
 			return err
 		}
-		oldState, newState := string(stageRow.State), string(stageNext)
+		oldState, newState := string(stageOld), string(stageNext)
 		stageIDCopy := stageRow.ID
 		if err := tx.AppendEvent(ctx, &models.DeliveryRunEvent{
 			RunID: runRow.ID, RunStageID: &stageIDCopy, EventType: "stage." + string(wanted),
@@ -115,19 +138,34 @@ func (s *Service) decide(ctx context.Context, actor uint64, ip, userAgent string
 		}); err != nil {
 			return err
 		}
+		runOldState, runNewState := string(runOld), string(runNext)
+		if err := tx.AppendEvent(ctx, &models.DeliveryRunEvent{
+			RunID: runRow.ID, EventType: "run." + string(wanted), OldState: &runOldState,
+			NewState: &runNewState, ActorType: models.DeliveryEventActorUser,
+			ActorID: &actor, OccurredAt: now, Metadata: datatypes.JSON([]byte(`{}`)),
+		}); err != nil {
+			return err
+		}
 		approvalRow.Decision, approvalRow.Comment, approvalRow.DecidedByUserID = wanted, comment, &actor
 		approvalRow.DecidedAt, approvalRow.UpdatedAt = &now, now
 		stageRow.State, runRow.State = stageNext, runNext
-		result, created = decisionFrom(approvalRow), true
+		result = decisionFrom(approvalRow)
+		if err := recordDecision(ctx, s.auditTx(dbtx), actor, ip, userAgent, result); err != nil {
+			return apperr.Wrap(err, apperr.CodeInternal, "common.internal", "approval audit write failed")
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	if created {
-		s.recordDecision(ctx, actor, ip, userAgent, result)
-	}
 	return result, nil
+}
+
+func validLockedIdentity(identity *DecisionIdentity, stageID uint64, approval *models.DeliveryApproval, stage *models.DeliveryRunStage, run *models.DeliveryRun) bool {
+	return identity != nil && approval != nil && stage != nil && run != nil &&
+		identity.ApprovalID != 0 && identity.RunID != 0 && identity.RunStageID == stageID &&
+		run.ID == identity.RunID && stage.ID == identity.RunStageID && stage.RunID == identity.RunID &&
+		approval.ID == identity.ApprovalID && approval.RunID == identity.RunID && approval.RunStageID == identity.RunStageID
 }
 
 func decisionStageState(decision models.DeliveryApprovalDecision) models.DeliveryStageState {
@@ -156,16 +194,16 @@ func decisionFrom(row *models.DeliveryApproval) *Decision {
 		DecidedByUserID: *row.DecidedByUserID, Comment: row.Comment, DecidedAt: *row.DecidedAt}
 }
 
-func (s *Service) recordDecision(ctx context.Context, actor uint64, ip, userAgent string, decision *Decision) {
-	if s.audit == nil || decision == nil {
-		return
+func recordDecision(ctx context.Context, recorder Recorder, actor uint64, ip, userAgent string, decision *Decision) error {
+	if recorder == nil || decision == nil {
+		return nil
 	}
 	sum := sha256.Sum256([]byte(decision.Comment))
 	action := "approve"
 	if decision.Decision == models.DeliveryApprovalRejected {
 		action = "reject"
 	}
-	_ = s.audit.Record(ctx, audit.Event{
+	return recorder.Record(ctx, audit.Event{
 		UserID: &actor, Action: "delivery.approval." + action, TargetType: "delivery.approval",
 		TargetID: strconv.FormatUint(decision.ID, 10), IP: ip, UserAgent: userAgent,
 		Payload: map[string]any{
