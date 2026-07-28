@@ -41,10 +41,14 @@ func TestServiceListPendingReturnsOnlyActorsActionableQueue(t *testing.T) {
 }
 
 func TestServiceApproveRequiresLiveDecisionPermission(t *testing.T) {
-	checker := &fakePermissionChecker{allowed: false}
-	svc := NewService(&fakeRepository{}, checker, nil)
+	steps := []string{}
+	repo := decisionFixture(7)
+	repo.steps = &steps
+	checker := &fakePermissionChecker{allowed: false, steps: &steps}
+	recorder := &fakeRecorder{}
+	svc := NewService(repo, checker, recorder)
 
-	_, err := svc.Approve(context.Background(), 42, "127.0.0.1", "agent", 13, DecisionRequest{Comment: "Reviewed"})
+	_, err := svc.Approve(context.Background(), 42, "127.0.0.1", "agent", repo.stage.ID, DecisionRequest{Comment: "Reviewed"})
 
 	require.Error(t, err)
 	var biz *apperr.BizError
@@ -53,6 +57,41 @@ func TestServiceApproveRequiresLiveDecisionPermission(t *testing.T) {
 	require.Equal(t, "auth.permission_denied", biz.MessageKey)
 	require.Equal(t, uint64(42), checker.actor)
 	require.Equal(t, "delivery:approval:decide", checker.code)
+	require.Equal(t, []string{"lock", "permission"}, steps)
+	require.Zero(t, repo.decisionCalls)
+	require.Zero(t, repo.stageCalls)
+	require.Zero(t, repo.runCalls)
+	require.Empty(t, repo.events)
+	require.Empty(t, recorder.events)
+	require.Equal(t, models.DeliveryApprovalPending, repo.approval.Decision)
+	require.Equal(t, models.DeliveryStageWaitingApproval, repo.stage.State)
+	require.Equal(t, models.DeliveryRunWaitingApproval, repo.run.State)
+}
+
+func TestServicePermissionProviderErrorAfterLockReturnsSafeCause(t *testing.T) {
+	steps := []string{}
+	cause := errors.New("sensitive permission provider failure")
+	repo := decisionFixture(7)
+	repo.steps = &steps
+	checker := &fakePermissionChecker{err: cause, steps: &steps}
+	recorder := &fakeRecorder{}
+	svc := NewService(repo, checker, recorder)
+
+	_, err := svc.Approve(context.Background(), 42, "", "", repo.stage.ID, DecisionRequest{Comment: "Reviewed"})
+
+	require.ErrorIs(t, err, cause)
+	var biz *apperr.BizError
+	require.ErrorAs(t, err, &biz)
+	require.Equal(t, apperr.CodeInternal, biz.Code)
+	require.Equal(t, "common.internal", biz.MessageKey)
+	require.NotContains(t, biz.Message, cause.Error())
+	require.Equal(t, []string{"lock", "permission"}, steps)
+	require.ErrorIs(t, repo.transactionErr, cause)
+	require.Zero(t, repo.decisionCalls)
+	require.Zero(t, repo.stageCalls)
+	require.Zero(t, repo.runCalls)
+	require.Empty(t, repo.events)
+	require.Empty(t, recorder.events)
 }
 
 func TestServiceDecisionRequiresBoundedComment(t *testing.T) {
@@ -144,12 +183,17 @@ func TestServiceRejectTerminatesStageAndRun(t *testing.T) {
 func TestServiceDecisionReplayAndConflicts(t *testing.T) {
 	repo := decisionFixture(7)
 	recorder := &fakeRecorder{}
-	svc := NewService(repo, &fakePermissionChecker{allowed: true}, recorder)
+	checker := &fakePermissionChecker{allowed: true}
+	svc := NewService(repo, checker, recorder)
 	svc.now = func() time.Time { return time.Date(2026, 7, 28, 13, 0, 0, 0, time.UTC) }
 	req := DecisionRequest{Comment: "Reviewed"}
 
 	first, err := svc.Approve(context.Background(), 42, "", "", repo.stage.ID, req)
 	require.NoError(t, err)
+	checker.allowed = false
+	_, err = svc.Approve(context.Background(), 42, "", "", repo.stage.ID, req)
+	requireBizCode(t, err, apperr.CodePermissionDenied)
+	checker.allowed = true
 	replayed, err := svc.Approve(context.Background(), 42, "", "", repo.stage.ID, req)
 	require.NoError(t, err)
 	require.Equal(t, first, replayed)
@@ -170,12 +214,17 @@ func requireBizCode(t *testing.T, err error, code apperr.Code) {
 }
 
 type fakeRepository struct {
-	pending      []PendingRow
-	pendingActor uint64
-	approval     models.DeliveryApproval
-	run          models.DeliveryRun
-	stage        models.DeliveryRunStage
-	events       []models.DeliveryRunEvent
+	pending        []PendingRow
+	pendingActor   uint64
+	approval       models.DeliveryApproval
+	run            models.DeliveryRun
+	stage          models.DeliveryRunStage
+	events         []models.DeliveryRunEvent
+	steps          *[]string
+	decisionCalls  int
+	stageCalls     int
+	runCalls       int
+	transactionErr error
 }
 
 func (r *fakeRepository) ListPending(_ context.Context, actor uint64) ([]PendingRow, error) {
@@ -184,20 +233,26 @@ func (r *fakeRepository) ListPending(_ context.Context, actor uint64) ([]Pending
 }
 
 func (r *fakeRepository) Transaction(_ context.Context, fn func(repository) error) error {
-	return fn(r)
+	r.transactionErr = fn(r)
+	return r.transactionErr
 }
 
 func (r *fakeRepository) LockForDecision(_ context.Context, _ uint64) (*models.DeliveryApproval, *models.DeliveryRunStage, *models.DeliveryRun, error) {
+	if r.steps != nil {
+		*r.steps = append(*r.steps, "lock")
+	}
 	return &r.approval, &r.stage, &r.run, nil
 }
 
 func (r *fakeRepository) DecideApproval(_ context.Context, _ uint64, actor uint64, decision models.DeliveryApprovalDecision, comment string, now time.Time) error {
+	r.decisionCalls++
 	r.approval.Decision, r.approval.DecidedByUserID, r.approval.Comment = decision, &actor, comment
 	r.approval.DecidedAt, r.approval.UpdatedAt = &now, now
 	return nil
 }
 
 func (r *fakeRepository) TransitionStage(_ context.Context, _ uint64, from, to models.DeliveryStageState, _ time.Time, finishedAt *time.Time) error {
+	r.stageCalls++
 	if r.stage.State != from {
 		return errors.New("stage state conflict")
 	}
@@ -206,6 +261,7 @@ func (r *fakeRepository) TransitionStage(_ context.Context, _ uint64, from, to m
 }
 
 func (r *fakeRepository) TransitionRun(_ context.Context, _ uint64, from, to models.DeliveryRunState, _ time.Time, finishedAt *time.Time) error {
+	r.runCalls++
 	if r.run.State != from {
 		return errors.New("run state conflict")
 	}
@@ -229,13 +285,18 @@ func decisionFixture(initiator uint64) *fakeRepository {
 
 type fakePermissionChecker struct {
 	allowed bool
+	err     error
 	actor   uint64
 	code    string
+	steps   *[]string
 }
 
 func (c *fakePermissionChecker) Has(_ context.Context, actor uint64, code string) (bool, error) {
+	if c.steps != nil {
+		*c.steps = append(*c.steps, "permission")
+	}
 	c.actor, c.code = actor, code
-	return c.allowed, nil
+	return c.allowed, c.err
 }
 
 type fakeRecorder struct{ events []audit.Event }

@@ -58,9 +58,6 @@ func (s *Service) Reject(ctx context.Context, actor uint64, ip, userAgent string
 }
 
 func (s *Service) decide(ctx context.Context, actor uint64, ip, userAgent string, stageID uint64, wanted models.DeliveryApprovalDecision, req DecisionRequest) (*Decision, error) {
-	if err := s.requireDecisionPermission(ctx, actor); err != nil {
-		return nil, err
-	}
 	comment, err := validateComment(req.Comment)
 	if err != nil {
 		return nil, err
@@ -70,6 +67,9 @@ func (s *Service) decide(ctx context.Context, actor uint64, ip, userAgent string
 	err = s.repo.Transaction(ctx, func(tx repository) error {
 		approvalRow, stageRow, runRow, err := tx.LockForDecision(ctx, stageID)
 		if err != nil {
+			return err
+		}
+		if err := s.requireDecisionPermission(ctx, actor); err != nil {
 			return err
 		}
 		if approvalRow.Decision != models.DeliveryApprovalPending {
