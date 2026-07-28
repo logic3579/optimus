@@ -70,6 +70,17 @@ func TestStreamRejectsInvalidCursorBeforeStartingSSE(t *testing.T) {
 	require.NotEqual(t, "text/event-stream", w.Header().Get("Content-Type"))
 }
 
+func TestStreamRejectsOversizedLastEventID(t *testing.T) {
+	h := NewHandler(NewService(&fakeRepository{exists: true}), time.Hour, 1)
+	r := gin.New()
+	r.GET("/delivery/runs/:id/events", h.Stream)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/delivery/runs/7/events", nil)
+	req.Header.Set("Last-Event-ID", strings.Repeat("9", maxCursorBytes+1))
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestMountAppliesRunReadPermissionAtRouteBoundary(t *testing.T) {
 	var permission string
 	r := gin.New()

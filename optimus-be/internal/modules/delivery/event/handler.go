@@ -20,6 +20,7 @@ const readPermission = "delivery:run:read"
 const (
 	defaultPollInterval   = time.Second
 	defaultStreamDuration = 24 * time.Hour
+	maxCursorBytes        = 20
 )
 
 type Handler struct {
@@ -48,6 +49,16 @@ func (h *Handler) Mount(group *gin.RouterGroup, permission func(string) gin.Hand
 	read.GET("/runs/:id/events", h.Stream)
 }
 
+// Stream godoc
+// @Summary Stream delivery run events
+// @Tags delivery
+// @Security BearerAuth
+// @Produce text/event-stream
+// @Param id path int true "run ID"
+// @Param cursor query int false "event cursor"
+// @Param Last-Event-ID header string false "event cursor"
+// @Success 200 {string} string "authenticated delivery event stream"
+// @Router /delivery/runs/{id}/events [get]
 func (h *Handler) Stream(c *gin.Context) {
 	select {
 	case h.connections <- struct{}{}:
@@ -150,6 +161,9 @@ func parseCursor(c *gin.Context) (uint64, error) {
 	}
 	if raw == "" {
 		return 0, nil
+	}
+	if len(raw) > maxCursorBytes {
+		return 0, strconv.ErrRange
 	}
 	return strconv.ParseUint(raw, 10, 64)
 }
