@@ -14,7 +14,10 @@ import (
 	apprepo "optimus-be/internal/modules/apps/repo"
 )
 
-const deliveryUpgradeKind = "upgrade"
+const (
+	deliveryUpgradeKind            = "upgrade"
+	deliveryUpgradeSucceededStatus = "deployed"
+)
 
 // VerifiedChartLoader is the Task 6 artifact-verification boundary required
 // by delivery. UpgradeForDelivery fails closed when the ordinary P3 loader
@@ -57,37 +60,6 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 		return nil, executionUnavailableError()
 	}
 
-	app, err := s.appsGet(ctx, req.ApplicationID)
-	if err != nil {
-		return nil, deliveryApplicationUnavailableError(err)
-	}
-	if app.ChartRepoID != req.RepoID || app.ChartName != req.ChartName {
-		return nil, deliveryChartIdentityError()
-	}
-
-	cfg, err := s.factory.NewForCluster(ctx, app.ClusterID, app.Namespace, req.Purpose)
-	if err != nil {
-		return nil, deliveryExecutionUnavailableError(err)
-	}
-	observed, err := action.NewStatus(cfg).Run(app.ReleaseName)
-	if err != nil || observed == nil {
-		return nil, deliveryApplicationUnavailableError(err)
-	}
-
-	artifact := apprepo.Artifact{
-		RepoID: req.RepoID, ChartName: req.ChartName, Version: req.ChartVersion, Digest: req.Digest,
-	}
-	ch, err := verifiedLoader.LoadVerifiedChart(ctx, artifact)
-	if err != nil {
-		if errors.Is(err, apprepo.ErrArtifactDigestMismatch) {
-			return nil, deliveryArtifactDriftError(err)
-		}
-		return nil, deliveryExecutionUnavailableError(err)
-	}
-	if ch == nil || ch.Metadata == nil || ch.Metadata.Name != req.ChartName || ch.Metadata.Version != req.ChartVersion {
-		return nil, deliveryArtifactDriftError(nil)
-	}
-
 	acquired, err := runtime.coordinator.Acquire(
 		ctx, req.ApplicationID, req.OperationID, deliveryUpgradeKind, runtime.owner, runtime.lease,
 	)
@@ -98,14 +70,55 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 		return nil, reconciliationRequiredError()
 	}
 	if acquired.Replayed && !acquired.Acquired {
-		observedStatus := "unknown"
-		if observed.Info != nil {
-			observedStatus = string(observed.Info.Status)
-		}
-		return replayDeliveryUpgrade(acquired.Operation, observedStatus, req.Digest)
+		return replayDeliveryUpgrade(acquired.Operation)
 	}
 	if !acquired.Acquired {
 		return nil, operationBusyError()
+	}
+
+	app, err := s.appsGet(ctx, req.ApplicationID)
+	if err != nil {
+		return nil, s.completeDefiniteDeliveryFailure(
+			ctx, runtime, req.OperationID, deliveryApplicationUnavailableError(err),
+		)
+	}
+	if app.ChartRepoID != req.RepoID || app.ChartName != req.ChartName {
+		return nil, s.completeDefiniteDeliveryFailure(
+			ctx, runtime, req.OperationID, deliveryChartIdentityError(),
+		)
+	}
+
+	cfg, err := s.factory.NewForCluster(ctx, app.ClusterID, app.Namespace, req.Purpose)
+	if err != nil {
+		return nil, s.completeDefiniteDeliveryFailure(
+			ctx, runtime, req.OperationID, deliveryExecutionUnavailableError(err),
+		)
+	}
+	observed, err := action.NewStatus(cfg).Run(app.ReleaseName)
+	if err != nil || observed == nil || observed.Info == nil || string(observed.Info.Status) == "uninstalled" {
+		return nil, s.completeDefiniteDeliveryFailure(
+			ctx, runtime, req.OperationID, deliveryApplicationUnavailableError(err),
+		)
+	}
+
+	artifact := apprepo.Artifact{
+		RepoID: req.RepoID, ChartName: req.ChartName, Version: req.ChartVersion, Digest: req.Digest,
+	}
+	ch, err := verifiedLoader.LoadVerifiedChart(ctx, artifact)
+	if err != nil {
+		if errors.Is(err, apprepo.ErrArtifactDigestMismatch) {
+			return nil, s.completeDefiniteDeliveryFailure(
+				ctx, runtime, req.OperationID, deliveryArtifactDriftError(err),
+			)
+		}
+		return nil, s.completeDefiniteDeliveryFailure(
+			ctx, runtime, req.OperationID, deliveryExecutionUnavailableError(err),
+		)
+	}
+	if ch == nil || ch.Metadata == nil || ch.Metadata.Name != req.ChartName || ch.Metadata.Version != req.ChartVersion {
+		return nil, s.completeDefiniteDeliveryFailure(
+			ctx, runtime, req.OperationID, deliveryArtifactDriftError(nil),
+		)
 	}
 
 	deliveryCtx := withDeliveryUpgrade(ctx, req.ApplicationID, req.OperationID)
@@ -163,19 +176,16 @@ func (s *Service) completeDefiniteDeliveryFailure(
 	return cause
 }
 
-func replayDeliveryUpgrade(operation *Operation, observedStatus, digest string) (*DeliveryUpgradeResult, error) {
+func replayDeliveryUpgrade(operation *Operation) (*DeliveryUpgradeResult, error) {
 	if operation == nil {
 		return nil, executionUnavailableError()
 	}
 	if operation.State != models.AppsReleaseOperationSucceeded || operation.ResultRevision == nil || operation.ResultDigest == nil {
 		return nil, executionUnavailableError()
 	}
-	if *operation.ResultDigest != digest {
-		return nil, deliveryArtifactDriftError(nil)
-	}
 	return &DeliveryUpgradeResult{
 		Revision: int(*operation.ResultRevision),
-		Status:   observedStatus,
+		Status:   deliveryUpgradeSucceededStatus,
 		Digest:   *operation.ResultDigest,
 	}, nil
 }

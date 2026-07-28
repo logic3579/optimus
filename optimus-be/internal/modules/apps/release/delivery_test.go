@@ -29,6 +29,7 @@ const deliveryDigest = "sha256:abcdef0123456789abcdef0123456789abcdef0123456789a
 type deliveryFactory struct {
 	storage    *storage.Storage
 	purposes   []string
+	factoryErr error
 	upgradeErr error
 }
 
@@ -38,6 +39,9 @@ func newDeliveryFactory() *deliveryFactory {
 
 func (f *deliveryFactory) NewForCluster(_ context.Context, _ uint64, _, purpose string) (*action.Configuration, error) {
 	f.purposes = append(f.purposes, purpose)
+	if f.factoryErr != nil {
+		return nil, f.factoryErr
+	}
 	kubeClient := &kubefake.FailingKubeClient{
 		PrintingKubeClient: kubefake.PrintingKubeClient{Out: io.Discard},
 		CreateError:        f.upgradeErr,
@@ -151,20 +155,46 @@ func TestDeliveryUpgrade(t *testing.T) {
 		}
 	})
 
-	t.Run("terminal success replays without another mutation", func(t *testing.T) {
-		service, apps, _, factory, _, _ := newDeliveryService(t)
+	t.Run("terminal success replays persisted result without external calls", func(t *testing.T) {
+		service, apps, _, factory, chartLoader, _ := newDeliveryService(t)
 		ctx := context.Background()
 		_, err := service.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
 		require.NoError(t, err)
 		service.SetGovernance(&managedGovernance{operationID: "delivery-operation-1"})
 		first, err := service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
 		require.NoError(t, err)
-		replay, err := service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
+		factoryCalls := len(factory.purposes)
+		artifactCalls := len(chartLoader.artifacts)
+		factory.factoryErr = errors.New("cluster must not be contacted during replay")
+		chartLoader.err = errors.New("repository must not be contacted during replay")
+		replayRequest := deliveryRequest(apps.app.ID)
+		replayRequest.RepoID = 99
+		replayRequest.ChartName = "changed-chart"
+		replayRequest.ChartVersion = "9.9.9"
+		replayRequest.Digest = validOperationDigest
+		replay, err := service.UpgradeForDelivery(ctx, replayRequest)
 		require.NoError(t, err)
 		require.Equal(t, first, replay)
+		require.Len(t, factory.purposes, factoryCalls)
+		require.Len(t, chartLoader.artifacts, artifactCalls)
 		deployed, err := factory.storage.Last(apps.app.ReleaseName)
 		require.NoError(t, err)
 		require.Equal(t, 2, deployed.Version)
+	})
+
+	t.Run("terminal failed replay returns safe failure without external calls", func(t *testing.T) {
+		service, apps, _, factory, chartLoader, coordinator := newDeliveryService(t)
+		ctx := context.Background()
+		_, err := coordinator.Acquire(ctx, apps.app.ID, "delivery-operation-1", "upgrade", "worker-1", time.Minute)
+		require.NoError(t, err)
+		require.NoError(t, coordinator.Complete(ctx, "delivery-operation-1", "worker-1", SafeOperationResult{}))
+		factory.factoryErr = errors.New("cluster must not be contacted during failed replay")
+		chartLoader.err = errors.New("repository must not be contacted during failed replay")
+
+		_, err = service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
+		requireBizError(t, err, apperr.CodeDeliveryExecutionUnavailable, "delivery.execution.unavailable")
+		require.Empty(t, factory.purposes)
+		require.Empty(t, chartLoader.artifacts)
 	})
 
 	t.Run("busy and reconciliation acquisitions never mutate", func(t *testing.T) {
@@ -196,15 +226,17 @@ func TestDeliveryUpgrade(t *testing.T) {
 		require.Equal(t, 1, deployed.Version)
 	})
 
-	t.Run("requires an installed release before acquiring", func(t *testing.T) {
+	t.Run("missing release is a definite failed operation", func(t *testing.T) {
 		service, apps, _, _, _, coordinator := newDeliveryService(t)
 		_, err := service.UpgradeForDelivery(context.Background(), deliveryRequest(apps.app.ID))
 		requireBizError(t, err, apperr.CodeDeliveryApplicationUnavailable, "delivery.application.unavailable")
-		_, inspectErr := coordinator.Inspect(context.Background(), "delivery-operation-1")
-		require.Error(t, inspectErr)
+		operation, inspectErr := coordinator.Inspect(context.Background(), "delivery-operation-1")
+		require.NoError(t, inspectErr)
+		require.Equal(t, models.AppsReleaseOperationFailed, operation.State)
+		require.NotNil(t, operation.FinishedAt)
 	})
 
-	t.Run("verified artifact mismatch fails before acquiring", func(t *testing.T) {
+	t.Run("verified artifact mismatch is a definite failed operation", func(t *testing.T) {
 		service, apps, _, _, chartLoader, coordinator := newDeliveryService(t)
 		ctx := context.Background()
 		_, err := service.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
@@ -212,8 +244,31 @@ func TestDeliveryUpgrade(t *testing.T) {
 		chartLoader.err = apprepo.ErrArtifactDigestMismatch
 		_, err = service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
 		requireBizError(t, err, apperr.CodeDeliveryArtifactDrift, "delivery.execution.artifact_drift")
-		_, inspectErr := coordinator.Inspect(ctx, "delivery-operation-1")
-		require.Error(t, inspectErr)
+		operation, inspectErr := coordinator.Inspect(ctx, "delivery-operation-1")
+		require.NoError(t, inspectErr)
+		require.Equal(t, models.AppsReleaseOperationFailed, operation.State)
+		require.NotNil(t, operation.FinishedAt)
+	})
+
+	t.Run("uninstalled release completes failed without artifact or upgrade", func(t *testing.T) {
+		service, apps, _, factory, chartLoader, coordinator := newDeliveryService(t)
+		ctx := context.Background()
+		_, err := service.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+		require.NoError(t, err)
+		require.NoError(t, service.Uninstall(ctx, 1, "", "", apps.app.ID, UninstallRequest{KeepHistory: true}))
+		factoryCalls := len(factory.purposes)
+
+		_, err = service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
+		requireBizError(t, err, apperr.CodeDeliveryApplicationUnavailable, "delivery.application.unavailable")
+		require.Len(t, factory.purposes, factoryCalls+1, "only installed-status inspection may build Helm config")
+		require.Empty(t, chartLoader.artifacts)
+		operation, inspectErr := coordinator.Inspect(ctx, "delivery-operation-1")
+		require.NoError(t, inspectErr)
+		require.Equal(t, models.AppsReleaseOperationFailed, operation.State)
+		require.NotNil(t, operation.FinishedAt)
+		uninstalled, statusErr := factory.storage.Last(apps.app.ReleaseName)
+		require.NoError(t, statusErr)
+		require.Equal(t, "uninstalled", string(uninstalled.Info.Status))
 	})
 
 	t.Run("ambiguous Helm failure stays active for reconciliation", func(t *testing.T) {
