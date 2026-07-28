@@ -15,6 +15,15 @@ type CreateRequest struct {
 	RetryOfRunID *uint64 `json:"-"`
 }
 
+// Artifact is the immutable chart identity P6 consumes. Providers adapt their
+// own artifact result into this consumer-owned projection at composition time.
+type Artifact struct {
+	RepoID    uint64
+	ChartName string
+	Version   string
+	Digest    string
+}
+
 // Application is the minimal safe P3 projection needed to freeze a run stage.
 type Application struct {
 	ID          uint64

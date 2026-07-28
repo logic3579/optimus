@@ -16,7 +16,6 @@ import (
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
-	apprepo "optimus-be/internal/modules/apps/repo"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/delivery/errs"
 )
@@ -43,7 +42,7 @@ type ApplicationReader interface {
 }
 
 type ArtifactResolver interface {
-	ResolveArtifact(context.Context, uint64, string, string) (*apprepo.Artifact, error)
+	ResolveArtifact(context.Context, uint64, string, string) (*Artifact, error)
 }
 
 type Recorder interface {
@@ -228,7 +227,7 @@ func validateCreateRequest(actor, projectID uint64, idempotencyKey string, req C
 	return key, nil
 }
 
-func validResolvedArtifact(artifact *apprepo.Artifact, req CreateRequest) bool {
+func validResolvedArtifact(artifact *Artifact, req CreateRequest) bool {
 	return artifact != nil && artifact.RepoID == req.ChartRepoID &&
 		artifact.ChartName == strings.TrimSpace(req.ChartName) &&
 		artifact.Version == strings.TrimSpace(req.ChartVersion) &&
@@ -268,7 +267,7 @@ func pipelineApplicationIDs(stages []models.DeliveryPipelineStage, environments 
 	return ids, nil
 }
 
-func validateApplication(id uint64, application *Application, artifact apprepo.Artifact) error {
+func validateApplication(id uint64, application *Application, artifact Artifact) error {
 	if application.ID != id || application.ClusterID == 0 || strings.TrimSpace(application.Namespace) == "" ||
 		strings.TrimSpace(application.ReleaseName) == "" {
 		return applicationUnavailableError(nil)
@@ -349,7 +348,7 @@ func runFrom(row *models.DeliveryRun, stages []models.DeliveryRunStage) *Run {
 	return out
 }
 
-func canonicalFingerprint(projectID uint64, pipelineVersion int, artifact apprepo.Artifact, retryOfRunID *uint64) (string, error) {
+func canonicalFingerprint(projectID uint64, pipelineVersion int, artifact Artifact, retryOfRunID *uint64) (string, error) {
 	canonical, err := json.Marshal(struct {
 		ProjectID       uint64  `json:"project_id"`
 		PipelineVersion int     `json:"pipeline_version"`

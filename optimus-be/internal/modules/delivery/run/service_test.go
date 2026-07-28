@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"strings"
 	"testing"
 	"time"
@@ -15,14 +18,13 @@ import (
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
-	apprepo "optimus-be/internal/modules/apps/repo"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/delivery/errs"
 )
 
 func TestCanonicalFingerprintUsesOnlyImmutableRunIdentity(t *testing.T) {
 	retry := uint64(41)
-	artifact := apprepo.Artifact{RepoID: 9, ChartName: "demo", Version: "1.2.3", Digest: "sha256:aaaa"}
+	artifact := Artifact{RepoID: 9, ChartName: "demo", Version: "1.2.3", Digest: "sha256:aaaa"}
 	got, err := canonicalFingerprint(7, 3, artifact, &retry)
 	require.NoError(t, err)
 
@@ -43,6 +45,21 @@ func TestCanonicalFingerprintUsesOnlyImmutableRunIdentity(t *testing.T) {
 	changed, err := canonicalFingerprint(7, 3, artifact, &otherRetry)
 	require.NoError(t, err)
 	require.NotEqual(t, got, changed)
+}
+
+func TestRunPackageOwnsArtifactSeam(t *testing.T) {
+	packages, err := parser.ParseDir(token.NewFileSet(), ".", func(info fs.FileInfo) bool {
+		return !strings.HasSuffix(info.Name(), "_test.go")
+	}, parser.ImportsOnly)
+	require.NoError(t, err)
+	for _, parsed := range packages {
+		for filename, file := range parsed.Files {
+			for _, imported := range file.Imports {
+				require.NotEqual(t, `"optimus-be/internal/modules/apps/repo"`, imported.Path.Value, filename)
+			}
+		}
+	}
+	var _ ArtifactResolver = (*artifactResolver)(nil)
 }
 
 func TestCreateSnapshotsImmutablePipelineAndStartsWithApproval(t *testing.T) {
@@ -255,12 +272,12 @@ func (r *applicationReader) GetApplication(_ context.Context, id uint64) (*Appli
 }
 
 type artifactResolver struct {
-	artifact apprepo.Artifact
+	artifact Artifact
 	err      error
 	calls    int
 }
 
-func (r *artifactResolver) ResolveArtifact(context.Context, uint64, string, string) (*apprepo.Artifact, error) {
+func (r *artifactResolver) ResolveArtifact(context.Context, uint64, string, string) (*Artifact, error) {
 	r.calls++
 	copy := r.artifact
 	return &copy, r.err
@@ -290,7 +307,7 @@ func newCreateFixture(t *testing.T, approval bool) (*Service, *memoryRepository,
 		101: {ID: 101, ChartRepoID: 9, ChartName: "demo", Installed: true, ClusterID: 201, Namespace: "dev", ReleaseName: "demo-dev"},
 		102: {ID: 102, ChartRepoID: 9, ChartName: "demo", Installed: true, ClusterID: 202, Namespace: "prod", ReleaseName: "demo-prod"},
 	}}
-	resolver := &artifactResolver{artifact: apprepo.Artifact{RepoID: 9, ChartName: "demo", Version: "1.2.3", Digest: "sha256:" + strings.Repeat("a", 64)}}
+	resolver := &artifactResolver{artifact: Artifact{RepoID: 9, ChartName: "demo", Version: "1.2.3", Digest: "sha256:" + strings.Repeat("a", 64)}}
 	audits := &auditRecorder{}
 	svc := NewService(repo, apps, resolver, audits)
 	fixed := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
