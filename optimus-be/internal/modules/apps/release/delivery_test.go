@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -300,6 +301,66 @@ func TestDeliveryUpgrade(t *testing.T) {
 		require.NoError(t, firstErr)
 		requireBizError(t, secondErr, apperr.CodeDeliveryOperationBusy, "delivery.execution.operation_busy")
 		require.EqualValues(t, 1, calls.Load())
+	})
+
+	t.Run("long distinct worker owners cannot collide across services", func(t *testing.T) {
+		service, apps, recorder, factory, chartLoader, coordinator := newDeliveryService(t)
+		ctx := context.Background()
+		_, err := service.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+		require.NoError(t, err)
+		ownerPrefix := strings.Repeat("a", 127)
+		service.SetDeliveryCoordinator(coordinator, ownerPrefix+"x", time.Minute)
+		service.SetGovernance(&managedGovernance{operationID: "delivery-operation-1"})
+		otherService := NewService(factory, apps, chartLoader, recorder)
+		otherService.SetDeliveryCoordinator(coordinator, ownerPrefix+"y", time.Minute)
+		otherService.SetGovernance(&managedGovernance{operationID: "delivery-operation-1"})
+		started := make(chan struct{})
+		gate := make(chan struct{})
+		calls := &atomic.Int32{}
+		factory.upgradeStarted = started
+		factory.upgradeGate = gate
+		factory.upgradeCalls = calls
+
+		firstResult := make(chan error, 1)
+		go func() {
+			_, upgradeErr := service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
+			firstResult <- upgradeErr
+		}()
+		<-started
+		_, secondErr := otherService.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
+		close(gate)
+		firstErr := <-firstResult
+
+		require.NoError(t, firstErr)
+		requireBizError(t, secondErr, apperr.CodeDeliveryOperationBusy, "delivery.execution.operation_busy")
+		require.EqualValues(t, 1, calls.Load())
+	})
+
+	t.Run("claim token hashes the full bounded owner", func(t *testing.T) {
+		prefix := strings.Repeat("z", 127)
+		var first deliveryRuntimeState
+		var second deliveryRuntimeState
+		firstToken, firstOK := first.nextClaimOwner(prefix + "x")
+		secondToken, secondOK := second.nextClaimOwner(prefix + "y")
+		require.True(t, firstOK)
+		require.True(t, secondOK)
+		require.NotEqual(t, firstToken, secondToken)
+		require.Len(t, firstToken, 81)
+		require.Len(t, secondToken, 81)
+		require.NotContains(t, firstToken, prefix)
+		require.NotContains(t, secondToken, prefix)
+		require.Equal(t, "-0000000000000001", firstToken[64:])
+		require.Equal(t, "-0000000000000001", secondToken[64:])
+	})
+
+	t.Run("claim counter wrap fails closed before acquire", func(t *testing.T) {
+		service, apps, _, _, _, coordinator := newDeliveryService(t)
+		service.delivery.claims.Store(math.MaxUint64)
+
+		_, err := service.UpgradeForDelivery(context.Background(), deliveryRequest(apps.app.ID))
+		requireBizError(t, err, apperr.CodeDeliveryExecutionUnavailable, "delivery.execution.unavailable")
+		_, inspectErr := coordinator.Inspect(context.Background(), "delivery-operation-1")
+		require.Error(t, inspectErr)
 	})
 
 	t.Run("terminal failed replay returns safe failure without external calls", func(t *testing.T) {

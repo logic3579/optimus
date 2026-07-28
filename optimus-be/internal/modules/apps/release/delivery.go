@@ -2,7 +2,9 @@ package release
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,19 +61,19 @@ func (s *deliveryRuntimeState) store(runtime *deliveryRuntime) {
 	s.current.Store(runtime)
 }
 
-func (s *deliveryRuntimeState) nextClaimOwner(workerOwner string) string {
-	suffix := fmt.Sprintf("-%016x", s.claims.Add(1))
-	maximumPrefix := 128 - len(suffix)
-	for len(workerOwner) > maximumPrefix {
-		_, size := utf8.DecodeLastRuneInString(workerOwner)
-		workerOwner = workerOwner[:len(workerOwner)-size]
+func (s *deliveryRuntimeState) nextClaimOwner(workerOwner string) (string, bool) {
+	sequence := s.claims.Add(1)
+	if sequence == 0 {
+		return "", false
 	}
-	return workerOwner + suffix
+	digest := sha256.Sum256([]byte(workerOwner))
+	return hex.EncodeToString(digest[:]) + fmt.Sprintf("-%016x", sequence), true
 }
 
 // SetDeliveryCoordinator configures delivery execution for this Service
-// instance. Invalid or nil configuration disables delivery fail-closed while
-// leaving the existing direct P3 lifecycle paths unchanged.
+// instance. owner must uniquely identify this service instance across the
+// deployment. Invalid or nil configuration disables delivery fail-closed
+// while leaving the existing direct P3 lifecycle paths unchanged.
 func (s *Service) SetDeliveryCoordinator(coordinator DeliveryOperationCoordinator, owner string, lease time.Duration) {
 	if coordinator == nil || !validBounded(owner, 128) || !utf8.ValidString(owner) || lease <= 0 {
 		s.delivery.store(nil)
@@ -90,7 +92,10 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 		return nil, executionUnavailableError()
 	}
 
-	claimOwner := s.delivery.nextClaimOwner(runtime.owner)
+	claimOwner, ok := s.delivery.nextClaimOwner(runtime.owner)
+	if !ok {
+		return nil, executionUnavailableError()
+	}
 	acquired, err := runtime.coordinator.Acquire(
 		ctx, req.ApplicationID, req.OperationID, deliveryUpgradeKind, claimOwner, runtime.lease,
 	)
