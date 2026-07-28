@@ -49,11 +49,12 @@ type completion struct {
 	result    UpgradeResult
 	err       error
 	ambiguous bool
+	intent    recoveryIntent
 }
 
 type store interface {
 	Claim(context.Context, string, time.Time, time.Duration) (*claimedWork, error)
-	Renew(context.Context, uint64, string, time.Time) (bool, error)
+	Renew(context.Context, uint64, string, time.Time) (bool, bool, error)
 	Complete(context.Context, claimedWork, string, time.Time, completion) error
 }
 
@@ -158,18 +159,29 @@ func (w *Worker) executeSync(parent context.Context, work claimedWork) (<-chan s
 		case outcome := <-resultCh:
 			if ctx.Err() != nil {
 				outcome.ambiguous = true
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					outcome.intent = recoveryTimedOut
+				}
 			}
 			return nil, w.complete(work, outcome)
 		case <-ticker.Chan():
 			persistCtx, persistCancel := context.WithTimeout(context.Background(), w.cfg.PersistenceTimeout)
-			ok, err := w.store.Renew(persistCtx, work.Stage.ID, w.owner, w.clock.Now().Add(w.cfg.LeaseDuration))
+			ok, cancelRequested, err := w.store.Renew(persistCtx, work.Stage.ID, w.owner, w.clock.Now().Add(w.cfg.LeaseDuration))
 			persistCancel()
+			if cancelRequested {
+				cancel()
+				return executorDone, w.complete(work, completion{err: context.Canceled, ambiguous: true, intent: recoveryCanceled})
+			}
 			if err != nil || !ok {
 				cancel()
 				return executorDone, w.complete(work, completion{err: err, ambiguous: true})
 			}
 		case <-ctx.Done():
-			return executorDone, w.complete(work, completion{err: ctx.Err(), ambiguous: true})
+			intent := recoveryFailed
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				intent = recoveryTimedOut
+			}
+			return executorDone, w.complete(work, completion{err: ctx.Err(), ambiguous: true, intent: intent})
 		}
 	}
 }
@@ -260,9 +272,29 @@ func (s *gormStore) Claim(ctx context.Context, owner string, now time.Time, leas
 	return out, err
 }
 
-func (s *gormStore) Renew(ctx context.Context, id uint64, owner string, until time.Time) (bool, error) {
-	res := s.db.WithContext(ctx).Model(&models.DeliveryRunStage{}).Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at > CURRENT_TIMESTAMP", id, models.DeliveryStageRunning, owner).Updates(map[string]any{"lease_expires_at": until, "updated_at": time.Now().UTC()})
-	return res.RowsAffected == 1, res.Error
+func (s *gormStore) Renew(ctx context.Context, id uint64, owner string, until time.Time) (bool, bool, error) {
+	var identity models.DeliveryRunStage
+	if err := s.db.WithContext(ctx).Select("id", "run_id").First(&identity, id).Error; err != nil {
+		return false, false, err
+	}
+	var renewed, cancelRequested bool
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var run models.DeliveryRun
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&run, identity.RunID).Error; err != nil {
+			return err
+		}
+		if run.State == models.DeliveryRunCancelRequested {
+			cancelRequested = true
+			return nil
+		}
+		res := tx.Model(&models.DeliveryRunStage{}).Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at > CURRENT_TIMESTAMP", id, models.DeliveryStageRunning, owner).Updates(map[string]any{"lease_expires_at": until, "updated_at": time.Now().UTC()})
+		if res.Error != nil {
+			return res.Error
+		}
+		renewed = res.RowsAffected == 1
+		return nil
+	})
+	return renewed, cancelRequested, err
 }
 
 func (s *gormStore) Complete(ctx context.Context, w claimedWork, owner string, now time.Time, c completion) error {
@@ -289,19 +321,19 @@ func (s *gormStore) Complete(ctx context.Context, w claimedWork, owner string, n
 			c.ambiguous = true
 		}
 		if c.ambiguous {
-			return s.reconcile(tx, &run, &stage, owner, now)
+			return s.reconcile(tx, &run, &stage, owner, now, c.intent)
 		}
 		if c.err != nil {
 			return s.fail(tx, &run, &stage, now, c.err)
 		}
 		if c.result.Revision <= 0 || c.result.Digest == "" || c.result.Digest != run.ChartDigest {
-			return s.reconcile(tx, &run, &stage, owner, now)
+			return s.reconcile(tx, &run, &stage, owner, now, c.intent)
 		}
 		return s.succeed(tx, &run, &stage, now, c.result)
 	})
 }
 
-func (s *gormStore) reconcile(tx *gorm.DB, run *models.DeliveryRun, stage *models.DeliveryRunStage, owner string, now time.Time) error {
+func (s *gormStore) reconcile(tx *gorm.DB, run *models.DeliveryRun, stage *models.DeliveryRunStage, owner string, now time.Time, intent recoveryIntent) error {
 	if stage.State != models.DeliveryStageRunning {
 		return nil
 	}
@@ -317,13 +349,15 @@ func (s *gormStore) reconcile(tx *gorm.DB, run *models.DeliveryRun, stage *model
 			return err
 		}
 	}
-	return appendTransition(tx, run.ID, &stage.ID, "stage.reconciling", models.DeliveryStageRunning, models.DeliveryStageReconciling, now, nil, nil)
+	intentName := map[recoveryIntent]string{recoveryFailed: "failed", recoveryCanceled: "canceled", recoveryTimedOut: "timed_out"}[intent]
+	metadata, _ := json.Marshal(map[string]any{"recovery_intent": intentName})
+	return appendTransition(tx, run.ID, &stage.ID, "stage.reconciling", models.DeliveryStageRunning, models.DeliveryStageReconciling, now, nil, nil, datatypes.JSON(metadata))
 }
 
 func (s *gormStore) fail(tx *gorm.DB, run *models.DeliveryRun, stage *models.DeliveryRunStage, now time.Time, cause error) error {
 	be, ok := apperr.AsBiz(cause)
 	if !ok {
-		return s.reconcile(tx, run, stage, "", now)
+		return s.reconcile(tx, run, stage, "", now, recoveryFailed)
 	}
 	code, key := int(be.Code), be.MessageKey
 	if err := transitionStage(tx, stage, models.DeliveryStageFailed, now, map[string]any{"finished_at": now, "error_code": code, "error_message_key": key, "lease_owner": nil, "lease_expires_at": nil}); err != nil {

@@ -22,7 +22,7 @@ var safeMetadataKeys = map[string]struct{}{
 	"chart_repo_id": {}, "chart_version": {}, "decision": {}, "environment_id": {}, "environment_key": {},
 	"operation_id": {}, "pipeline_version": {}, "project_id": {}, "reason": {}, "release_revision": {},
 	"release_status": {}, "retry_of_run_id": {}, "run_id": {}, "run_stage_id": {}, "stage_order": {},
-	"timeout_seconds": {},
+	"timeout_seconds": {}, "recovery_intent": {}, "observed_digest": {}, "drift": {},
 }
 
 type repository interface {

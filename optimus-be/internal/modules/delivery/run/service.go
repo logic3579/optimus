@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
@@ -35,6 +38,11 @@ type repository interface {
 	CreateStages(context.Context, []models.DeliveryRunStage) error
 	CreateApproval(context.Context, *models.DeliveryApproval) error
 	AppendEvents(context.Context, []models.DeliveryRunEvent) error
+	GetRun(context.Context, uint64) (*models.DeliveryRun, error)
+	LockRun(context.Context, uint64) (*models.DeliveryRun, error)
+	LockRunStages(context.Context, uint64) ([]models.DeliveryRunStage, error)
+	UpdateRun(context.Context, uint64, models.DeliveryRunState, models.DeliveryRunState, map[string]any) error
+	UpdateStage(context.Context, uint64, models.DeliveryStageState, models.DeliveryStageState, map[string]any) error
 }
 
 type ApplicationReader interface {
@@ -202,6 +210,294 @@ func (s *Service) Create(
 	}
 	if created {
 		s.recordCreate(ctx, actor, ip, userAgent, result)
+	}
+	return result, nil
+}
+
+// Cancel requests cooperative cancellation. Work that has not entered P3 is
+// canceled immediately; running work is marked cancel_requested and is later
+// resolved only through release inspection.
+func (s *Service) Cancel(ctx context.Context, actor uint64, ip, userAgent string, runID uint64) (*Run, error) {
+	if actor == 0 || runID == 0 {
+		return nil, validationError("actor and run are required")
+	}
+	var result *Run
+	changed := false
+	err := s.repo.Transaction(ctx, func(tx repository) error {
+		runRow, err := tx.LockRun(ctx, runID)
+		if err != nil {
+			return err
+		}
+		stages, err := tx.LockRunStages(ctx, runID)
+		if err != nil {
+			return err
+		}
+		now := s.now().UTC()
+		switch runRow.State {
+		case models.DeliveryRunCanceled, models.DeliveryRunCancelRequested:
+			result = runFrom(runRow, stages)
+			return nil
+		case models.DeliveryRunQueued, models.DeliveryRunWaitingApproval:
+			for i := range stages {
+				if stages[i].State != models.DeliveryStagePending && stages[i].State != models.DeliveryStageWaitingApproval && stages[i].State != models.DeliveryStageQueued {
+					continue
+				}
+				old := stages[i].State
+				if err := tx.UpdateStage(ctx, stages[i].ID, old, models.DeliveryStageCanceled, map[string]any{"finished_at": now}); err != nil {
+					return err
+				}
+				stages[i].State, stages[i].FinishedAt = models.DeliveryStageCanceled, &now
+				if err := tx.AppendEvents(ctx, []models.DeliveryRunEvent{transitionEvent(runID, &stages[i].ID, "stage.canceled", string(old), string(models.DeliveryStageCanceled), actor, now)}); err != nil {
+					return err
+				}
+			}
+			old := runRow.State
+			if err := tx.UpdateRun(ctx, runID, old, models.DeliveryRunCanceled, map[string]any{"finished_at": now}); err != nil {
+				return err
+			}
+			runRow.State, runRow.FinishedAt = models.DeliveryRunCanceled, &now
+			if err := tx.AppendEvents(ctx, []models.DeliveryRunEvent{transitionEvent(runID, nil, "run.canceled", string(old), string(models.DeliveryRunCanceled), actor, now)}); err != nil {
+				return err
+			}
+		case models.DeliveryRunRunning:
+			if err := tx.UpdateRun(ctx, runID, runRow.State, models.DeliveryRunCancelRequested, nil); err != nil {
+				return err
+			}
+			old := runRow.State
+			runRow.State = models.DeliveryRunCancelRequested
+			if err := tx.AppendEvents(ctx, []models.DeliveryRunEvent{transitionEvent(runID, nil, "run.cancel_requested", string(old), string(runRow.State), actor, now)}); err != nil {
+				return err
+			}
+		default:
+			return apperr.New(errs.CodeRunCancelConflict, errs.KeyRunCancelConflict, "delivery run cannot be canceled in its current state")
+		}
+		runRow.UpdatedAt = now
+		result = runFrom(runRow, stages)
+		changed = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if changed {
+		s.recordAction(ctx, actor, ip, userAgent, "delivery.run.cancel", result)
+	}
+	return result, nil
+}
+
+// RequestReconcile reopens only an unknown result. The reconciler still needs
+// definite P3 inspection evidence before it may choose a terminal state.
+func (s *Service) RequestReconcile(ctx context.Context, actor uint64, ip, userAgent string, runID uint64) (*Run, error) {
+	if actor == 0 || runID == 0 {
+		return nil, validationError("actor and run are required")
+	}
+	var result *Run
+	changed := false
+	err := s.repo.Transaction(ctx, func(tx repository) error {
+		runRow, err := tx.LockRun(ctx, runID)
+		if err != nil {
+			return err
+		}
+		stages, err := tx.LockRunStages(ctx, runID)
+		if err != nil {
+			return err
+		}
+		if runRow.State == models.DeliveryRunReconciling {
+			result = runFrom(runRow, stages)
+			return nil
+		}
+		if runRow.State != models.DeliveryRunOutcomeUnknown {
+			return apperr.New(errs.CodeRunInvalidState, errs.KeyRunInvalidState, "only an unknown delivery run can be reconciled")
+		}
+		now := s.now().UTC()
+		unknownStage := -1
+		for i := range stages {
+			if stages[i].State != models.DeliveryStageOutcomeUnknown {
+				continue
+			}
+			if unknownStage >= 0 {
+				return apperr.New(errs.CodeRunInvalidState, errs.KeyRunInvalidState, "delivery run has multiple unknown stages")
+			}
+			unknownStage = i
+		}
+		if unknownStage < 0 {
+			return apperr.New(errs.CodeRunInvalidState, errs.KeyRunInvalidState, "delivery run has no unknown stage")
+		}
+		stage := &stages[unknownStage]
+		stageFields := map[string]any{"finished_at": nil, "error_code": nil, "error_message_key": nil}
+		if err := tx.UpdateStage(ctx, stage.ID, stage.State, models.DeliveryStageReconciling, stageFields); err != nil {
+			return err
+		}
+		oldStage := stage.State
+		stage.State = models.DeliveryStageReconciling
+		stage.FinishedAt, stage.ErrorCode, stage.ErrorMessageKey = nil, nil, nil
+		if err := tx.AppendEvents(ctx, []models.DeliveryRunEvent{transitionEvent(runID, &stage.ID, "stage.reconciling", string(oldStage), string(stage.State), actor, now)}); err != nil {
+			return err
+		}
+		runFields := map[string]any{"finished_at": nil, "error_code": nil, "error_message_key": nil}
+		if err := tx.UpdateRun(ctx, runID, runRow.State, models.DeliveryRunReconciling, runFields); err != nil {
+			return err
+		}
+		old := runRow.State
+		runRow.State = models.DeliveryRunReconciling
+		runRow.FinishedAt, runRow.ErrorCode, runRow.ErrorMessageKey = nil, nil, nil
+		if err := tx.AppendEvents(ctx, []models.DeliveryRunEvent{transitionEvent(runID, nil, "run.reconciling", string(old), string(runRow.State), actor, now)}); err != nil {
+			return err
+		}
+		result = runFrom(runRow, stages)
+		changed = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if changed {
+		s.recordAction(ctx, actor, ip, userAgent, "delivery.run.reconcile", result)
+	}
+	return result, nil
+}
+
+// Retry creates a linked run from the immutable original snapshot. It never
+// resolves the artifact again and never changes the old terminal run.
+func (s *Service) Retry(ctx context.Context, actor uint64, ip, userAgent string, runID uint64, idempotencyKey string) (*Run, error) {
+	key := strings.TrimSpace(idempotencyKey)
+	if actor == 0 || runID == 0 {
+		return nil, validationError("actor and run are required")
+	}
+	if key == "" {
+		return nil, apperr.New(errs.CodeIdempotencyMissing, errs.KeyIdempotencyMissing, "Idempotency-Key is required")
+	}
+	if len(key) > 128 {
+		return nil, validationError("Idempotency-Key must not exceed 128 bytes")
+	}
+	var result *Run
+	created := false
+	err := s.repo.Transaction(ctx, func(tx repository) error {
+		originIdentity, err := tx.GetRun(ctx, runID)
+		if err != nil {
+			return err
+		}
+		if err := tx.LockProject(ctx, originIdentity.ProjectID); err != nil {
+			return err
+		}
+		origin, err := tx.LockRun(ctx, runID)
+		if err != nil {
+			return err
+		}
+		originStages, err := tx.LockRunStages(ctx, runID)
+		if err != nil {
+			return err
+		}
+		if origin.State == models.DeliveryRunOutcomeUnknown || origin.State == models.DeliveryRunReconciling || origin.State == models.DeliveryRunQueued || origin.State == models.DeliveryRunRunning || origin.State == models.DeliveryRunWaitingApproval || origin.State == models.DeliveryRunCancelRequested || origin.State == models.DeliveryRunSucceeded {
+			return apperr.New(errs.CodeRunRetryUnavailable, errs.KeyRunRetryUnavailable, "delivery run is not eligible for retry")
+		}
+		fingerprint, err := canonicalFingerprint(origin.ProjectID, origin.PipelineVersion, Artifact{RepoID: origin.ChartRepoID, ChartName: origin.ChartName, Version: origin.ChartVersion, Digest: origin.ChartDigest}, &origin.ID)
+		if err != nil {
+			return executionUnavailableError(err)
+		}
+		existing, err := tx.FindByIdempotency(ctx, origin.ProjectID, actor, key)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			if existing.RequestFingerprint != fingerprint {
+				return idempotencyConflictError()
+			}
+			rows, err := tx.ListRunStages(ctx, existing.ID)
+			if err != nil {
+				return err
+			}
+			result = runFrom(existing, rows)
+			return nil
+		}
+		blocking, err := tx.BlockingRun(ctx, origin.ProjectID)
+		if err != nil {
+			return err
+		}
+		if blocking != nil {
+			if blocking.State == models.DeliveryRunOutcomeUnknown {
+				return outcomeUnknownError()
+			}
+			return activeRunError()
+		}
+		start := -1
+		for i := range originStages {
+			if originStages[i].State != models.DeliveryStageSucceeded {
+				start = i
+				break
+			}
+		}
+		if start < 0 {
+			return apperr.New(errs.CodeRunRetryUnavailable, errs.KeyRunRetryUnavailable, "delivery run has no failed environment")
+		}
+		applicationSet := make(map[uint64]struct{}, len(originStages)-start)
+		for _, st := range originStages[start:] {
+			applicationSet[st.ApplicationID] = struct{}{}
+		}
+		applicationIDs := make([]uint64, 0, len(applicationSet))
+		for id := range applicationSet {
+			applicationIDs = append(applicationIDs, id)
+		}
+		sort.Slice(applicationIDs, func(i, j int) bool { return applicationIDs[i] < applicationIDs[j] })
+		for _, applicationID := range applicationIDs {
+			if err := tx.LockApplication(ctx, applicationID); err != nil {
+				return err
+			}
+		}
+		now := s.now().UTC()
+		firstState := models.DeliveryStageQueued
+		runState := models.DeliveryRunQueued
+		if originStages[start].ApprovalRequired {
+			firstState, runState = models.DeliveryStageWaitingApproval, models.DeliveryRunWaitingApproval
+		}
+		row := &models.DeliveryRun{ProjectID: origin.ProjectID, PipelineID: origin.PipelineID, PipelineVersion: origin.PipelineVersion, ChartRepoID: origin.ChartRepoID, ChartName: origin.ChartName, ChartVersion: origin.ChartVersion, ChartDigest: origin.ChartDigest, InitiatorUserID: actor, IdempotencyKey: key, RequestFingerprint: fingerprint, State: runState, RetryOfRunID: &origin.ID, CreatedAt: now, UpdatedAt: now}
+		if err := tx.CreateRun(ctx, row); err != nil {
+			return err
+		}
+		rows := make([]models.DeliveryRunStage, len(originStages)-start)
+		for i, source := range originStages[start:] {
+			state := models.DeliveryStagePending
+			if i == 0 {
+				state = firstState
+			}
+			rows[i] = source
+			rows[i].ID = 0
+			rows[i].RunID = row.ID
+			rows[i].StageOrder = i + 1
+			rows[i].State = state
+			rows[i].OperationID = fmt.Sprintf("delivery-run-%d-stage-%d", row.ID, i+1)
+			rows[i].LeaseOwner = nil
+			rows[i].LeaseExpiresAt = nil
+			rows[i].ResultRevision = nil
+			rows[i].ResultDigest = nil
+			rows[i].StartedAt = nil
+			rows[i].FinishedAt = nil
+			rows[i].ErrorCode = nil
+			rows[i].ErrorMessageKey = nil
+			rows[i].CorrelationID = nil
+			rows[i].CreatedAt = now
+			rows[i].UpdatedAt = now
+		}
+		if err := tx.CreateStages(ctx, rows); err != nil {
+			return err
+		}
+		if rows[0].ApprovalRequired {
+			if err := tx.CreateApproval(ctx, &models.DeliveryApproval{RunID: row.ID, RunStageID: rows[0].ID, RequestedAt: now, Decision: models.DeliveryApprovalPending, CreatedAt: now, UpdatedAt: now}); err != nil {
+				return err
+			}
+		}
+		if err := tx.AppendEvents(ctx, initialEvents(row, rows[0], actor, now)); err != nil {
+			return err
+		}
+		result = runFrom(row, rows)
+		created = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if created {
+		s.recordAction(ctx, actor, ip, userAgent, "delivery.run.retry", result)
 	}
 	return result, nil
 }
@@ -383,6 +679,80 @@ func (s *Service) recordCreate(ctx context.Context, actor uint64, ip, userAgent 
 			"retry_of_run_id": created.RetryOfRunID,
 		},
 	})
+}
+
+func (s *Service) recordAction(ctx context.Context, actor uint64, ip, userAgent, action string, row *Run) {
+	if s.audit == nil || row == nil {
+		return
+	}
+	_ = s.audit.Record(ctx, audit.Event{UserID: &actor, Action: action, TargetType: "delivery.run", TargetID: strconv.FormatUint(row.ID, 10), IP: ip, UserAgent: userAgent, Payload: map[string]any{"project_id": row.ProjectID, "state": row.State, "retry_of_run_id": row.RetryOfRunID}})
+}
+
+func transitionEvent(runID uint64, stageID *uint64, event, old, next string, actor uint64, now time.Time) models.DeliveryRunEvent {
+	return models.DeliveryRunEvent{RunID: runID, RunStageID: stageID, EventType: event, OldState: &old, NewState: &next, ActorType: models.DeliveryEventActorUser, ActorID: &actor, OccurredAt: now, Metadata: datatypes.JSON([]byte(`{}`))}
+}
+
+// The recovery methods live here to keep Task 14's planned file boundary;
+// they remain ordinary run-repository operations and never reach another
+// module's tables.
+func (r *Repo) GetRun(ctx context.Context, id uint64) (*models.DeliveryRun, error) {
+	var row models.DeliveryRun
+	err := r.db.WithContext(ctx).First(&row, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, apperr.New(errs.CodeRunNotFound, errs.KeyRunNotFound, "delivery run not found")
+	}
+	return &row, err
+}
+
+func (r *Repo) LockRun(ctx context.Context, id uint64) (*models.DeliveryRun, error) {
+	var row models.DeliveryRun
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, apperr.New(errs.CodeRunNotFound, errs.KeyRunNotFound, "delivery run not found")
+	}
+	return &row, err
+}
+
+func (r *Repo) LockRunStages(ctx context.Context, runID uint64) ([]models.DeliveryRunStage, error) {
+	var rows []models.DeliveryRunStage
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("run_id = ?", runID).Order("stage_order ASC,id ASC").Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repo) UpdateRun(ctx context.Context, id uint64, from, to models.DeliveryRunState, fields map[string]any) error {
+	if !CanTransitionRun(from, to) {
+		return apperr.New(errs.CodeRunInvalidState, errs.KeyRunInvalidState, "invalid delivery run transition")
+	}
+	updates := map[string]any{"state": to, "updated_at": time.Now().UTC()}
+	for key, value := range fields {
+		updates[key] = value
+	}
+	res := r.db.WithContext(ctx).Model(&models.DeliveryRun{}).Where("id = ? AND state = ?", id, from).Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected != 1 {
+		return apperr.New(errs.CodeRunInvalidState, errs.KeyRunInvalidState, "delivery run state changed concurrently")
+	}
+	return nil
+}
+
+func (r *Repo) UpdateStage(ctx context.Context, id uint64, from, to models.DeliveryStageState, fields map[string]any) error {
+	if !CanTransitionStage(from, to) {
+		return apperr.New(errs.CodeRunInvalidState, errs.KeyRunInvalidState, "invalid delivery stage transition")
+	}
+	updates := map[string]any{"state": to, "updated_at": time.Now().UTC()}
+	for key, value := range fields {
+		updates[key] = value
+	}
+	res := r.db.WithContext(ctx).Model(&models.DeliveryRunStage{}).Where("id = ? AND state = ?", id, from).Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected != 1 {
+		return apperr.New(errs.CodeRunInvalidState, errs.KeyRunInvalidState, "delivery stage state changed concurrently")
+	}
+	return nil
 }
 
 func applicationUnavailableError(cause error) error {

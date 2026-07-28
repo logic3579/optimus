@@ -17,6 +17,7 @@ var runTransitions = map[models.DeliveryRunState]map[models.DeliveryRunState]str
 		models.DeliveryRunCanceled: {}, models.DeliveryRunReconciling: {},
 	},
 	models.DeliveryRunReconciling: {
+		models.DeliveryRunRunning: {}, models.DeliveryRunWaitingApproval: {},
 		models.DeliveryRunSucceeded: {}, models.DeliveryRunFailed: {}, models.DeliveryRunCanceled: {},
 		models.DeliveryRunTimedOut: {}, models.DeliveryRunOutcomeUnknown: {},
 	},

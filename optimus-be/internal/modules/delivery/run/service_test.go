@@ -226,6 +226,97 @@ func TestCreateRollsBackEveryPersistedSnapshotOnFailure(t *testing.T) {
 	}
 }
 
+func TestCancelBeforeExecutionIsImmediateAndIdempotent(t *testing.T) {
+	svc, repo, _, _, audits := newCreateFixture(t, true)
+	created, err := svc.Create(context.Background(), 23, "", "", 7, "create", CreateRequest{ChartRepoID: 9, ChartName: "demo", ChartVersion: "1.2.3"})
+	require.NoError(t, err)
+	canceled, err := svc.Cancel(context.Background(), 23, "127.0.0.1", "test", created.ID)
+	require.NoError(t, err)
+	require.Equal(t, models.DeliveryRunCanceled, canceled.State)
+	require.Equal(t, models.DeliveryStageCanceled, canceled.Stages[0].State)
+	require.Equal(t, models.DeliveryStageCanceled, canceled.Stages[1].State)
+	require.Equal(t, "run.canceled", repo.events[len(repo.events)-1].EventType)
+	require.Len(t, audits.events, 2)
+	replay, err := svc.Cancel(context.Background(), 23, "", "", created.ID)
+	require.NoError(t, err)
+	require.Equal(t, canceled.State, replay.State)
+	require.Len(t, audits.events, 2)
+}
+
+func TestCancelRunningRequestsCooperativeCancellation(t *testing.T) {
+	svc, repo, _, _, _ := newCreateFixture(t, false)
+	created, err := svc.Create(context.Background(), 23, "", "", 7, "create", CreateRequest{ChartRepoID: 9, ChartName: "demo", ChartVersion: "1.2.3"})
+	require.NoError(t, err)
+	repo.runs[0].State = models.DeliveryRunRunning
+	repo.stages[0].State = models.DeliveryStageRunning
+	result, err := svc.Cancel(context.Background(), 23, "", "", created.ID)
+	require.NoError(t, err)
+	require.Equal(t, models.DeliveryRunCancelRequested, result.State)
+	require.Equal(t, models.DeliveryStageRunning, result.Stages[0].State)
+	require.Equal(t, "run.cancel_requested", repo.events[len(repo.events)-1].EventType)
+}
+
+func TestRequestReconcileReopensUnknownWithoutGuessingOutcome(t *testing.T) {
+	svc, repo, _, _, _ := newCreateFixture(t, false)
+	created, err := svc.Create(context.Background(), 23, "", "", 7, "create", CreateRequest{ChartRepoID: 9, ChartName: "demo", ChartVersion: "1.2.3"})
+	require.NoError(t, err)
+	repo.runs[0].State = models.DeliveryRunOutcomeUnknown
+	finished := svc.now().UTC()
+	repo.runs[0].FinishedAt = &finished
+	errorCode := 500
+	repo.runs[0].ErrorCode = &errorCode
+	repo.stages[0].State = models.DeliveryStageOutcomeUnknown
+	repo.stages[0].FinishedAt = &finished
+	repo.stages[0].ErrorCode = &errorCode
+	result, err := svc.RequestReconcile(context.Background(), 23, "", "", created.ID)
+	require.NoError(t, err)
+	require.Equal(t, models.DeliveryRunReconciling, result.State)
+	require.Equal(t, models.DeliveryStageReconciling, result.Stages[0].State)
+	require.Nil(t, repo.runs[0].FinishedAt)
+	require.Nil(t, repo.runs[0].ErrorCode)
+	require.Nil(t, repo.stages[0].FinishedAt)
+	require.Nil(t, repo.stages[0].ErrorCode)
+}
+
+func TestRequestReconcileRejectsUnknownRunWithoutExactlyOneUnknownStage(t *testing.T) {
+	svc, repo, _, _, _ := newCreateFixture(t, false)
+	created, err := svc.Create(context.Background(), 23, "", "", 7, "create", CreateRequest{ChartRepoID: 9, ChartName: "demo", ChartVersion: "1.2.3"})
+	require.NoError(t, err)
+	repo.runs[0].State = models.DeliveryRunOutcomeUnknown
+
+	_, err = svc.RequestReconcile(context.Background(), 23, "", "", created.ID)
+	requireBizCode(t, err, errs.CodeRunInvalidState)
+}
+
+func TestRetryClonesImmutableOriginalFromFailedEnvironmentAndRenewsApproval(t *testing.T) {
+	svc, repo, _, resolver, audits := newCreateFixture(t, false)
+	digest := "sha256:" + strings.Repeat("d", 64)
+	finished := svc.now().UTC()
+	repo.runs = []models.DeliveryRun{{ID: 40, ProjectID: 7, PipelineID: 31, PipelineVersion: 3, ChartRepoID: 9, ChartName: "demo", ChartVersion: "1.2.3", ChartDigest: digest, InitiatorUserID: 8, IdempotencyKey: "old", RequestFingerprint: "old", State: models.DeliveryRunFailed, FinishedAt: &finished}}
+	repo.stages = []models.DeliveryRunStage{
+		{ID: 80, RunID: 40, EnvironmentID: 71, EnvironmentKey: "development", ApplicationID: 101, ClusterID: 201, Namespace: "dev", ReleaseName: "demo-dev", StageOrder: 1, Executor: models.DeliveryExecutorHelmUpgradeExistingRelease, State: models.DeliveryStageSucceeded, OperationID: "old-1"},
+		{ID: 81, RunID: 40, EnvironmentID: 72, EnvironmentKey: "production", ApplicationID: 102, ClusterID: 202, Namespace: "prod", ReleaseName: "demo-prod", StageOrder: 2, Executor: models.DeliveryExecutorHelmUpgradeExistingRelease, ApprovalRequired: true, TimeoutSeconds: 900, State: models.DeliveryStageFailed, OperationID: "old-2"},
+	}
+	original := repo.runs[0]
+	retried, err := svc.Retry(context.Background(), 23, "", "", 40, "retry-1")
+	require.NoError(t, err)
+	require.Equal(t, digest, retried.ChartDigest)
+	require.Equal(t, uint64(40), *retried.RetryOfRunID)
+	require.Len(t, retried.Stages, 1)
+	require.Equal(t, "production", retried.Stages[0].EnvironmentKey)
+	require.Equal(t, 1, retried.Stages[0].Order)
+	require.Equal(t, models.DeliveryStageWaitingApproval, retried.Stages[0].State)
+	require.Len(t, repo.approvals, 1)
+	require.Equal(t, original, repo.runs[0], "retry must not mutate the old terminal run")
+	require.Zero(t, resolver.calls, "retry must not resolve a mutable artifact")
+	require.Equal(t, []string{"lock_project", "activity", "lock_application:102", "create_run"}, repo.calls[len(repo.calls)-4:])
+	require.Equal(t, "delivery.run.retry", audits.events[0].Action)
+	replay, err := svc.Retry(context.Background(), 23, "", "", 40, "retry-1")
+	require.NoError(t, err)
+	require.Equal(t, retried.ID, replay.ID)
+	require.Len(t, repo.runs, 2)
+}
+
 type memoryRepository struct {
 	pipeline     *models.DeliveryPipeline
 	pipelineRows []models.DeliveryPipelineStage
@@ -325,6 +416,56 @@ func (r *memoryRepository) AppendEvents(_ context.Context, rows []models.Deliver
 		return r.failErr
 	}
 	return nil
+}
+func (r *memoryRepository) GetRun(_ context.Context, id uint64) (*models.DeliveryRun, error) {
+	for i := range r.runs {
+		if r.runs[i].ID == id {
+			return cloneRun(&r.runs[i]), nil
+		}
+	}
+	return nil, apperr.New(errs.CodeRunNotFound, errs.KeyRunNotFound, "not found")
+}
+func (r *memoryRepository) LockRun(ctx context.Context, id uint64) (*models.DeliveryRun, error) {
+	return r.GetRun(ctx, id)
+}
+func (r *memoryRepository) LockRunStages(ctx context.Context, id uint64) ([]models.DeliveryRunStage, error) {
+	return r.ListRunStages(ctx, id)
+}
+func (r *memoryRepository) UpdateRun(_ context.Context, id uint64, from, to models.DeliveryRunState, fields map[string]any) error {
+	for i := range r.runs {
+		if r.runs[i].ID == id && r.runs[i].State == from {
+			r.runs[i].State = to
+			if value, ok := fields["finished_at"].(time.Time); ok {
+				r.runs[i].FinishedAt = &value
+			}
+			if value, ok := fields["finished_at"]; ok && value == nil {
+				r.runs[i].FinishedAt = nil
+			}
+			if value, ok := fields["error_code"]; ok && value == nil {
+				r.runs[i].ErrorCode = nil
+			}
+			return nil
+		}
+	}
+	return errors.New("run transition conflict")
+}
+func (r *memoryRepository) UpdateStage(_ context.Context, id uint64, from, to models.DeliveryStageState, fields map[string]any) error {
+	for i := range r.stages {
+		if r.stages[i].ID == id && r.stages[i].State == from {
+			r.stages[i].State = to
+			if value, ok := fields["finished_at"].(time.Time); ok {
+				r.stages[i].FinishedAt = &value
+			}
+			if value, ok := fields["finished_at"]; ok && value == nil {
+				r.stages[i].FinishedAt = nil
+			}
+			if value, ok := fields["error_code"]; ok && value == nil {
+				r.stages[i].ErrorCode = nil
+			}
+			return nil
+		}
+	}
+	return errors.New("stage transition conflict")
 }
 
 type applicationReader struct {

@@ -51,6 +51,20 @@ func TestServiceRequiresMetadataObjectAndAllowsKnownNestedKeys(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestServiceAllowsRecoveryMetadataAndStillRejectsSensitiveNesting(t *testing.T) {
+	svc := NewService(&fakeRepository{rows: []models.DeliveryRunEvent{{
+		ID: 1, RunID: 7, Metadata: datatypes.JSON(`{"recovery_intent":"timed_out","release_revision":7,"observed_digest":"sha256:safe","drift":true}`),
+	}}})
+	_, err := svc.ReadAfter(context.Background(), 7, 0)
+	require.NoError(t, err)
+
+	svc = NewService(&fakeRepository{rows: []models.DeliveryRunEvent{{
+		ID: 1, RunID: 7, Metadata: datatypes.JSON(`{"reason":{"operation_id":"op","secret":"leak"}}`),
+	}}})
+	_, err = svc.ReadAfter(context.Background(), 7, 0)
+	require.Error(t, err)
+}
+
 func TestServiceRejectsUnorderedOrWrongRunRows(t *testing.T) {
 	for _, rows := range [][]models.DeliveryRunEvent{
 		{{ID: 2, RunID: 7}, {ID: 1, RunID: 7}},

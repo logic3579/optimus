@@ -54,16 +54,17 @@ func (f fakeTicker) Chan() <-chan time.Time { return f.ticks }
 func (fakeTicker) Stop()                    {}
 
 type fakeStore struct {
-	mu            sync.Mutex
-	works         []claimedWork
-	completions   []completion
-	renews        int
-	loseLease     bool
-	claimErr      error
-	renewErr      error
-	completeErr   error
-	blockRenew    bool
-	blockComplete bool
+	mu              sync.Mutex
+	works           []claimedWork
+	completions     []completion
+	renews          int
+	loseLease       bool
+	cancelRequested bool
+	claimErr        error
+	renewErr        error
+	completeErr     error
+	blockRenew      bool
+	blockComplete   bool
 }
 
 func (f *fakeStore) Claim(_ context.Context, _ string, _ time.Time, _ time.Duration) (*claimedWork, error) {
@@ -79,16 +80,16 @@ func (f *fakeStore) Claim(_ context.Context, _ string, _ time.Time, _ time.Durat
 	f.works = f.works[1:]
 	return &w, nil
 }
-func (f *fakeStore) Renew(ctx context.Context, _ uint64, _ string, _ time.Time) (bool, error) {
+func (f *fakeStore) Renew(ctx context.Context, _ uint64, _ string, _ time.Time) (bool, bool, error) {
 	f.mu.Lock()
 	f.renews++
-	block, ok, err := f.blockRenew, !f.loseLease, f.renewErr
+	block, ok, cancelRequested, err := f.blockRenew, !f.loseLease, f.cancelRequested, f.renewErr
 	f.mu.Unlock()
 	if block {
 		<-ctx.Done()
-		return false, ctx.Err()
+		return false, false, ctx.Err()
 	}
-	return ok, err
+	return ok, cancelRequested, err
 }
 func (f *fakeStore) Complete(ctx context.Context, _ claimedWork, _ string, _ time.Time, c completion) error {
 	f.mu.Lock()
@@ -166,6 +167,20 @@ func TestWorkerLeaseLossForcesReconciliation(t *testing.T) {
 	ticks <- time.Now()
 	require.NoError(t, w.ProcessOnce(context.Background()))
 	require.True(t, s.completions[0].ambiguous)
+}
+
+func TestWorkerRunningCancelIsCooperativeAndReconciles(t *testing.T) {
+	s := &fakeStore{works: []claimedWork{work(1)}, cancelRequested: true}
+	ticks := make(chan time.Time, 1)
+	executor := &fakeExecutor{block: make(chan struct{})}
+	w := newWorker(s, executor, config(), "owner", fakeClock{now: time.Now(), ticks: ticks})
+	done := make(chan error, 1)
+	go func() { done <- w.ProcessOnce(context.Background()) }()
+	ticks <- time.Now()
+	require.NoError(t, <-done)
+	require.Len(t, s.completions, 1)
+	require.True(t, s.completions[0].ambiguous)
+	require.ErrorIs(t, s.completions[0].err, context.Canceled)
 }
 
 func TestWorkerLeaseLossDoesNotWaitForUnresponsiveExecutor(t *testing.T) {

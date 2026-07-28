@@ -38,6 +38,8 @@ func TestRunTransitionsMatchApprovedStateMachine(t *testing.T) {
 		{models.DeliveryRunReconciling, models.DeliveryRunSucceeded}:       true,
 		{models.DeliveryRunReconciling, models.DeliveryRunFailed}:          true,
 		{models.DeliveryRunReconciling, models.DeliveryRunCanceled}:        true,
+		{models.DeliveryRunReconciling, models.DeliveryRunRunning}:         true,
+		{models.DeliveryRunReconciling, models.DeliveryRunWaitingApproval}: true,
 		{models.DeliveryRunReconciling, models.DeliveryRunTimedOut}:        true,
 		{models.DeliveryRunReconciling, models.DeliveryRunOutcomeUnknown}:  true,
 		{models.DeliveryRunOutcomeUnknown, models.DeliveryRunReconciling}:  true,
