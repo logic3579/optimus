@@ -55,7 +55,7 @@ type Service struct {
 	loader     ChartLoader
 	rec        Recorder
 	governance Governance
-	delivery   *deliveryRuntime
+	delivery   deliveryRuntimeState
 }
 
 // NewService returns a release.Service. All four seams are required.

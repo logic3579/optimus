@@ -6,6 +6,8 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,7 +17,9 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/kube"
 	kubefake "helm.sh/helm/v3/pkg/kube/fake"
+	helmrelease "helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 
@@ -27,14 +31,22 @@ import (
 const deliveryDigest = "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
 
 type deliveryFactory struct {
-	storage    *storage.Storage
-	purposes   []string
-	factoryErr error
-	upgradeErr error
+	storage        *storage.Storage
+	statusDriver   *deliveryStatusDriver
+	purposes       []string
+	factoryErr     error
+	upgradeErr     error
+	upgradeStarted chan struct{}
+	upgradeGate    <-chan struct{}
+	upgradeCalls   *atomic.Int32
 }
 
 func newDeliveryFactory() *deliveryFactory {
-	return &deliveryFactory{storage: storage.Init(driver.NewMemory())}
+	statusDriver := &deliveryStatusDriver{Driver: driver.NewMemory()}
+	return &deliveryFactory{
+		storage:      storage.Init(statusDriver),
+		statusDriver: statusDriver,
+	}
 }
 
 func (f *deliveryFactory) NewForCluster(_ context.Context, _ uint64, _, purpose string) (*action.Configuration, error) {
@@ -47,12 +59,86 @@ func (f *deliveryFactory) NewForCluster(_ context.Context, _ uint64, _, purpose 
 		CreateError:        f.upgradeErr,
 		UpdateError:        f.upgradeErr,
 	}
+	var client kube.Interface = kubeClient
+	if f.upgradeCalls != nil {
+		client = &blockingDeliveryKubeClient{
+			FailingKubeClient: *kubeClient,
+			started:           f.upgradeStarted,
+			gate:              f.upgradeGate,
+			calls:             f.upgradeCalls,
+		}
+	}
 	return &action.Configuration{
 		Releases:     f.storage,
-		KubeClient:   kubeClient,
+		KubeClient:   client,
 		Capabilities: chartutil.DefaultCapabilities,
 		Log:          func(_ string, _ ...interface{}) {},
 	}, nil
+}
+
+type blockingDeliveryKubeClient struct {
+	kubefake.FailingKubeClient
+	started chan struct{}
+	gate    <-chan struct{}
+	calls   *atomic.Int32
+}
+
+func (c *blockingDeliveryKubeClient) Update(
+	original, target kube.ResourceList,
+	force bool,
+) (*kube.Result, error) {
+	call := c.calls.Add(1)
+	if call == 1 {
+		close(c.started)
+		<-c.gate
+	} else {
+		return nil, errors.New("duplicate Helm upgrade invocation")
+	}
+	return c.FailingKubeClient.Update(original, target, force)
+}
+
+type deliveryStatusDriver struct {
+	driver.Driver
+	mu         sync.Mutex
+	nextStatus helmrelease.Status
+	armed      bool
+}
+
+func (d *deliveryStatusDriver) SetPostUpgradeStatus(status helmrelease.Status) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.nextStatus = status
+}
+
+func (d *deliveryStatusDriver) Update(key string, release *helmrelease.Release) error {
+	if err := d.Driver.Update(key, release); err != nil {
+		return err
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.nextStatus != "" && release.Version > 1 && release.Info != nil && release.Info.Status == helmrelease.StatusDeployed {
+		d.armed = true
+	}
+	return nil
+}
+
+func (d *deliveryStatusDriver) Query(labels map[string]string) ([]*helmrelease.Release, error) {
+	releases, err := d.Driver.Query(labels)
+	if err != nil {
+		return nil, err
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.armed {
+		return releases, nil
+	}
+	for _, release := range releases {
+		if release.Version > 1 && release.Info != nil {
+			release.Info.Status = d.nextStatus
+		}
+	}
+	d.armed = false
+	return releases, nil
 }
 
 type verifiedDeliveryLoader struct {
@@ -167,11 +253,17 @@ func TestDeliveryUpgrade(t *testing.T) {
 		artifactCalls := len(chartLoader.artifacts)
 		factory.factoryErr = errors.New("cluster must not be contacted during replay")
 		chartLoader.err = errors.New("repository must not be contacted during replay")
+		mismatchRequest := deliveryRequest(apps.app.ID)
+		mismatchRequest.Digest = validOperationDigest
+		_, err = service.UpgradeForDelivery(ctx, mismatchRequest)
+		requireBizError(t, err, apperr.CodeDeliveryArtifactDrift, "delivery.execution.artifact_drift")
+		require.Len(t, factory.purposes, factoryCalls)
+		require.Len(t, chartLoader.artifacts, artifactCalls)
+
 		replayRequest := deliveryRequest(apps.app.ID)
 		replayRequest.RepoID = 99
 		replayRequest.ChartName = "changed-chart"
 		replayRequest.ChartVersion = "9.9.9"
-		replayRequest.Digest = validOperationDigest
 		replay, err := service.UpgradeForDelivery(ctx, replayRequest)
 		require.NoError(t, err)
 		require.Equal(t, first, replay)
@@ -180,6 +272,34 @@ func TestDeliveryUpgrade(t *testing.T) {
 		deployed, err := factory.storage.Last(apps.app.ReleaseName)
 		require.NoError(t, err)
 		require.Equal(t, 2, deployed.Version)
+	})
+
+	t.Run("concurrent same operation permits one Helm invocation", func(t *testing.T) {
+		service, apps, _, factory, _, _ := newDeliveryService(t)
+		ctx := context.Background()
+		_, err := service.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+		require.NoError(t, err)
+		service.SetGovernance(&managedGovernance{operationID: "delivery-operation-1"})
+		started := make(chan struct{})
+		gate := make(chan struct{})
+		calls := &atomic.Int32{}
+		factory.upgradeStarted = started
+		factory.upgradeGate = gate
+		factory.upgradeCalls = calls
+
+		firstResult := make(chan error, 1)
+		go func() {
+			_, upgradeErr := service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
+			firstResult <- upgradeErr
+		}()
+		<-started
+		_, secondErr := service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
+		close(gate)
+		firstErr := <-firstResult
+
+		require.NoError(t, firstErr)
+		requireBizError(t, secondErr, apperr.CodeDeliveryOperationBusy, "delivery.execution.operation_busy")
+		require.EqualValues(t, 1, calls.Load())
 	})
 
 	t.Run("terminal failed replay returns safe failure without external calls", func(t *testing.T) {
@@ -289,6 +409,33 @@ func TestDeliveryUpgrade(t *testing.T) {
 		require.LessOrEqual(t, deployed.Version, 2)
 	})
 
+	for _, status := range []helmrelease.Status{
+		helmrelease.StatusFailed,
+		helmrelease.StatusPendingInstall,
+		helmrelease.StatusPendingUpgrade,
+		helmrelease.StatusPendingRollback,
+		helmrelease.StatusUninstalling,
+		helmrelease.StatusUninstalled,
+		helmrelease.StatusUnknown,
+	} {
+		status := status
+		t.Run("post-upgrade "+string(status)+" remains reconcilable", func(t *testing.T) {
+			service, apps, _, factory, _, coordinator := newDeliveryService(t)
+			ctx := context.Background()
+			_, err := service.Install(ctx, 1, "", "", apps.app.ID, InstallRequest{ChartVersion: "1.0.0"})
+			require.NoError(t, err)
+			service.SetGovernance(&managedGovernance{operationID: "delivery-operation-1"})
+			factory.statusDriver.SetPostUpgradeStatus(status)
+
+			_, err = service.UpgradeForDelivery(ctx, deliveryRequest(apps.app.ID))
+			requireBizError(t, err, apperr.CodeDeliveryReconciliationRequired, "delivery.execution.reconciliation_required")
+			operation, inspectErr := coordinator.Inspect(ctx, "delivery-operation-1")
+			require.NoError(t, inspectErr)
+			require.Equal(t, models.AppsReleaseOperationActive, operation.State)
+			require.Nil(t, operation.FinishedAt)
+		})
+	}
+
 	t.Run("fails closed without verified loader or coordinator", func(t *testing.T) {
 		factory := newDeliveryFactory()
 		apps := newStubAppService()
@@ -296,6 +443,25 @@ func TestDeliveryUpgrade(t *testing.T) {
 		_, err := service.UpgradeForDelivery(context.Background(), deliveryRequest(apps.app.ID))
 		requireBizError(t, err, apperr.CodeDeliveryExecutionUnavailable, "delivery.execution.unavailable")
 		service.SetDeliveryCoordinator(nil, "worker-1", time.Minute)
+	})
+
+	t.Run("delivery configuration publishes safely during reads", func(t *testing.T) {
+		service, _, _, _, _, coordinator := newDeliveryService(t)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 500; i++ {
+				service.SetDeliveryCoordinator(coordinator, "worker", time.Minute)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 500; i++ {
+				_, _ = service.UpgradeForDelivery(context.Background(), DeliveryUpgradeRequest{})
+			}
+		}()
+		wg.Wait()
 	})
 }
 

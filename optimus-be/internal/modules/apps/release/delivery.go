@@ -2,12 +2,17 @@ package release
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
+	helmrelease "helm.sh/helm/v3/pkg/release"
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
@@ -39,29 +44,55 @@ type deliveryRuntime struct {
 	lease       time.Duration
 }
 
+// deliveryRuntimeState publishes immutable delivery configuration and issues
+// service-lifetime invocation claims without package-global mutable state.
+type deliveryRuntimeState struct {
+	current atomic.Pointer[deliveryRuntime]
+	claims  atomic.Uint64
+}
+
+func (s *deliveryRuntimeState) load() *deliveryRuntime {
+	return s.current.Load()
+}
+
+func (s *deliveryRuntimeState) store(runtime *deliveryRuntime) {
+	s.current.Store(runtime)
+}
+
+func (s *deliveryRuntimeState) nextClaimOwner(workerOwner string) string {
+	suffix := fmt.Sprintf("-%016x", s.claims.Add(1))
+	maximumPrefix := 128 - len(suffix)
+	for len(workerOwner) > maximumPrefix {
+		_, size := utf8.DecodeLastRuneInString(workerOwner)
+		workerOwner = workerOwner[:len(workerOwner)-size]
+	}
+	return workerOwner + suffix
+}
+
 // SetDeliveryCoordinator configures delivery execution for this Service
 // instance. Invalid or nil configuration disables delivery fail-closed while
 // leaving the existing direct P3 lifecycle paths unchanged.
 func (s *Service) SetDeliveryCoordinator(coordinator DeliveryOperationCoordinator, owner string, lease time.Duration) {
-	if coordinator == nil || !validBounded(owner, 128) || lease <= 0 {
-		s.delivery = nil
+	if coordinator == nil || !validBounded(owner, 128) || !utf8.ValidString(owner) || lease <= 0 {
+		s.delivery.store(nil)
 		return
 	}
-	s.delivery = &deliveryRuntime{coordinator: coordinator, owner: owner, lease: lease}
+	s.delivery.store(&deliveryRuntime{coordinator: coordinator, owner: owner, lease: lease})
 }
 
 // UpgradeForDelivery upgrades one already-installed release to an immutable,
 // verified chart artifact. It reuses the release's current Helm values and
 // never accepts or returns values, notes, manifests, or raw executor errors.
 func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeRequest) (*DeliveryUpgradeResult, error) {
-	runtime := s.delivery
+	runtime := s.delivery.load()
 	verifiedLoader, verified := s.loader.(VerifiedChartLoader)
 	if runtime == nil || !verified || !validDeliveryUpgradeRequest(req) {
 		return nil, executionUnavailableError()
 	}
 
+	claimOwner := s.delivery.nextClaimOwner(runtime.owner)
 	acquired, err := runtime.coordinator.Acquire(
-		ctx, req.ApplicationID, req.OperationID, deliveryUpgradeKind, runtime.owner, runtime.lease,
+		ctx, req.ApplicationID, req.OperationID, deliveryUpgradeKind, claimOwner, runtime.lease,
 	)
 	if err != nil {
 		return nil, err
@@ -70,7 +101,15 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 		return nil, reconciliationRequiredError()
 	}
 	if acquired.Replayed && !acquired.Acquired {
-		return replayDeliveryUpgrade(acquired.Operation)
+		if acquired.Operation == nil {
+			return nil, executionUnavailableError()
+		}
+		switch acquired.Operation.State {
+		case models.AppsReleaseOperationSucceeded, models.AppsReleaseOperationFailed:
+			return replayDeliveryUpgrade(acquired.Operation, req.Digest)
+		default:
+			return nil, operationBusyError()
+		}
 	}
 	if !acquired.Acquired {
 		return nil, operationBusyError()
@@ -79,25 +118,25 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 	app, err := s.appsGet(ctx, req.ApplicationID)
 	if err != nil {
 		return nil, s.completeDefiniteDeliveryFailure(
-			ctx, runtime, req.OperationID, deliveryApplicationUnavailableError(err),
+			ctx, runtime, req.OperationID, claimOwner, deliveryApplicationUnavailableError(err),
 		)
 	}
 	if app.ChartRepoID != req.RepoID || app.ChartName != req.ChartName {
 		return nil, s.completeDefiniteDeliveryFailure(
-			ctx, runtime, req.OperationID, deliveryChartIdentityError(),
+			ctx, runtime, req.OperationID, claimOwner, deliveryChartIdentityError(),
 		)
 	}
 
 	cfg, err := s.factory.NewForCluster(ctx, app.ClusterID, app.Namespace, req.Purpose)
 	if err != nil {
 		return nil, s.completeDefiniteDeliveryFailure(
-			ctx, runtime, req.OperationID, deliveryExecutionUnavailableError(err),
+			ctx, runtime, req.OperationID, claimOwner, deliveryExecutionUnavailableError(err),
 		)
 	}
 	observed, err := action.NewStatus(cfg).Run(app.ReleaseName)
 	if err != nil || observed == nil || observed.Info == nil || string(observed.Info.Status) == "uninstalled" {
 		return nil, s.completeDefiniteDeliveryFailure(
-			ctx, runtime, req.OperationID, deliveryApplicationUnavailableError(err),
+			ctx, runtime, req.OperationID, claimOwner, deliveryApplicationUnavailableError(err),
 		)
 	}
 
@@ -108,22 +147,22 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 	if err != nil {
 		if errors.Is(err, apprepo.ErrArtifactDigestMismatch) {
 			return nil, s.completeDefiniteDeliveryFailure(
-				ctx, runtime, req.OperationID, deliveryArtifactDriftError(err),
+				ctx, runtime, req.OperationID, claimOwner, deliveryArtifactDriftError(err),
 			)
 		}
 		return nil, s.completeDefiniteDeliveryFailure(
-			ctx, runtime, req.OperationID, deliveryExecutionUnavailableError(err),
+			ctx, runtime, req.OperationID, claimOwner, deliveryExecutionUnavailableError(err),
 		)
 	}
 	if ch == nil || ch.Metadata == nil || ch.Metadata.Name != req.ChartName || ch.Metadata.Version != req.ChartVersion {
 		return nil, s.completeDefiniteDeliveryFailure(
-			ctx, runtime, req.OperationID, deliveryArtifactDriftError(nil),
+			ctx, runtime, req.OperationID, claimOwner, deliveryArtifactDriftError(nil),
 		)
 	}
 
 	deliveryCtx := withDeliveryUpgrade(ctx, req.ApplicationID, req.OperationID)
 	if err := s.authorizeMutation(deliveryCtx, req.ApplicationID, MutationActionUpgrade); err != nil {
-		return nil, s.completeDefiniteDeliveryFailure(ctx, runtime, req.OperationID, err)
+		return nil, s.completeDefiniteDeliveryFailure(ctx, runtime, req.OperationID, claimOwner, err)
 	}
 
 	upgrade := action.NewUpgrade(cfg)
@@ -139,12 +178,15 @@ func (s *Service) UpgradeForDelivery(ctx context.Context, req DeliveryUpgradeReq
 	if err != nil || observed == nil || observed.Info == nil {
 		return nil, deliveryReconciliationError(err)
 	}
+	if observed.Info.Status != helmrelease.StatusDeployed {
+		return nil, deliveryReconciliationError(nil)
+	}
 	result := &DeliveryUpgradeResult{
 		Revision: observed.Version,
 		Status:   string(observed.Info.Status),
 		Digest:   req.Digest,
 	}
-	if err := runtime.coordinator.Complete(ctx, req.OperationID, runtime.owner, SafeOperationResult{
+	if err := runtime.coordinator.Complete(ctx, req.OperationID, claimOwner, SafeOperationResult{
 		Succeeded: true,
 		Revision:  int64(result.Revision),
 		Digest:    result.Digest,
@@ -168,20 +210,26 @@ func (s *Service) completeDefiniteDeliveryFailure(
 	ctx context.Context,
 	runtime *deliveryRuntime,
 	operationID string,
+	claimOwner string,
 	cause error,
 ) error {
-	if err := runtime.coordinator.Complete(ctx, operationID, runtime.owner, SafeOperationResult{}); err != nil {
+	if err := runtime.coordinator.Complete(ctx, operationID, claimOwner, SafeOperationResult{}); err != nil {
 		return err
 	}
 	return cause
 }
 
-func replayDeliveryUpgrade(operation *Operation) (*DeliveryUpgradeResult, error) {
+func replayDeliveryUpgrade(operation *Operation, requestedDigest string) (*DeliveryUpgradeResult, error) {
 	if operation == nil {
 		return nil, executionUnavailableError()
 	}
 	if operation.State != models.AppsReleaseOperationSucceeded || operation.ResultRevision == nil || operation.ResultDigest == nil {
 		return nil, executionUnavailableError()
+	}
+	// The coordinator persists no repository/name/version input. Its canonical
+	// digest is therefore the immutable artifact identity available for replay.
+	if subtle.ConstantTimeCompare([]byte(*operation.ResultDigest), []byte(requestedDigest)) != 1 {
+		return nil, deliveryArtifactDriftError(nil)
 	}
 	return &DeliveryUpgradeResult{
 		Revision: int(*operation.ResultRevision),
