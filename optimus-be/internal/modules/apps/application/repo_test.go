@@ -4,7 +4,10 @@ package application_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,6 +22,46 @@ import (
 // SQL migrations directory.
 const migrationsPath = "../../../../migrations"
 
+const fixtureNameMaxBytes = 64
+
+// fixtureName keeps database fixture names readable while hashing the full
+// test name so truncation cannot make distinct tests share a fixture name.
+func fixtureName(prefix, testName string) string {
+	digest := sha256.Sum256([]byte(testName))
+	suffix := hex.EncodeToString(digest[:8])
+
+	var readable strings.Builder
+	previousSeparator := false
+	for _, char := range strings.ToLower(testName) {
+		if char >= 'a' && char <= 'z' || char >= '0' && char <= '9' {
+			readable.WriteRune(char)
+			previousSeparator = false
+			continue
+		}
+		if readable.Len() > 0 && !previousSeparator {
+			readable.WriteByte('-')
+			previousSeparator = true
+		}
+	}
+
+	readablePart := strings.Trim(readable.String(), "-")
+	maxReadableBytes := fixtureNameMaxBytes - len(prefix) - len(suffix) - 2
+	if len(readablePart) > maxReadableBytes {
+		readablePart = strings.TrimRight(readablePart[:maxReadableBytes], "-")
+	}
+	return prefix + "-" + readablePart + "-" + suffix
+}
+
+func TestFixtureName_BoundedDeterministicAndDistinct(t *testing.T) {
+	longTestName := strings.Repeat("TestService_DeleteAndDeliveryBindSerializeWithoutDanglingBinding/", 2)
+
+	got := fixtureName("cl", longTestName)
+	require.Len(t, got, fixtureNameMaxBytes)
+	require.Equal(t, got, fixtureName("cl", longTestName))
+	require.NotEqual(t, got, fixtureName("cl", longTestName+"other"))
+	require.Regexp(t, `^cl-[a-z0-9-]+-[0-9a-f]{16}$`, got)
+}
+
 // newRepo brings up a fresh dockertest Postgres + applies migrations and
 // returns the repo bound to it. The kubeconfig + cluster + chart-repo rows
 // the FKs require are NOT created here — call seedFKs first.
@@ -32,11 +75,11 @@ func newRepo(t *testing.T) (*application.Repo, func()) {
 // these.
 func seedFKs(t *testing.T, r *application.Repo) (uint64, uint64) {
 	t.Helper()
-	kc := &models.CredentialKubeconfig{Name: "kc-" + t.Name(), KubeconfigEnc: []byte{1}}
+	kc := &models.CredentialKubeconfig{Name: fixtureName("kc", t.Name()), KubeconfigEnc: []byte{1}}
 	require.NoError(t, r.DB().Create(kc).Error)
-	cl := &models.Cluster{Name: "cl-" + t.Name(), KubeconfigID: kc.ID, Context: "ctx"}
+	cl := &models.Cluster{Name: fixtureName("cl", t.Name()), KubeconfigID: kc.ID, Context: "ctx"}
 	require.NoError(t, r.DB().Create(cl).Error)
-	cr := &models.AppsChartRepo{Name: "cr-" + t.Name(), Type: "http", URL: "https://x"}
+	cr := &models.AppsChartRepo{Name: fixtureName("cr", t.Name()), Type: "http", URL: "https://x"}
 	require.NoError(t, r.DB().Create(cr).Error)
 	return cl.ID, cr.ID
 }
