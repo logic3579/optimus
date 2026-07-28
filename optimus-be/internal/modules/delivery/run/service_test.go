@@ -180,6 +180,52 @@ func TestCreateValidatesIdempotencyBeforeExternalResolution(t *testing.T) {
 	require.Zero(t, resolver.calls)
 }
 
+func TestCreateRollsBackEveryPersistedSnapshotOnFailure(t *testing.T) {
+	tests := []struct {
+		name     string
+		approval bool
+		failAt   string
+	}{
+		{name: "approval create run", approval: true, failAt: "create_run"},
+		{name: "approval create stages", approval: true, failAt: "create_stages"},
+		{name: "approval create approval", approval: true, failAt: "create_approval"},
+		{name: "approval append events", approval: true, failAt: "append_events"},
+		{name: "queued create run", approval: false, failAt: "create_run"},
+		{name: "queued create stages", approval: false, failAt: "create_stages"},
+		{name: "queued append events", approval: false, failAt: "append_events"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, repo, _, _, audits := newCreateFixture(t, tt.approval)
+			repo.failAt = tt.failAt
+			repo.failErr = errors.New("injected persistence failure")
+			req := CreateRequest{ChartRepoID: 9, ChartName: "demo", ChartVersion: "1.2.3"}
+
+			_, err := svc.Create(context.Background(), 23, "", "", 7, "retryable-key", req)
+			require.ErrorIs(t, err, repo.failErr)
+			require.Empty(t, repo.runs, "run and idempotency fingerprint must roll back")
+			require.Empty(t, repo.stages)
+			require.Empty(t, repo.approvals)
+			require.Empty(t, repo.events)
+			require.Empty(t, audits.events)
+
+			repo.failAt = ""
+			created, err := svc.Create(context.Background(), 23, "", "", 7, "retryable-key", req)
+			require.NoError(t, err)
+			require.NotNil(t, created)
+			require.Len(t, repo.runs, 1)
+			require.Len(t, repo.stages, 2)
+			require.Len(t, repo.events, 2)
+			if tt.approval {
+				require.Len(t, repo.approvals, 1)
+			} else {
+				require.Empty(t, repo.approvals)
+			}
+		})
+	}
+}
+
 type memoryRepository struct {
 	pipeline     *models.DeliveryPipeline
 	pipelineRows []models.DeliveryPipelineStage
@@ -190,10 +236,23 @@ type memoryRepository struct {
 	approvals    []models.DeliveryApproval
 	events       []models.DeliveryRunEvent
 	calls        []string
+	failAt       string
+	failErr      error
 }
 
 func (r *memoryRepository) Transaction(_ context.Context, fn func(repository) error) error {
-	return fn(r)
+	runsBefore := append([]models.DeliveryRun(nil), r.runs...)
+	stagesBefore := append([]models.DeliveryRunStage(nil), r.stages...)
+	approvalsBefore := append([]models.DeliveryApproval(nil), r.approvals...)
+	eventsBefore := append([]models.DeliveryRunEvent(nil), r.events...)
+	if err := fn(r); err != nil {
+		r.runs = runsBefore
+		r.stages = stagesBefore
+		r.approvals = approvalsBefore
+		r.events = eventsBefore
+		return err
+	}
+	return nil
 }
 func (r *memoryRepository) LockProject(context.Context, uint64) error {
 	r.calls = append(r.calls, "lock_project")
@@ -234,6 +293,9 @@ func (r *memoryRepository) CreateRun(_ context.Context, row *models.DeliveryRun)
 	r.calls = append(r.calls, "create_run")
 	row.ID = uint64(len(r.runs) + 1)
 	r.runs = append(r.runs, *row)
+	if r.failAt == "create_run" {
+		return r.failErr
+	}
 	return nil
 }
 func (r *memoryRepository) CreateStages(_ context.Context, rows []models.DeliveryRunStage) error {
@@ -241,17 +303,26 @@ func (r *memoryRepository) CreateStages(_ context.Context, rows []models.Deliver
 		rows[i].ID = uint64(len(r.stages) + 1)
 		r.stages = append(r.stages, rows[i])
 	}
+	if r.failAt == "create_stages" {
+		return r.failErr
+	}
 	return nil
 }
 func (r *memoryRepository) CreateApproval(_ context.Context, row *models.DeliveryApproval) error {
 	row.ID = uint64(len(r.approvals) + 1)
 	r.approvals = append(r.approvals, *row)
+	if r.failAt == "create_approval" {
+		return r.failErr
+	}
 	return nil
 }
 func (r *memoryRepository) AppendEvents(_ context.Context, rows []models.DeliveryRunEvent) error {
 	for i := range rows {
 		rows[i].ID = uint64(len(r.events) + 1)
 		r.events = append(r.events, rows[i])
+	}
+	if r.failAt == "append_events" {
+		return r.failErr
 	}
 	return nil
 }
@@ -267,8 +338,8 @@ func (r *applicationReader) GetApplication(_ context.Context, id uint64) (*Appli
 	if row == nil {
 		return nil, errors.New("missing application")
 	}
-	copy := *row
-	return &copy, nil
+	cloned := *row
+	return &cloned, nil
 }
 
 type artifactResolver struct {
@@ -279,8 +350,8 @@ type artifactResolver struct {
 
 func (r *artifactResolver) ResolveArtifact(context.Context, uint64, string, string) (*Artifact, error) {
 	r.calls++
-	copy := r.artifact
-	return &copy, r.err
+	cloned := r.artifact
+	return &cloned, r.err
 }
 
 type auditRecorder struct{ events []audit.Event }
@@ -319,16 +390,16 @@ func clonePipeline(row *models.DeliveryPipeline) *models.DeliveryPipeline {
 	if row == nil {
 		return nil
 	}
-	copy := *row
-	return &copy
+	cloned := *row
+	return &cloned
 }
 
 func cloneRun(row *models.DeliveryRun) *models.DeliveryRun {
 	if row == nil {
 		return nil
 	}
-	copy := *row
-	return &copy
+	cloned := *row
+	return &cloned
 }
 
 func requireBizCode(t *testing.T, err error, code apperr.Code) {

@@ -415,6 +415,6 @@ func cloneUint64(value *uint64) *uint64 {
 	if value == nil {
 		return nil
 	}
-	copy := *value
-	return &copy
+	cloned := *value
+	return &cloned
 }
