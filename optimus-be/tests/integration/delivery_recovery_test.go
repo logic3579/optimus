@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 	"optimus-be/internal/modules/delivery/errs"
 	"optimus-be/internal/modules/delivery/orchestrator"
@@ -309,6 +310,74 @@ func TestDeliveryRetryIsConcurrentAndIdempotent(t *testing.T) {
 	require.Equal(t, int64(1), approvals)
 	require.NoError(t, db.First(origin, origin.ID).Error)
 	require.Equal(t, models.DeliveryRunFailed, origin.State)
+}
+
+func TestDeliveryRecoveryOutcomeUnknownBlocksProjectAndPreservesRollbackDrift(t *testing.T) {
+	_, db := setupServer(t)
+	ctx := context.Background()
+	run, stage, next := seedReconcilingRun(t, db, "rollback-drift", false)
+	require.NoError(t, db.Create(&[]models.DeliveryPipelineStage{
+		{PipelineID: run.PipelineID, EnvironmentID: stage.EnvironmentID, StageOrder: 1, Executor: models.DeliveryExecutorHelmUpgradeExistingRelease, TimeoutSeconds: 60},
+		{PipelineID: run.PipelineID, EnvironmentID: next.EnvironmentID, StageOrder: 2, Executor: models.DeliveryExecutorHelmUpgradeExistingRelease, TimeoutSeconds: 60},
+	}).Error)
+	rollbackDigest := "sha256:" + strings.Repeat("e", 64)
+	require.NoError(t, orchestrator.NewReconciler(db, &recoveryInspector{
+		evidence: orchestrator.Inspection{Revision: 12, Digest: rollbackDigest},
+	}).Reconcile(ctx, run.ID))
+
+	require.NoError(t, db.First(run, run.ID).Error)
+	require.Equal(t, models.DeliveryRunOutcomeUnknown, run.State)
+	require.Equal(t, int(errs.CodeOutcomeUnknown), *run.ErrorCode)
+	require.NoError(t, db.First(stage, stage.ID).Error)
+	require.Equal(t, models.DeliveryStageOutcomeUnknown, stage.State)
+	require.Equal(t, int64(12), *stage.ResultRevision)
+	require.Equal(t, rollbackDigest, *stage.ResultDigest)
+	var driftEvents []models.DeliveryRunEvent
+	require.NoError(t, db.Where("run_id = ?", run.ID).Order("id ASC").Find(&driftEvents).Error)
+	require.Equal(t, []string{"stage.reconciling", "stage.outcome_unknown", "run.outcome_unknown"}, eventTypes(driftEvents))
+	require.JSONEq(t, `{"drift":true,"observed_digest":"`+rollbackDigest+`","release_revision":12}`, string(driftEvents[1].Metadata))
+	for _, event := range driftEvents {
+		require.NotContains(t, string(event.Metadata), "secret")
+	}
+
+	application := flowRunApplications{applications: map[uint64]deliveryrun.Application{
+		stage.ApplicationID: {
+			ID: stage.ApplicationID, ChartRepoID: run.ChartRepoID, ChartName: run.ChartName, Installed: true,
+			ClusterID: stage.ClusterID, Namespace: stage.Namespace, ReleaseName: stage.ReleaseName,
+		},
+		next.ApplicationID: {
+			ID: next.ApplicationID, ChartRepoID: run.ChartRepoID, ChartName: run.ChartName, Installed: true,
+			ClusterID: next.ClusterID, Namespace: next.Namespace, ReleaseName: next.ReleaseName,
+		},
+	}}
+	artifact := &flowArtifactResolver{artifact: deliveryrun.Artifact{
+		RepoID: run.ChartRepoID, ChartName: run.ChartName, Version: run.ChartVersion, Digest: run.ChartDigest,
+	}}
+	runSvc := deliveryrun.NewService(deliveryrun.NewRepo(db), &application, artifact, nil)
+	_, err := runSvc.Create(ctx, run.InitiatorUserID, "", "", run.ProjectID, "blocked-by-unknown", deliveryrun.CreateRequest{
+		ChartRepoID: run.ChartRepoID, ChartName: run.ChartName, ChartVersion: run.ChartVersion,
+	})
+	require.Error(t, err)
+	var biz *apperr.BizError
+	require.True(t, errors.As(err, &biz))
+	require.Equal(t, apperr.CodeDeliveryOutcomeUnknown, biz.Code)
+	var runCount int64
+	require.NoError(t, db.Model(&models.DeliveryRun{}).Where("project_id = ?", run.ProjectID).Count(&runCount).Error)
+	require.Equal(t, int64(1), runCount, "blocked creation must be atomic")
+
+	reconciled, err := runSvc.RequestReconcile(ctx, run.InitiatorUserID, "", "", run.ID)
+	require.NoError(t, err)
+	require.Equal(t, models.DeliveryRunReconciling, reconciled.State)
+	require.NoError(t, orchestrator.NewReconciler(db, &recoveryInspector{
+		evidence: orchestrator.Inspection{Revision: 13, Digest: run.ChartDigest},
+	}).Reconcile(ctx, run.ID))
+	require.NoError(t, db.First(run, run.ID).Error)
+	require.Equal(t, models.DeliveryRunRunning, run.State)
+	require.NoError(t, db.First(stage, stage.ID).Error)
+	require.Equal(t, models.DeliveryStageSucceeded, stage.State)
+	require.Equal(t, int64(13), *stage.ResultRevision)
+	require.NoError(t, db.First(next, next.ID).Error)
+	require.Equal(t, models.DeliveryStageQueued, next.State)
 }
 
 type recoveryInspector struct {
