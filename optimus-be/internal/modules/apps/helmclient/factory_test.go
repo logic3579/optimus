@@ -19,15 +19,17 @@ import (
 // is in scope. If a future caller starts asking for SSH / cloud through the
 // helm factory, the panic flags the regression loudly.
 type fakeConsumer struct {
-	kc  *credentials.Kubeconfig
-	err error
+	kc      *credentials.Kubeconfig
+	err     error
+	purpose string
 }
 
 func (f *fakeConsumer) GetSSHKey(context.Context, uint64, string) (*credentials.SSHKey, error) {
 	panic("helmclient: fakeConsumer.GetSSHKey called — not expected")
 }
 
-func (f *fakeConsumer) GetKubeconfig(_ context.Context, _ uint64, _ string) (*credentials.Kubeconfig, error) {
+func (f *fakeConsumer) GetKubeconfig(_ context.Context, _ uint64, purpose string) (*credentials.Kubeconfig, error) {
+	f.purpose = purpose
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -159,7 +161,12 @@ func TestNewFactory_PanicsOnNilSeams(t *testing.T) {
 }
 
 func TestFactory_NewForCluster_Success(t *testing.T) {
-	f := newOKFactory()
+	consumer := &fakeConsumer{kc: &credentials.Kubeconfig{
+		Name: "kc1", DefaultNamespace: "default", YAML: []byte(validKubeconfig),
+	}}
+	f := helmclient.NewFactory(consumer, &fakeClusters{c: &cluster.Detail{
+		ID: 1, Name: "c1", KubeconfigID: 7, Context: "test-ctx",
+	}})
 	cfg, err := f.NewForCluster(context.Background(), 1, "default", "test:smoke")
 	if err != nil {
 		t.Fatalf("NewForCluster: %v", err)
@@ -172,6 +179,9 @@ func TestFactory_NewForCluster_Success(t *testing.T) {
 	}
 	if cfg.Releases == nil {
 		t.Error("Releases storage unset")
+	}
+	if consumer.purpose != "system:test:smoke" {
+		t.Fatalf("consumer purpose = %q, want system:test:smoke", consumer.purpose)
 	}
 }
 

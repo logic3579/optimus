@@ -22,14 +22,21 @@ kubectl config view --raw > "$P6_SMOKE_DIR/kubeconfig"
 chmod 600 "$P6_SMOKE_DIR/kubeconfig"
 ```
 
-Start disposable PostgreSQL and Optimus using the repository compose file.
-Point Optimus at `$P6_SMOKE_DIR/kubeconfig`; never print that file.
+Start disposable PostgreSQL and Optimus using the repository compose file and
+the built server binary. The compose file contains PostgreSQL only; Optimus is
+a host process. Keep the disposable secrets and server log private.
 
 ```bash
 docker compose up -d postgres
+export OPTIMUS_JWT_SECRET="$(openssl rand -hex 32)"
+export OPTIMUS_VAULT_MASTER_KEY="$(openssl rand -base64 32)"
 make migrate-up
 make seed
-make run
+make build
+umask 077
+./bin/optimus-be >"$P6_SMOKE_DIR/server.log" 2>&1 &
+export P6_SERVER_PID=$!
+until curl --fail --silent http://127.0.0.1:8080/api/v1/health >/dev/null; do sleep 1; done
 ```
 
 Record the disposable bootstrap password only in a shell variable, log in, and
@@ -100,7 +107,7 @@ three applications. The kubeconfig enters JSON directly and is never printed:
 ```bash
 export P6_KUBECONFIG_ID="$(jq -n --rawfile kubeconfig "$P6_SMOKE_DIR/kubeconfig" '{name:"p6-smoke",description:"disposable P6 smoke",default_namespace:"optimus-p6-smoke",kubeconfig:$kubeconfig}' | curl --fail --silent "${p6_admin[@]}" --data-binary @- "$P6_API/credentials/kubeconfigs" | jq -er '.data.id')"
 export P6_CLUSTER_ID="$(curl --fail --silent "${p6_admin[@]}" -d "{\"name\":\"p6-smoke\",\"description\":\"disposable P6 smoke\",\"kubeconfig_id\":$P6_KUBECONFIG_ID,\"context\":\"kind-$P6_CLUSTER\",\"tags\":[\"p6-smoke\"]}" "$P6_API/k8s/clusters" | jq -er '.data.id')"
-export P6_REPO_ID="$(curl --fail --silent "${p6_admin[@]}" -d '{"name":"p6-smoke","description":"disposable P6 smoke","type":"http","url":"http://host.docker.internal:18080"}' "$P6_API/apps/repos" | jq -er '.data.id')"
+export P6_REPO_ID="$(curl --fail --silent "${p6_admin[@]}" -d '{"name":"p6-smoke","description":"disposable P6 smoke","type":"http","url":"http://127.0.0.1:18080"}' "$P6_API/apps/repos" | jq -er '.data.id')"
 create_app(){ env="$1"; curl --fail --silent "${p6_admin[@]}" -d "{\"name\":\"p6-smoke-$env\",\"description\":\"disposable P6 smoke\",\"cluster_id\":$P6_CLUSTER_ID,\"namespace\":\"$P6_NAMESPACE\",\"release_name\":\"p6-smoke-$env\",\"chart_repo_id\":$P6_REPO_ID,\"chart_name\":\"p6-smoke\",\"tags\":[\"p6-smoke\"]}" "$P6_API/apps/applications" | jq -er '.data.id'; }
 export P6_DEV_APP="$(create_app dev)" P6_STAGING_APP="$(create_app staging)" P6_PROD_APP="$(create_app prod)"
 for id in "$P6_DEV_APP" "$P6_STAGING_APP" "$P6_PROD_APP"; do curl --fail --silent "${p6_admin[@]}" -d '{"chart_version":"1.0.0","values_yaml":""}' "$P6_API/apps/applications/$id/release/install" | jq -e '.code==0'; done
@@ -127,7 +134,11 @@ export P6_RUN_ID="$(curl --fail --silent "${p6_initiator[@]}" -H "Idempotency-Ke
 timeout 20s curl --no-buffer --silent -H "Authorization: Bearer $P6_INITIATOR_TOKEN" "$P6_API/delivery/runs/$P6_RUN_ID/events" | jq --unbuffered -R 'select(startswith("data:"))|ltrimstr("data:")|fromjson|{id,event_type,old_state,new_state,correlation_id}'
 export P6_STAGE_ID="$(curl --fail --silent "${p6_approver[@]}" "$P6_API/delivery/approvals/pending" | jq -er ".data[]|select(.run_id==$P6_RUN_ID)|.run_stage_id")"
 curl --fail --silent "${p6_approver[@]}" -d '{"comment":"approved by disposable P6 smoke"}' "$P6_API/delivery/run-stages/$P6_STAGE_ID/approve" | jq -e '.data.decision=="approved"'
-docker compose restart optimus-be
+kill -TERM "$P6_SERVER_PID"
+wait "$P6_SERVER_PID"
+./bin/optimus-be >"$P6_SMOKE_DIR/server-restarted.log" 2>&1 &
+export P6_SERVER_PID=$!
+until curl --fail --silent http://127.0.0.1:8080/api/v1/health >/dev/null; do sleep 1; done
 until curl --fail --silent "${p6_initiator[@]}" "$P6_API/delivery/runs/$P6_RUN_ID" | jq -e '.data.state=="succeeded" and ([.data.stages[]|.result_revision>0 and (.result_digest|test("^sha256:[0-9a-f]{64}$"))]|all)'; do sleep 2; done
 ```
 
@@ -169,10 +180,12 @@ rg -ni 'values_yaml|kubeconfig|authorization|manifest|helm notes|raw_error|shell
 
 ```bash
 set +e
+kill -TERM "$P6_SERVER_PID"
+wait "$P6_SERVER_PID"
 docker rm -f optimus-p6-chart-repo
 kind delete cluster --name "$P6_CLUSTER"
 docker compose down -v
 find "$P6_SMOKE_DIR" -type f -exec chmod 600 {} +
 rm -rf -- "$P6_SMOKE_DIR"
-unset P6_ADMIN_PASSWORD P6_ADMIN_TOKEN P6_INITIATOR_TOKEN P6_APPROVER_TOKEN
+unset P6_ADMIN_PASSWORD P6_ADMIN_TOKEN P6_INITIATOR_TOKEN P6_APPROVER_TOKEN OPTIMUS_JWT_SECRET OPTIMUS_VAULT_MASTER_KEY
 ```

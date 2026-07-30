@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"helm.sh/helm/v3/pkg/action"
 	"k8s.io/client-go/rest"
@@ -66,7 +67,11 @@ func (f *Factory) NewForCluster(
 		return nil, err
 	}
 	// 2. Decrypt the kubeconfig through the Consumer seam (audit trail).
-	kc, err := f.consumer.GetKubeconfig(ctx, c.KubeconfigID, purpose)
+	consumerPurpose := strings.TrimSpace(purpose)
+	if !strings.HasPrefix(consumerPurpose, "system:") {
+		consumerPurpose = "system:" + consumerPurpose
+	}
+	kc, err := f.consumer.GetKubeconfig(ctx, c.KubeconfigID, consumerPurpose)
 	if err != nil {
 		return nil, err
 	}

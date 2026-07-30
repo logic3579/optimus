@@ -224,6 +224,12 @@ func (l *HelmChartLoader) LoadChart(ctx context.Context, repoID uint64, chartNam
 	return l.Repo.LoadChart(ctx, repoID, chartName, version)
 }
 
+// LoadVerifiedChart preserves the immutable P6 artifact boundary by delegating
+// download, digest verification, parsing, and byte wiping to apps/repo.
+func (l *HelmChartLoader) LoadVerifiedChart(ctx context.Context, artifact apprepo.Artifact) (*chart.Chart, error) {
+	return l.Repo.LoadVerifiedChart(ctx, artifact)
+}
+
 // MountRoutes registers every /apps route under `protected` (which must
 // already be JWT-gated). Permission gating is per-route via nested sub-groups
 // with middleware.RequirePermission — matching the pattern used by the k8s
