@@ -33,6 +33,15 @@ type versionListerStub struct {
 	err   error
 }
 
+type artifactResolverStub struct {
+	artifact *run.Artifact
+	err      error
+}
+
+func (s artifactResolverStub) ResolveArtifact(context.Context, uint64, string, string) (*run.Artifact, error) {
+	return s.artifact, s.err
+}
+
 func (s versionListerStub) ListVersions(context.Context, uint64, string) ([]pipeline.ArtifactVersion, error) {
 	return s.items, s.err
 }
@@ -85,6 +94,34 @@ func TestArtifactCatalogMapsMalformedProviderOutputToSafe503(t *testing.T) {
 	}
 }
 
+func TestArtifactCatalogResolvesOnlyAuthoritativeListedArtifact(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("a", 64)
+	catalog := artifactCatalog{
+		projects: projectEnvironmentStub{environments: []project.Environment{{ChartRepoID: 4, ChartName: "demo"}}},
+		versions: versionListerStub{items: []pipeline.ArtifactVersion{{Version: "1.2.3"}}},
+		resolver: artifactResolverStub{artifact: &run.Artifact{RepoID: 4, ChartName: "demo", Version: "1.2.3", Digest: digest}},
+	}
+	got, err := catalog.ResolveArtifact(context.Background(), 9, pipeline.ResolveArtifactRequest{ChartRepoID: 4, ChartName: "demo", ChartVersion: "1.2.3"})
+	require.NoError(t, err)
+	require.Equal(t, digest, got.Digest)
+	_, err = catalog.ResolveArtifact(context.Background(), 9, pipeline.ResolveArtifactRequest{ChartRepoID: 99, ChartName: "other", ChartVersion: "1.2.3"})
+	var business *apperr.BizError
+	require.ErrorAs(t, err, &business)
+	require.Equal(t, apperr.CodeDeliveryChartIdentityMismatch, business.Code)
+}
+
+func TestArtifactCatalogHidesResolverErrorsAndMalformedDigest(t *testing.T) {
+	base := artifactCatalog{projects: projectEnvironmentStub{environments: []project.Environment{{ChartRepoID: 4, ChartName: "demo"}}}, versions: versionListerStub{items: []pipeline.ArtifactVersion{{Version: "1.2.3"}}}}
+	for _, resolver := range []artifactResolverStub{{err: errors.New("registry token=secret")}, {artifact: &run.Artifact{RepoID: 4, ChartName: "demo", Version: "1.2.3", Digest: "sha256:bad"}}} {
+		base.resolver = resolver
+		_, err := base.ResolveArtifact(context.Background(), 9, pipeline.ResolveArtifactRequest{ChartRepoID: 4, ChartName: "demo", ChartVersion: "1.2.3"})
+		var business *apperr.BizError
+		require.ErrorAs(t, err, &business)
+		require.Equal(t, apperr.CodeDeliveryExecutionUnavailable, business.Code)
+		require.NotContains(t, business.Error(), "secret")
+	}
+}
+
 func TestWireRejectsMissingRequiredSeams(t *testing.T) {
 	module, err := Wire(Input{})
 	require.Error(t, err)
@@ -115,14 +152,14 @@ func TestRoutesExposeOnlyApprovedSurfaceWithExactPermissions(t *testing.T) {
 	}
 	require.Equal(t, wantPermissions, permissions)
 	routes := router.Routes()
-	require.Len(t, routes, 22)
+	require.Len(t, routes, 23)
 	approved := map[string]struct{}{
 		http.MethodGet + " /api/v1/delivery/projects": {}, http.MethodPost + " /api/v1/delivery/projects": {},
 		http.MethodGet + " /api/v1/delivery/projects/:id": {}, http.MethodPut + " /api/v1/delivery/projects/:id": {}, http.MethodDelete + " /api/v1/delivery/projects/:id": {},
 		http.MethodGet + " /api/v1/delivery/projects/:id/environments": {}, http.MethodPost + " /api/v1/delivery/projects/:id/environments": {},
 		http.MethodPut + " /api/v1/delivery/projects/:id/environments/:environmentId": {}, http.MethodDelete + " /api/v1/delivery/projects/:id/environments/:environmentId": {},
 		http.MethodGet + " /api/v1/delivery/projects/:id/pipeline": {}, http.MethodPut + " /api/v1/delivery/projects/:id/pipeline": {},
-		http.MethodGet + " /api/v1/delivery/projects/:id/artifacts": {}, http.MethodGet + " /api/v1/delivery/projects/:id/runs": {}, http.MethodPost + " /api/v1/delivery/projects/:id/runs": {},
+		http.MethodGet + " /api/v1/delivery/projects/:id/artifacts": {}, http.MethodPost + " /api/v1/delivery/projects/:id/artifacts/resolve": {}, http.MethodGet + " /api/v1/delivery/projects/:id/runs": {}, http.MethodPost + " /api/v1/delivery/projects/:id/runs": {},
 		http.MethodGet + " /api/v1/delivery/runs/:id": {}, http.MethodPost + " /api/v1/delivery/runs/:id/cancel": {}, http.MethodPost + " /api/v1/delivery/runs/:id/reconcile": {}, http.MethodPost + " /api/v1/delivery/runs/:id/retry": {},
 		http.MethodGet + " /api/v1/delivery/runs/:id/events": {}, http.MethodGet + " /api/v1/delivery/approvals/pending": {},
 		http.MethodPost + " /api/v1/delivery/run-stages/:id/approve": {}, http.MethodPost + " /api/v1/delivery/run-stages/:id/reject": {},

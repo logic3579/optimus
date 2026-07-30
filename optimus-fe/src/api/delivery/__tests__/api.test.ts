@@ -24,9 +24,11 @@ describe('delivery APIs', () => {
   it('serializes pipeline durations and artifact lookup without extra fields', async () => {
     const c = client(); const api = makeDeliveryPipelineApi(c)
     const stages = [{ environment_id: 7, approval_required: true, timeout: '10m' }]
-    await api.get(3); await api.publish(3, stages); await api.listArtifacts(3)
+    const artifact = { chart_repo_id: 4, chart_name: 'edge', chart_version: '1.2.3' }
+    await api.get(3); await api.publish(3, stages); await api.listArtifacts(3); await api.resolveArtifact(3, artifact)
     expect(c.put).toHaveBeenCalledWith('/delivery/projects/3/pipeline', { stages })
     expect(c.get).toHaveBeenCalledWith('/delivery/projects/3/artifacts')
+    expect(c.post).toHaveBeenCalledWith('/delivery/projects/3/artifacts/resolve', artifact)
   })
 
   it('sends idempotency keys and exposes no values field', async () => {

@@ -17,6 +17,7 @@ export interface DeliveryPipelineStageInput { environment_id:number;approval_req
 export interface DeliveryPipelineStage extends DeliveryPipelineStageInput { id:number;order:number }
 export interface DeliveryPipeline { id:number;project_id:number;version:number;created_by_user_id:number;published_at:string;is_current:boolean;stages:DeliveryPipelineStage[] }
 export interface DeliveryArtifactVersion { chart_repo_id:number;chart_name:string;version:string }
+export interface DeliveryResolvedArtifact extends DeliveryArtifactVersion { digest:string }
 
 export interface DeliveryStage { id:number;environment_id:number;environment_key:string;environment_name:string;application_id:number;cluster_id:number;namespace:string;release_name:string;order:number;executor:'helm_upgrade_existing_release';approval_required:boolean;timeout:string;state:StageState;result_revision?:number;result_digest?:string;started_at?:string;finished_at?:string;error_code?:number;error_message_key?:string;correlation_id?:string }
 export interface DeliveryRun { id:number;project_id:number;pipeline_id:number;pipeline_version:number;chart_repo_id:number;chart_name:string;chart_version:string;chart_digest:string;initiator_user_id:number;state:RunState;retry_of_run_id?:number;started_at?:string;finished_at?:string;error_code?:number;error_message_key?:string;correlation_id?:string;created_at:string;updated_at:string;stages:DeliveryStage[] }

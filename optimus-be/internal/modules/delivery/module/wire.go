@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -75,7 +76,7 @@ func Wire(in Input) (*Module, error) {
 	approvalSvc := approval.NewService(approval.NewRepo(in.DB), in.ApprovalPermissions, in.Audit)
 	eventSvc := event.NewService(event.NewRepo(in.DB))
 	worker := orchestrator.NewWorker(in.DB, in.Executor, orchestrator.Config{Concurrency: in.Config.WorkerConcurrency, LeaseDuration: in.Config.LeaseDuration, RenewInterval: in.Config.LeaseRenewInterval}, in.WorkerOwner)
-	return &Module{project: project.NewHandler(projectSvc), pipeline: pipeline.NewHandler(pipeline.NewHTTPService(pipelineSvc, pipelineRepo, artifactCatalog{projects: projectSvc, versions: in.ArtifactVersions})), run: run.NewHandler(run.NewHTTPService(runSvc, runRepo)), approval: approval.NewHandler(approvalSvc), event: event.NewHandler(eventSvc, in.Config.SSEHeartbeat, in.Config.SSEMaxConnections), Governance: &Governance{db: in.DB}, ApplicationCounter: projectRepo, worker: worker, reconciler: orchestrator.NewReconciler(in.DB, in.Inspector), pruner: event.NewPruner(in.DB, in.Logger, in.Config.EventRetentionDays, in.Config.ReconcileInterval), done: make(chan struct{})}, nil
+	return &Module{project: project.NewHandler(projectSvc), pipeline: pipeline.NewHandler(pipeline.NewHTTPService(pipelineSvc, pipelineRepo, artifactCatalog{projects: projectSvc, versions: in.ArtifactVersions, resolver: in.Artifacts})), run: run.NewHandler(run.NewHTTPService(runSvc, runRepo)), approval: approval.NewHandler(approvalSvc), event: event.NewHandler(eventSvc, in.Config.SSEHeartbeat, in.Config.SSEMaxConnections), Governance: &Governance{db: in.DB}, ApplicationCounter: projectRepo, worker: worker, reconciler: orchestrator.NewReconciler(in.DB, in.Inspector), pruner: event.NewPruner(in.DB, in.Logger, in.Config.EventRetentionDays, in.Config.ReconcileInterval), done: make(chan struct{})}, nil
 }
 
 // Governance reports whether P3 direct mutations are governed by delivery.
@@ -157,7 +158,10 @@ type artifactCatalog struct {
 		ListEnvironments(context.Context, uint64) ([]project.Environment, error)
 	}
 	versions pipeline.VersionLister
+	resolver run.ArtifactResolver
 }
+
+var artifactDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func (a artifactCatalog) ListArtifacts(ctx context.Context, projectID uint64) ([]pipeline.ArtifactVersion, error) {
 	environments, err := a.projects.ListEnvironments(ctx, projectID)
@@ -180,6 +184,42 @@ func (a artifactCatalog) ListArtifacts(ctx context.Context, projectID uint64) ([
 		items[i].ChartName = environments[0].ChartName
 	}
 	return items, nil
+}
+
+func (a artifactCatalog) ResolveArtifact(ctx context.Context, projectID uint64, req pipeline.ResolveArtifactRequest) (*pipeline.ResolvedArtifact, error) {
+	environments, err := a.projects.ListEnvironments(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if len(environments) == 0 || a.resolver == nil {
+		return nil, apperr.New(deliveryerrs.CodeExecutionUnavailable, deliveryerrs.KeyExecutionUnavailable, "artifact unavailable")
+	}
+	repoID, chartName, version := environments[0].ChartRepoID, environments[0].ChartName, strings.TrimSpace(req.ChartVersion)
+	if req.ChartRepoID != repoID || strings.TrimSpace(req.ChartName) != chartName || version == "" {
+		return nil, apperr.New(deliveryerrs.CodeChartIdentityMismatch, deliveryerrs.KeyChartIdentityMismatch, "chart identity mismatch")
+	}
+	items, err := a.ListArtifacts(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	found := false
+	for _, item := range items {
+		if item.Version == version {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, apperr.New(deliveryerrs.CodeChartIdentityMismatch, deliveryerrs.KeyChartIdentityMismatch, "chart identity mismatch")
+	}
+	artifact, err := a.resolver.ResolveArtifact(ctx, repoID, chartName, version)
+	if err != nil {
+		return nil, apperr.Wrap(err, deliveryerrs.CodeExecutionUnavailable, deliveryerrs.KeyExecutionUnavailable, "artifact unavailable")
+	}
+	if artifact == nil || artifact.RepoID != repoID || artifact.ChartName != chartName || artifact.Version != version || !artifactDigestPattern.MatchString(artifact.Digest) {
+		return nil, apperr.New(deliveryerrs.CodeExecutionUnavailable, deliveryerrs.KeyExecutionUnavailable, "artifact unavailable")
+	}
+	return &pipeline.ResolvedArtifact{ChartRepoID: repoID, ChartName: chartName, Version: version, Digest: artifact.Digest}, nil
 }
 
 func (a activityReader) ProjectActivity(ctx context.Context, projectID uint64) (project.ProjectActivity, error) {

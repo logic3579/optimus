@@ -23,10 +23,24 @@ type ArtifactVersion struct {
 	Version     string `json:"version"`
 }
 
+type ResolveArtifactRequest struct {
+	ChartRepoID  uint64 `json:"chart_repo_id" binding:"required"`
+	ChartName    string `json:"chart_name" binding:"required"`
+	ChartVersion string `json:"chart_version" binding:"required"`
+}
+
+type ResolvedArtifact struct {
+	ChartRepoID uint64 `json:"chart_repo_id"`
+	ChartName   string `json:"chart_name"`
+	Version     string `json:"version"`
+	Digest      string `json:"digest"`
+}
+
 type handlerService interface {
 	GetCurrent(context.Context, uint64) (*Pipeline, error)
 	Publish(context.Context, uint64, string, string, uint64, PublishRequest) (*Pipeline, error)
 	ListArtifacts(context.Context, uint64) ([]ArtifactVersion, error)
+	ResolveArtifact(context.Context, uint64, ResolveArtifactRequest) (*ResolvedArtifact, error)
 }
 
 type Handler struct{ svc handlerService }
@@ -40,7 +54,16 @@ type VersionLister interface {
 }
 type projectArtifactLister interface {
 	ListArtifacts(context.Context, uint64) ([]ArtifactVersion, error)
+	ResolveArtifact(context.Context, uint64, ResolveArtifactRequest) (*ResolvedArtifact, error)
 }
+
+func (s *httpService) ResolveArtifact(ctx context.Context, projectID uint64, req ResolveArtifactRequest) (*ResolvedArtifact, error) {
+	if s.artifacts == nil {
+		return nil, apperr.New(apperr.CodeInternal, "common.internal", "artifact catalog unavailable")
+	}
+	return s.artifacts.ResolveArtifact(ctx, projectID, req)
+}
+
 type httpService struct {
 	service   *Service
 	repo      *Repo
@@ -81,6 +104,7 @@ func (h *Handler) Mount(g *gin.RouterGroup, permission func(string) gin.HandlerF
 	write.PUT("/projects/:id/pipeline", h.Publish)
 	artifacts := g.Group("", permission("delivery:run:create"))
 	artifacts.GET("/projects/:id/artifacts", h.ListArtifacts)
+	artifacts.POST("/projects/:id/artifacts/resolve", h.ResolveArtifact)
 }
 
 func projectID(c *gin.Context) (uint64, bool) {
@@ -153,6 +177,34 @@ func (h *Handler) ListArtifacts(c *gin.Context) {
 		return
 	}
 	out, err := h.svc.ListArtifacts(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
+// ResolveArtifact godoc
+// @Summary Resolve and verify an immutable artifact for run confirmation
+// @Tags delivery
+// @Security BearerAuth
+// @Accept json
+// @Param id path int true "project ID"
+// @Param body body ResolveArtifactRequest true "artifact identity"
+// @Success 200 {object} response.Envelope{data=ResolvedArtifact}
+// @Router /delivery/projects/{id}/artifacts/resolve [post]
+func (h *Handler) ResolveArtifact(c *gin.Context) {
+	id, ok := projectID(c)
+	if !ok {
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBodyBytes)
+	var req ResolveArtifactRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperr.New(apperr.CodeValidation, "common.validation", "invalid request"))
+		return
+	}
+	out, err := h.svc.ResolveArtifact(c.Request.Context(), id, req)
 	if err != nil {
 		response.Error(c, err)
 		return
