@@ -25,3 +25,19 @@ export interface DeliveryRunInput { chart_repo_id:number;chart_name:string;chart
 
 export interface PendingDeliveryApproval { id:number;run_id:number;run_stage_id:number;project_id:number;project_name:string;environment_key:string;environment_name:string;stage_order:number;chart_name:string;chart_version:string;chart_digest:string;initiator_user_id:number;requested_at:string }
 export interface DeliveryApproval { id:number;run_id:number;run_stage_id:number;decision:ApprovalDecision;decided_by_user_id:number;comment:string;decided_at:string }
+
+export interface DeliveryEvent {
+  id: number
+  run_id: number
+  run_stage_id?: number
+  event_type: string
+  old_state?: string
+  new_state?: string
+  actor_type: 'user' | 'system'
+  actor_id?: number
+  occurred_at: string
+  error_code?: number
+  error_message_key?: string
+  correlation_id?: string
+  metadata: Record<string, unknown>
+}

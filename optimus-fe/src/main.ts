@@ -43,10 +43,12 @@ import { makeDeliveryProjectApi } from '@/api/delivery/project'
 import { makeDeliveryPipelineApi } from '@/api/delivery/pipeline'
 import { makeDeliveryRunApi } from '@/api/delivery/run'
 import { makeDeliveryApprovalApi } from '@/api/delivery/approval'
+import { makeDeliveryEventsApi } from '@/api/delivery/events'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useAppStore } from '@/stores/app'
 import { useObservabilityStore } from '@/stores/observability'
+import { useDeliveryStore } from '@/stores/delivery'
 
 const app = createApp(App)
 const pinia = createAppPinia()
@@ -62,6 +64,7 @@ const client = createApiClient({
     useAuthStore().reset()
     useMenuStore().reset()
     useObservabilityStore().reset()
+    useDeliveryStore().reset()
     router.push('/login')
   },
   getLocale: () => useAppStore().locale
@@ -102,6 +105,7 @@ app.provide('deliveryProjectApi', makeDeliveryProjectApi(client))
 app.provide('deliveryPipelineApi', makeDeliveryPipelineApi(client))
 app.provide('deliveryRunApi', makeDeliveryRunApi(client))
 app.provide('deliveryApprovalApi', makeDeliveryApprovalApi(client))
+app.provide('deliveryEventsApi', makeDeliveryEventsApi(import.meta.env.VITE_API_BASE_URL))
 
 installGuards(router, meApi)
 app.use(router)
