@@ -28,13 +28,13 @@ func TestEmbeddedMigrationsHaveUniqueVersions(t *testing.T) {
 	migrations, err := goose.CollectMigrations(".", 0, math.MaxInt64)
 	require.NoError(t, err)
 
-	var version21Count int
+	var version23Count int
 	for _, migration := range migrations {
-		if migration.Version == 21 {
-			version21Count++
+		if migration.Version == 23 {
+			version23Count++
 		}
 	}
-	require.Equal(t, 1, version21Count, "migration version 21 must be discoverable exactly once")
+	require.Equal(t, 1, version23Count, "migration version 23 must be discoverable exactly once")
 }
 
 func TestP4AssetsReferencesCredentialsCloudKeys(t *testing.T) {
@@ -44,4 +44,18 @@ func TestP4AssetsReferencesCredentialsCloudKeys(t *testing.T) {
 	contents := string(sql)
 	require.Contains(t, contents, "REFERENCES credentials_cloud_keys(id)")
 	require.NotContains(t, contents, "REFERENCES credential_cloud_keys")
+}
+
+func TestP6DeliveryMigrationIsEmbedded(t *testing.T) {
+	_, err := FS.ReadFile("00023_p6_delivery.sql")
+	require.NoError(t, err)
+}
+
+func TestP6DeliveryStageTimeoutsMatchConfiguredCeiling(t *testing.T) {
+	sql, err := FS.ReadFile("00023_p6_delivery.sql")
+	require.NoError(t, err)
+
+	const timeoutConstraint = "timeout_seconds BETWEEN 1 AND 86400"
+	require.Equal(t, 2, strings.Count(string(sql), timeoutConstraint),
+		"pipeline and run stages must both accept the configured 24-hour ceiling")
 }

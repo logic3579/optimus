@@ -7,6 +7,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"optimus-be/internal/infra/advisorylock"
 	"optimus-be/internal/models"
 )
 
@@ -18,6 +19,16 @@ func NewRepo(db *gorm.DB) *Repo { return &Repo{db: db} }
 
 // DB exposes the underlying *gorm.DB so tests / future siblings can reach raw rows.
 func (r *Repo) DB() *gorm.DB { return r.db }
+
+func (r *Repo) transaction(ctx context.Context, fn func(applicationDeletionRepository) error) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(&Repo{db: tx})
+	})
+}
+
+func (r *Repo) lockApplication(ctx context.Context, id uint64) error {
+	return advisorylock.LockApplication(ctx, r.db, id)
+}
 
 // Create persists a new application row.
 func (r *Repo) Create(ctx context.Context, m *models.AppsApplication) error {
@@ -127,6 +138,11 @@ func (r *Repo) CountByClusterID(ctx context.Context, clusterID uint64) (int, err
 		Model(&models.AppsApplication{}).
 		Where("cluster_id = ?", clusterID).
 		Count(&n).Error
+	return int(n), err
+}
+func (r *Repo) CountByClusterIDTx(ctx context.Context, tx *gorm.DB, clusterID uint64) (int, error) {
+	var n int64
+	err := tx.WithContext(ctx).Model(&models.AppsApplication{}).Where("cluster_id = ?", clusterID).Count(&n).Error
 	return int(n), err
 }
 

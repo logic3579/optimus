@@ -78,6 +78,9 @@ func TestRun_ViewerRoleHasOnlyReadPermissions(t *testing.T) {
 
 	_, err := permissions.Register(context.Background(), gdb, permissions.All)
 	require.NoError(t, err)
+	var operatorBeforeSeed int64
+	require.NoError(t, gdb.Model(&models.Role{}).Where("code = ?", "k8s_operator").Count(&operatorBeforeSeed).Error)
+	require.Zero(t, operatorBeforeSeed, "delivery must not require a k8s_operator role")
 	_, err = seed.Run(context.Background(), gdb, seed.Options{
 		AdminUsername: "admin", AdminEmail: "admin@example.com",
 	})
@@ -110,9 +113,11 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 	wantCodes := []string{
 		"dashboard",
 		"system", "system.users", "system.roles", "system.permissions", "system.menus", "system.audit_logs",
-		"credentials", "credentials.ssh_keys", "credentials.kubeconfigs", "credentials.cloud_keys",
+		"credentials", "credentials.ssh_keys", "credentials.kubeconfigs", "credentials.cloud_keys", "credentials.http_credentials",
 		"k8s", "k8s.clusters", "k8s.workloads", "k8s.network", "k8s.config", "k8s.cluster_resources",
 		"apps", "apps.applications", "apps.chart_repos",
+		"observability", "observability.kubernetes", "observability.dashboards", "observability.datasources",
+		"delivery", "delivery.projects", "delivery.approvals",
 	}
 	for _, code := range wantCodes {
 		var m models.Menu
@@ -125,7 +130,25 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 	require.NoError(t, gdb.Where("code = ?", "credentials").First(&parent).Error)
 	var childrenCount int64
 	gdb.Model(&models.Menu{}).Where("parent_id = ?", parent.ID).Count(&childrenCount)
-	require.Equal(t, int64(3), childrenCount)
+	require.Equal(t, int64(4), childrenCount)
+
+	for code, contract := range map[string][2]string{
+		"credentials.http_credentials": {"credentials/http-credentials/List", "credentials:http:read"},
+		"observability.kubernetes":     {"observability/kubernetes/Index", "observability:metric:read"},
+		"observability.dashboards":     {"observability/dashboards/List", "observability:dashboard:read"},
+		"observability.datasources":    {"observability/datasources/List", "observability:datasource:read"},
+	} {
+		var menu models.Menu
+		require.NoError(t, gdb.Where("code = ?", code).First(&menu).Error)
+		require.Equal(t, contract[0], menu.Component)
+		require.NotNil(t, menu.PermissionCode)
+		require.Equal(t, contract[1], *menu.PermissionCode)
+	}
+	var observabilityParent models.Menu
+	require.NoError(t, gdb.Where("code = ?", "observability").First(&observabilityParent).Error)
+	var observabilityChildren []models.Menu
+	require.NoError(t, gdb.Where("parent_id = ?", observabilityParent.ID).Order("sort_order").Find(&observabilityChildren).Error)
+	require.Equal(t, []string{"observability.kubernetes", "observability.dashboards", "observability.datasources"}, []string{observabilityChildren[0].Code, observabilityChildren[1].Code, observabilityChildren[2].Code})
 
 	// Parent linkage: k8s.* children must have parent_id = k8s.id.
 	var k8sParent models.Menu
@@ -140,6 +163,104 @@ func TestRun_SeedsInitialMenuTree(t *testing.T) {
 	var appsChildren int64
 	gdb.Model(&models.Menu{}).Where("parent_id = ?", appsParent.ID).Count(&appsChildren)
 	require.Equal(t, int64(2), appsChildren)
+}
+
+func TestRun_DeliveryPermissionsAndMenus(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	_, err = seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.NoError(t, err)
+
+	var builtinRoles int64
+	require.NoError(t, gdb.Model(&models.Role{}).Where("is_builtin").Count(&builtinRoles).Error)
+	require.Equal(t, int64(2), builtinRoles, "only admin and viewer are seeded builtin roles")
+	var operatorRoles int64
+	require.NoError(t, gdb.Model(&models.Role{}).Where("code = ?", "k8s_operator").Count(&operatorRoles).Error)
+	require.Zero(t, operatorRoles, "delivery must not create a k8s_operator role or grant")
+
+	roleHasPermission := func(roleCode, permissionCode string) bool {
+		var count int64
+		require.NoError(t, gdb.Table("permissions").
+			Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
+			Joins("JOIN roles ON roles.id = role_permissions.role_id").
+			Where("roles.code = ? AND permissions.code = ?", roleCode, permissionCode).
+			Count(&count).Error)
+		return count == 1
+	}
+	for _, code := range []string{
+		"delivery:project:read", "delivery:project:write", "delivery:project:delete",
+		"delivery:pipeline:read", "delivery:pipeline:write",
+		"delivery:run:read", "delivery:run:create", "delivery:run:cancel",
+		"delivery:approval:read", "delivery:approval:decide",
+	} {
+		require.Truef(t, roleHasPermission("admin", code), "admin role missing %q", code)
+	}
+	for _, code := range []string{"delivery:project:read", "delivery:pipeline:read", "delivery:run:read", "delivery:approval:read"} {
+		require.Truef(t, roleHasPermission("viewer", code), "viewer role missing %q", code)
+	}
+
+	projectRead := "delivery:project:read"
+	approvalRead := "delivery:approval:read"
+	wantMenus := []struct {
+		code, name, path, component, icon string
+		permission                        *string
+		sortOrder                         int
+	}{
+		{"delivery", "menu.delivery_group", "/delivery", "", "deployment-unit", nil, 7},
+		{"delivery.projects", "menu.delivery.projects", "/delivery/projects", "delivery/projects/List", "", &projectRead, 0},
+		{"delivery.approvals", "menu.delivery.approvals", "/delivery/approvals", "delivery/approvals/List", "", &approvalRead, 1},
+	}
+	var parent models.Menu
+	require.NoError(t, gdb.Where("code = ?", "delivery").First(&parent).Error)
+	for i, expected := range wantMenus {
+		var menu models.Menu
+		require.NoErrorf(t, gdb.Where("code = ?", expected.code).First(&menu).Error, "missing menu %q", expected.code)
+		require.Equal(t, expected.name, menu.Name)
+		require.Equal(t, expected.path, menu.Path)
+		require.Equal(t, expected.component, menu.Component)
+		require.Equal(t, expected.icon, menu.Icon)
+		require.Equal(t, expected.permission, menu.PermissionCode)
+		require.Equal(t, expected.sortOrder, menu.SortOrder)
+		if i == 0 {
+			require.Nil(t, menu.ParentID)
+		} else {
+			require.Equal(t, &parent.ID, menu.ParentID)
+		}
+	}
+	var children []models.Menu
+	require.NoError(t, gdb.Where("parent_id = ?", parent.ID).Order("sort_order").Find(&children).Error)
+	require.Len(t, children, 2)
+	require.Equal(t, []string{"delivery.projects", "delivery.approvals"}, []string{children[0].Code, children[1].Code})
+	var deliveryMenus int64
+	require.NoError(t, gdb.Model(&models.Menu{}).Where("code = ? OR code LIKE ?", "delivery", "delivery.%").Count(&deliveryMenus).Error)
+	require.Equal(t, int64(3), deliveryMenus)
+}
+
+func TestRun_DeliveryDoesNotGrantExistingK8sOperator(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "migrations"))
+	defer teardown()
+
+	_, err := permissions.Register(context.Background(), gdb, permissions.All)
+	require.NoError(t, err)
+	operator := models.Role{Code: "k8s_operator", Name: "role.k8s_operator", Description: "Pre-existing Kubernetes operator", IsBuiltin: true}
+	require.NoError(t, gdb.Create(&operator).Error)
+
+	_, err = seed.Run(context.Background(), gdb, seed.Options{
+		AdminUsername: "admin", AdminEmail: "admin@example.com",
+	})
+	require.NoError(t, err)
+
+	var deliveryGrants int64
+	require.NoError(t, gdb.Table("permissions").
+		Joins("JOIN role_permissions ON role_permissions.permission_id = permissions.id").
+		Where("role_permissions.role_id = ? AND permissions.code LIKE ?", operator.ID, "delivery:%").
+		Count(&deliveryGrants).Error)
+	require.Zero(t, deliveryGrants, "seed must not grant delivery permissions to an existing k8s_operator role")
 }
 
 // TestRun_AdminRoleIncludesAppsPermissions covers the implicit P3 grant:

@@ -6,6 +6,8 @@
 package k8s
 
 import (
+	"reflect"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -80,6 +82,15 @@ func New(db *gorm.DB, consumer credentials.Consumer, rec *audit.Recorder, cache 
 // keeps this package free of any apps/* import.
 func (m *Module) SetAppsCounter(c cluster.AppsApplicationCounter) {
 	m.Cluster.SetAppsCounter(c)
+}
+func (m *Module) SetObservabilityCounter(c cluster.ObservabilityDatasourceCounter) {
+	if c != nil {
+		v := reflect.ValueOf(c)
+		if v.Kind() == reflect.Pointer && v.IsNil() {
+			c = nil
+		}
+	}
+	m.Cluster.SetObservabilityCounter(c)
 }
 
 // MountRoutes registers all 21 k8s routes under `protected` (which must

@@ -3,6 +3,7 @@
     "ok": "确定",
     "cancel": "取消",
     "save": "保存",
+    "create": "新建", "view": "查看", "edit": "编辑", "delete": "删除", "test": "测试", "up": "上移", "down": "下移", "remove": "移除",
     "submit": "提交",
     "reset": "重置",
     "refresh": "刷新",
@@ -13,7 +14,7 @@
     "theme": "主题",
     "theme_light": "浅色",
     "theme_dark": "深色",
-    "actions": "操作",
+    "actions": "操作", "error": "错误", "created_at": "创建时间", "search": "搜索",
     "button": {
       "back": "返回",
       "next": "下一步",
@@ -85,7 +86,24 @@
     "43104": "无法连接 AWS API",
     "43105": "AWS API 限流",
     "43106": "AWS API 调用失败",
-    "43107": "AWS SDK 配置加载失败"
+    "43107": "AWS SDK 配置加载失败",
+    "44001": "数据源不存在。",
+    "44002": "数据源名称已存在。",
+    "44003": "数据源仍被仪表盘使用，无法删除。",
+    "44004": "数据源 URL 无效。",
+    "44005": "所选凭证与认证类型不匹配。",
+    "44006": "数据源 TLS 配置无效。",
+    "44101": "不允许访问该数据源目标地址。",
+    "44102": "无法连接指标服务。",
+    "44103": "指标服务响应超时。",
+    "44104": "指标服务拒绝了请求。",
+    "44105": "指标服务返回了无效响应。",
+    "44106": "指标查询超出允许的限制。",
+    "44107": "指标查询请求无效。",
+    "44201": "仪表盘不存在。",
+    "44202": "仪表盘名称已存在。",
+    "44203": "仪表盘包含无效面板。",
+    "44204": "内置仪表盘不存在。"
   },
   "network": {
     "error": "网络错误，请稍后再试"
@@ -105,7 +123,8 @@
     "credentials": {
       "ssh_keys": "SSH 密钥",
       "kubeconfigs": "Kubeconfig",
-      "cloud_keys": "云密钥"
+      "cloud_keys": "云密钥",
+      "http_credentials": "HTTP 凭证"
     },
     "k8s": {
       "clusters": "集群管理",
@@ -126,7 +145,9 @@
       "vpcs": "VPC",
       "databases": "RDS 数据库",
       "sync_runs": "同步运行记录"
-    }
+    },
+    "observability_group": "可观测性",
+    "observability": { "kubernetes": "Kubernetes 监控", "dashboards": "仪表盘", "datasources": "数据源" }
   },
   "perm": {
     "system": {
@@ -139,7 +160,8 @@
     "credentials": {
       "ssh_key":    { "read": "查看 SSH 凭证", "write": "新建/修改 SSH 凭证", "delete": "删除 SSH 凭证", "use": "使用 SSH 凭证" },
       "kubeconfig": { "read": "查看 Kubeconfig", "write": "新建/修改 Kubeconfig", "delete": "删除 Kubeconfig", "use": "使用 Kubeconfig" },
-      "cloud_key":  { "read": "查看云密钥", "write": "新建/修改云密钥", "delete": "删除云密钥", "use": "使用云密钥" }
+      "cloud_key":  { "read": "查看云密钥", "write": "新建/修改云密钥", "delete": "删除云密钥", "use": "使用云密钥" },
+      "http":       { "read": "查看 HTTP 凭证", "write": "新建/修改 HTTP 凭证", "delete": "删除 HTTP 凭证", "use": "使用 HTTP 凭证" }
     },
     "k8s": {
       "cluster":          { "read": "查看集群", "write": "管理集群" },
@@ -159,6 +181,11 @@
       "account": { "read": "云账号查看", "write": "云账号管理", "delete": "云账号删除" },
       "resource": { "read": "云资源查看" },
       "sync": { "read": "同步记录查看" }
+    },
+    "observability": {
+      "datasource": { "read": "查看数据源", "write": "新建/修改数据源", "delete": "删除数据源" },
+      "metric": { "read": "查询指标" },
+      "dashboard": { "read": "查看仪表盘", "write": "新建/修改仪表盘", "delete": "删除仪表盘" }
     },
     "category": {
       "system": "系统管理",
@@ -406,6 +433,8 @@
     }
   },
   "credentials": {
+    "filter_all": "全部",
+    "auth": { "basic": "Basic", "bearer": "Bearer" },
     "search_placeholder": "搜索名称或描述",
     "filter_username": "用户名",
     "filter_namespace": "默认命名空间",
@@ -423,6 +452,7 @@
       "region": "区域",
       "access_key_id": "Access Key ID",
       "secret_access_key": "Secret Access Key"
+      ,"auth_type": "认证类型", "updated_at": "更新时间"
     },
     "placeholder": {
       "unchanged": "•••••（保持不变）"
@@ -577,6 +607,39 @@
     "list": {
       "truncated": "只展示前 {limit} 条；请用命名空间或搜索缩小范围。"
     }
+  },
+  "observability": {
+    "datasource": { "deleted": "数据源已删除", "read_required": "需要数据源读取权限" },
+    "errors": { "load": "监控数据加载失败", "query": "指标查询失败", "datasource_read_required": "需要数据源读取权限" },
+    "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },
+    "builtin": { "kubernetes_cluster": "Kubernetes 集群", "kubernetes_nodes": "Kubernetes 节点", "kubernetes_workloads": "Kubernetes 工作负载", "asset_enrichment": "资产信息增强", "node": "节点", "namespace": "命名空间", "workload": "工作负载" },
+    "panel": { "cluster_cpu": "集群 CPU", "cluster_memory": "集群内存", "nodes_ready": "就绪节点", "pods_phase": "Pod 阶段", "restart_rate": "重启速率", "node_cpu": "节点 CPU", "node_memory": "节点内存", "node_ready": "节点就绪状态", "workload_cpu": "工作负载 CPU", "workload_memory": "工作负载内存", "workload_restarts": "工作负载重启" }
+  },
+  "observability_ui": {
+    "forms": { "name": "名称", "description": "描述", "base_url": "基础 URL", "cluster": "集群", "tls": "TLS 警告", "panel_title": "面板标题", "panel_type": "面板类型", "unit": "单位", "cluster_optional": "集群（可选）", "existing_ca": "现有自定义 CA", "custom_ca": "自定义 CA（公共 PEM）", "skip_tls": "跳过 TLS 校验", "data_source": "数据源", "refresh": "刷新间隔", "time_range": "时间范围", "promql": "PromQL", "legend": "图例", "width": "宽度" },
+    "ca": { "keep": "保留", "replace": "替换", "clear": "清除" },
+    "dashboard": { "create": "新建仪表盘", "edit": "编辑仪表盘", "detail": "仪表盘详情", "add_panel": "添加面板", "default_panel": "面板" },
+    "panel_type": { "time_series": "时序图", "stat": "统计值", "table": "表格" },
+    "test": { "reachable": "可连接", "unreachable": "不可连接" },
+    "tls_danger": "危险：TLS 校验已禁用",
+    "panel_state": { "loading": "加载中", "empty": "暂无数据", "unsupported": "不支持的结果", "partial": "部分结果", "error": "查询失败" },
+    "units": { "none": "无", "percent": "百分比", "bytes": "字节", "bytes_per_second": "字节/秒", "cores": "CPU 核", "seconds": "秒", "requests_per_second": "请求/秒" },
+    "errors": { "load": "监控数据加载失败", "save": "保存失败", "query": "指标查询失败", "invalid_dashboard": "仪表盘表单无效", "renderer_required": "请填写所有必填变量", "renderer_unsafe": "变量包含不支持的字符", "renderer_unknown": "仪表盘包含未知变量", "renderer_unresolved": "仪表盘包含未解析变量" },
+    "tls_warning": "TLS 证书校验已禁用",
+    "builtin": { "kubernetes": "Kubernetes", "namespace": "命名空间", "workload": "工作负载", "asset_enrichment": "资产信息增强" },
+    "credentials": { "auth_type": "认证类型", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "留空以保留现有密钥" }
+  },
+  "delivery": {
+    "project": { "title": "交付项目", "name": "名称", "description": "描述", "owner": "负责人", "environment_count": "环境数", "not_found": "交付项目不存在", "name_conflict": "同名项目已存在" },
+    "environment": { "title": "环境", "create": "绑定环境", "key": "环境标识", "name": "显示名称", "application": "应用", "duplicate": "该应用已绑定", "not_installed": "应用必须已有安装中的发布", "not_found": "环境不存在", "in_use": "环境正被活动运行使用" },
+    "pipeline": { "title": "流水线", "approval_required": "需要审批", "publish_version": "发布版本 {version}", "publish_confirm": "确认发布不可变流水线版本 {version}？", "empty": "至少添加一个阶段", "timeout_invalid": "超时必须介于 1 分钟和 24 小时之间", "missing": "尚未发布流水线", "invalid": "流水线配置无效", "version_conflict": "流水线已变化，请刷新后重试" },
+    "run": { "title": "晋级运行", "history": "运行历史", "create": "创建运行", "confirm": "确认不可变晋级", "cancel": "取消", "reconcile": "对账", "retry": "重试", "state": "状态", "version": "版本", "digest": "摘要", "revision": "修订版本", "artifact": "制品", "initiator": "发起人", "p3_recovery": "打开应用恢复", "not_found": "运行不存在", "active": "已有晋级正在运行", "idempotency_conflict": "该请求键已用于不同输入", "idempotency_missing": "缺少请求键", "invalid_state": "当前运行状态不允许此操作", "cancel_conflict": "该运行已无法取消", "retry_unavailable": "该运行无法重试" },
+    "approval": { "title": "我的审批", "required": "需要审批", "approve": "批准", "reject": "拒绝", "approve_confirm": "确认批准此晋级阶段？", "reject_confirm": "确认拒绝此晋级阶段？", "requested_at": "请求时间", "comment_required": "必须填写不超过 512 个字符的意见", "not_found": "审批不存在", "self_approval": "不能审批自己发起的运行", "already_decided": "该审批已处理", "decision_conflict": "该审批已有冲突决定", "comment_invalid": "审批意见无效" },
+    "state": { "pending": "待处理", "queued": "已排队", "running": "运行中", "waiting_approval": "等待审批", "cancel_requested": "已请求取消", "reconciling": "对账中", "succeeded": "成功", "failed": "失败", "rejected": "已拒绝", "canceled": "已取消", "timed_out": "已超时", "outcome_unknown": "结果未知" },
+    "execution": { "unavailable": "交付执行暂不可用", "operation_busy": "应用有其他操作正在进行", "artifact_drift": "已部署制品与不可变目标不一致", "reconciliation_required": "需要对账", "outcome_unknown": "操作结果未知", "timeout": "操作超时" },
+    "chart": { "identity_mismatch": "Chart 身份与交付项目不匹配" },
+    "application": { "already_bound": "应用已绑定", "unavailable": "应用不可用" },
+    "event": { "transition": "状态从 {old} 变更为 {new}", "approved": "阶段已批准", "rejected": "阶段已拒绝" }
   },
   "apps": {
     "title": "应用",

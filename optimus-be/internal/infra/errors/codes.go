@@ -93,4 +93,68 @@ const (
 	CodeAssetsAWSThrottled    Code = 43105 // Throttling / RequestLimitExceeded after SDK retries
 	CodeAssetsAWSOther        Code = 43106 // any other API error
 	CodeAssetsAWSConfig       Code = 43107 // config.LoadDefaultConfig failed
+
+	// 44xxx P5 observability domain — data sources, bounded Prometheus queries,
+	// and dashboards. Message keys are observability.<area>.<reason>.
+	// 44001-44099 data sources
+	CodeObservabilityDatasourceNotFound     Code = 44001 // observability.datasource.not_found
+	CodeObservabilityDatasourceNameTaken    Code = 44002 // observability.datasource.name_taken
+	CodeObservabilityDatasourceInUse        Code = 44003 // observability.datasource.in_use
+	CodeObservabilityDatasourceInvalidURL   Code = 44004 // observability.datasource.invalid_url
+	CodeObservabilityDatasourceAuthMismatch Code = 44005 // observability.datasource.auth_mismatch
+	CodeObservabilityDatasourceInvalidTLS   Code = 44006 // observability.datasource.invalid_tls
+
+	// 44101-44199 Prometheus queries
+	CodeObservabilityQueryDestinationDenied   Code = 44101 // observability.query.destination_denied
+	CodeObservabilityQueryUpstreamUnreachable Code = 44102 // observability.query.upstream_unreachable
+	CodeObservabilityQueryUpstreamTimeout     Code = 44103 // observability.query.upstream_timeout
+	CodeObservabilityQueryUpstreamRejected    Code = 44104 // observability.query.upstream_rejected
+	CodeObservabilityQueryInvalidResponse     Code = 44105 // observability.query.invalid_response
+	CodeObservabilityQueryLimitExceeded       Code = 44106 // observability.query.limit_exceeded
+	CodeObservabilityQueryInvalidRequest      Code = 44107 // observability.query.invalid_request
+
+	// 44201-44299 dashboards
+	CodeObservabilityDashboardNotFound        Code = 44201 // observability.dashboard.not_found
+	CodeObservabilityDashboardNameTaken       Code = 44202 // observability.dashboard.name_taken
+	CodeObservabilityDashboardInvalidPanel    Code = 44203 // observability.dashboard.invalid_panel
+	CodeObservabilityDashboardBuiltinNotFound Code = 44204 // observability.dashboard.builtin_not_found
+
+	// 45xxx P6 delivery domain — application delivery orchestration.
+	// Message keys are defined by internal/modules/delivery/errs.
+	// 45001-45099 project, environment, and pipeline validation/conflict.
+	CodeDeliveryProjectNotFound         Code = 45001
+	CodeDeliveryProjectNameConflict     Code = 45002
+	CodeDeliveryApplicationAlreadyBound Code = 45003
+	CodeDeliveryApplicationUnavailable  Code = 45004
+	CodeDeliveryChartIdentityMismatch   Code = 45005
+	CodeDeliveryPipelineMissing         Code = 45006
+	CodeDeliveryPipelineInvalid         Code = 45007
+	CodeDeliveryPipelineVersionConflict Code = 45008
+	CodeDeliveryEnvironmentNotFound     Code = 45009
+	CodeDeliveryEnvironmentInUse        Code = 45010
+
+	// 45101-45199 run state, active-run conflict, idempotency, and cancellation.
+	CodeDeliveryRunNotFound         Code = 45101
+	CodeDeliveryActiveRun           Code = 45102
+	CodeDeliveryIdempotencyConflict Code = 45103
+	CodeDeliveryIdempotencyMissing  Code = 45104
+	CodeDeliveryRunInvalidState     Code = 45105
+	CodeDeliveryRunCancelConflict   Code = 45106
+	CodeDeliveryRunRetryUnavailable Code = 45107
+
+	// 45201-45299 approval validation and conflict.
+	CodeDeliveryApprovalNotFound         Code = 45201
+	CodeDeliveryApprovalSelfApproval     Code = 45202
+	CodeDeliveryApprovalAlreadyDecided   Code = 45203
+	CodeDeliveryApprovalDecisionConflict Code = 45204
+	CodeDeliveryApprovalCommentRequired  Code = 45205
+	CodeDeliveryApprovalCommentInvalid   Code = 45206
+
+	// 45301-45399 execution coordination and outcome safety.
+	CodeDeliveryOperationBusy          Code = 45301
+	CodeDeliveryArtifactDrift          Code = 45302
+	CodeDeliveryReconciliationRequired Code = 45303
+	CodeDeliveryOutcomeUnknown         Code = 45304
+	CodeDeliveryExecutionTimeout       Code = 45305
+	CodeDeliveryExecutionUnavailable   Code = 45306
 )

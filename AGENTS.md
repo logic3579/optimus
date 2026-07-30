@@ -19,14 +19,10 @@ If mem0 is available, search with `user_id = "logic"` for the latest
 `git status --short --branch` and recent
 `git log --oneline --decorate --max-count=20 --all`.
 
-Current expected project state (2026-07-20): P0-P4 are implemented. P4 Assets
-completed all 25 plan tasks and is pushed to `origin/dev` at `d667316`; it is
-awaiting the user's manual PR or merge into `main`. At this checkpoint,
-`origin/main` is `b6d6555` (P3) and P5/P6 have no approved spec or plan.
-
-The next delivery entry point is P5 discovery: after the P4 merge decision,
-run the Superpowers brainstorming workflow, write a P5 design/spec and
-task-by-task plan, then begin implementation only after they are approved.
+Current expected project state (2026-07-24): P0-P5 are implemented. P5
+Observability completed the approved 2026-07-20 design and plan on
+`p5-observability`, including Task 16 backend, frontend, coverage,
+generated-artifact, and hygiene checks. P6 has no approved spec or plan.
 
 ## Project Shape
 
@@ -97,6 +93,27 @@ The most important rules are:
 P4's manual release checklist is `optimus-be/scripts/p4-smoke.md`. Use it
 against a disposable read-only AWS credential before production sign-off; do
 not add AWS write/manage APIs in P4.
+
+## P5 Observability Rules
+
+- P5 is metrics display only: no alerts, rules, notifications, CloudWatch,
+  metric sample storage, logs, traces, or APM.
+- Consume P1 HTTP credentials only through `credentials.Consumer`; never
+  expose or audit secrets, authorization headers, custom CA PEM, or full
+  PromQL.
+- Private Prometheus targets require a narrow CIDR. Metadata and mixed DNS
+  answers stay denied even under broad ranges. Never follow redirects or
+  cache clients.
+- Keep query count, concurrency, PromQL bytes, range, step, points, series,
+  response, timeout, and enrichment limits enforced.
+- Metric-only operators use the minimal query-source endpoint; built-ins must
+  not call the administrative data-source list.
+- Data-source, dashboard, and metric permissions remain independent; every
+  API call and concrete UI control uses its exact gate.
+- Preserve abort generations so stale definition/query responses cannot
+  commit.
+- Run `optimus-be/scripts/p5-smoke.md` with disposable local Prometheus; no
+  production credential or Kubernetes cluster is needed.
 
 ## Codex Environment Notes
 

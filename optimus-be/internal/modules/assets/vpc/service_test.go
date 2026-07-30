@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"gorm.io/gorm"
+
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
 )

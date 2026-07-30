@@ -92,3 +92,38 @@ func TestAssets43xxxCodesDistinct(t *testing.T) {
 		t.Errorf("expected 15 P4 codes, got %d", len(codes))
 	}
 }
+
+func TestObservability44xxxCodesDistinct(t *testing.T) {
+	codes := []struct {
+		name     string
+		code     apperr.Code
+		expected apperr.Code
+	}{
+		{"CodeObservabilityDatasourceNotFound", apperr.CodeObservabilityDatasourceNotFound, 44001},
+		{"CodeObservabilityDatasourceNameTaken", apperr.CodeObservabilityDatasourceNameTaken, 44002},
+		{"CodeObservabilityDatasourceInUse", apperr.CodeObservabilityDatasourceInUse, 44003},
+		{"CodeObservabilityDatasourceInvalidURL", apperr.CodeObservabilityDatasourceInvalidURL, 44004},
+		{"CodeObservabilityDatasourceAuthMismatch", apperr.CodeObservabilityDatasourceAuthMismatch, 44005},
+		{"CodeObservabilityDatasourceInvalidTLS", apperr.CodeObservabilityDatasourceInvalidTLS, 44006},
+		{"CodeObservabilityQueryDestinationDenied", apperr.CodeObservabilityQueryDestinationDenied, 44101},
+		{"CodeObservabilityQueryUpstreamUnreachable", apperr.CodeObservabilityQueryUpstreamUnreachable, 44102},
+		{"CodeObservabilityQueryUpstreamTimeout", apperr.CodeObservabilityQueryUpstreamTimeout, 44103},
+		{"CodeObservabilityQueryUpstreamRejected", apperr.CodeObservabilityQueryUpstreamRejected, 44104},
+		{"CodeObservabilityQueryInvalidResponse", apperr.CodeObservabilityQueryInvalidResponse, 44105},
+		{"CodeObservabilityQueryLimitExceeded", apperr.CodeObservabilityQueryLimitExceeded, 44106},
+		{"CodeObservabilityQueryInvalidRequest", apperr.CodeObservabilityQueryInvalidRequest, 44107},
+		{"CodeObservabilityDashboardNotFound", apperr.CodeObservabilityDashboardNotFound, 44201},
+		{"CodeObservabilityDashboardNameTaken", apperr.CodeObservabilityDashboardNameTaken, 44202},
+		{"CodeObservabilityDashboardInvalidPanel", apperr.CodeObservabilityDashboardInvalidPanel, 44203},
+		{"CodeObservabilityDashboardBuiltinNotFound", apperr.CodeObservabilityDashboardBuiltinNotFound, 44204},
+	}
+	seen := make(map[apperr.Code]struct{}, len(codes))
+	for _, tc := range codes {
+		require.Equal(t, tc.expected, tc.code, tc.name)
+		require.NotZero(t, tc.code, tc.name)
+		_, duplicate := seen[tc.code]
+		require.False(t, duplicate, "%s duplicates code %d", tc.name, tc.code)
+		seen[tc.code] = struct{}{}
+	}
+	require.Len(t, codes, 17)
+}

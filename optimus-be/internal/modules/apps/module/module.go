@@ -16,15 +16,22 @@ package module
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gin-gonic/gin"
 
 	"helm.sh/helm/v3/pkg/chart"
 
+	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/infra/middleware"
+	"optimus-be/internal/models"
 	"optimus-be/internal/modules/apps/application"
 	"optimus-be/internal/modules/apps/release"
 	apprepo "optimus-be/internal/modules/apps/repo"
+	"optimus-be/internal/modules/delivery/orchestrator"
+	"optimus-be/internal/modules/delivery/pipeline"
+	"optimus-be/internal/modules/delivery/project"
+	"optimus-be/internal/modules/delivery/run"
 	"optimus-be/internal/modules/rbac"
 )
 
@@ -39,6 +46,152 @@ type Module struct {
 	repoH    *apprepo.Handler
 	appH     *application.Handler
 	releaseH *release.Handler
+}
+
+type deliveryGovernanceReader interface {
+	IsManaged(context.Context, uint64) (bool, error)
+	ActiveOperationID(context.Context, uint64) (string, error)
+}
+
+// DeliveryAdapters are the only P3 capabilities exposed to delivery.
+type DeliveryAdapters struct {
+	ProjectApplications project.ApplicationReader
+	RunApplications     run.ApplicationReader
+	Artifacts           run.ArtifactResolver
+	ArtifactVersions    pipeline.VersionLister
+	Executor            orchestrator.Executor
+	Inspector           orchestrator.Inspector
+}
+
+func (m *Module) DeliveryAdapters(coordinator *release.Coordinator) DeliveryAdapters {
+	base := deliveryApplicationAdapter{applications: m.Application, releases: m.Release}
+	return DeliveryAdapters{ProjectApplications: deliveryProjectApplicationAdapter{base}, RunApplications: deliveryRunApplicationAdapter{base}, Artifacts: deliveryArtifactAdapter{repo: m.Repo}, ArtifactVersions: deliveryVersionAdapter{repo: m.Repo}, Executor: deliveryExecutorAdapter{release: m.Release}, Inspector: deliveryInspectorAdapter{coordinator: coordinator, applications: m.Application, releases: m.Release}}
+}
+
+func (m *Module) SetDeliveryGovernance(reader deliveryGovernanceReader) {
+	m.Release.SetGovernance(deliveryGovernanceAdapter{reader: reader})
+}
+
+type deliveryApplicationAdapter struct {
+	applications *application.Service
+	releases     *release.Service
+}
+
+func (a deliveryApplicationAdapter) application(ctx context.Context, id uint64) (*models.AppsApplication, bool, error) {
+	row, err := a.applications.GetModel(ctx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	installed, err := a.releases.IsReleaseInstalled(ctx, row)
+	return row, installed, err
+}
+
+type deliveryProjectApplicationAdapter struct{ deliveryApplicationAdapter }
+
+func (a deliveryProjectApplicationAdapter) GetApplication(ctx context.Context, id uint64) (*project.Application, error) {
+	r, installed, err := a.application(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &project.Application{ID: r.ID, Name: r.Name, ChartRepoID: r.ChartRepoID, ChartName: r.ChartName, Installed: installed, ClusterID: r.ClusterID, Namespace: r.Namespace, ReleaseName: r.ReleaseName}, nil
+}
+
+type deliveryRunApplicationAdapter struct{ deliveryApplicationAdapter }
+
+func (a deliveryRunApplicationAdapter) GetApplication(ctx context.Context, id uint64) (*run.Application, error) {
+	r, installed, err := a.application(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &run.Application{ID: r.ID, ChartRepoID: r.ChartRepoID, ChartName: r.ChartName, Installed: installed, ClusterID: r.ClusterID, Namespace: r.Namespace, ReleaseName: r.ReleaseName}, nil
+}
+
+type deliveryArtifactAdapter struct{ repo *apprepo.Service }
+
+func (a deliveryArtifactAdapter) ResolveArtifact(ctx context.Context, repoID uint64, name, version string) (*run.Artifact, error) {
+	x, err := a.repo.ResolveArtifact(ctx, repoID, name, version)
+	if err != nil {
+		return nil, err
+	}
+	return &run.Artifact{RepoID: x.RepoID, ChartName: x.ChartName, Version: x.Version, Digest: x.Digest}, nil
+}
+
+type deliveryVersionAdapter struct{ repo *apprepo.Service }
+
+func (a deliveryVersionAdapter) ListVersions(ctx context.Context, repoID uint64, name string) ([]pipeline.ArtifactVersion, error) {
+	xs, err := a.repo.ListVersions(ctx, repoID, name)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pipeline.ArtifactVersion, 0, len(xs))
+	for _, x := range xs {
+		out = append(out, pipeline.ArtifactVersion{ChartRepoID: repoID, ChartName: name, Version: x.Version})
+	}
+	return out, nil
+}
+
+type deliveryExecutorAdapter struct{ release *release.Service }
+
+func (a deliveryExecutorAdapter) UpgradeExisting(ctx context.Context, req orchestrator.UpgradeRequest) (orchestrator.UpgradeResult, error) {
+	x, err := a.release.UpgradeForDelivery(ctx, release.DeliveryUpgradeRequest{ApplicationID: req.ApplicationID, OperationID: req.OperationID, RepoID: req.RepoID, ChartName: req.ChartName, ChartVersion: req.ChartVersion, Digest: req.Digest, InitiatorID: req.InitiatorID, Purpose: req.Purpose})
+	if err != nil {
+		return orchestrator.UpgradeResult{}, err
+	}
+	return orchestrator.UpgradeResult{Revision: int64(x.Revision), Digest: x.Digest}, nil
+}
+
+type deliveryOperationInspector interface {
+	Inspect(context.Context, string) (*release.Operation, error)
+}
+type deliveryApplicationLookup interface {
+	GetModel(context.Context, uint64) (*models.AppsApplication, error)
+}
+type deliveryReleaseInspector interface {
+	InspectDeliveryRelease(context.Context, *models.AppsApplication) (release.DeliveryInspection, error)
+}
+type deliveryInspectorAdapter struct {
+	coordinator  deliveryOperationInspector
+	applications deliveryApplicationLookup
+	releases     deliveryReleaseInspector
+}
+
+func (a deliveryInspectorAdapter) Inspect(ctx context.Context, applicationID uint64, operationID string) (orchestrator.Inspection, error) {
+	x, err := a.coordinator.Inspect(ctx, operationID)
+	if err != nil {
+		return orchestrator.Inspection{}, err
+	}
+	if x.ApplicationID != applicationID {
+		return orchestrator.Inspection{}, errors.New("operation application mismatch")
+	}
+	if x.State == models.AppsReleaseOperationSucceeded && x.ResultRevision != nil && x.ResultDigest != nil {
+		return orchestrator.Inspection{Revision: *x.ResultRevision, Digest: *x.ResultDigest}, nil
+	}
+	app, err := a.applications.GetModel(ctx, applicationID)
+	if err != nil {
+		return orchestrator.Inspection{}, errors.New("application inspection unavailable")
+	}
+	evidence, err := a.releases.InspectDeliveryRelease(ctx, app)
+	if err != nil {
+		return orchestrator.Inspection{}, errors.New("release artifact inspection unavailable")
+	}
+	return orchestrator.Inspection{Revision: evidence.Revision, Digest: evidence.Digest, PreviousDigestProven: !x.CreatedAt.IsZero() && evidence.ObservedAt.Before(x.CreatedAt)}, nil
+}
+
+type deliveryGovernanceAdapter struct{ reader deliveryGovernanceReader }
+
+func (a deliveryGovernanceAdapter) AuthorizeMutation(ctx context.Context, applicationID uint64, action release.MutationAction) error {
+	managed, err := a.reader.IsManaged(ctx, applicationID)
+	if err != nil {
+		return err
+	}
+	if !managed || action == release.MutationActionRollback {
+		return nil
+	}
+	operationID, err := a.reader.ActiveOperationID(ctx, applicationID)
+	if err == nil && release.DeliveryUpgradeAuthorized(ctx, applicationID, operationID, action) {
+		return nil
+	}
+	return apperr.New(apperr.CodeDeliveryApplicationUnavailable, "delivery.application.unavailable", "delivery-managed application requires an authorized operation")
 }
 
 // New wires the apps Module from already-constructed services. The caller is
@@ -69,6 +222,12 @@ type HelmChartLoader struct {
 // by apps/repo (which calls apps.MapError internally).
 func (l *HelmChartLoader) LoadChart(ctx context.Context, repoID uint64, chartName, version string) (*chart.Chart, error) {
 	return l.Repo.LoadChart(ctx, repoID, chartName, version)
+}
+
+// LoadVerifiedChart preserves the immutable P6 artifact boundary by delegating
+// download, digest verification, parsing, and byte wiping to apps/repo.
+func (l *HelmChartLoader) LoadVerifiedChart(ctx context.Context, artifact apprepo.Artifact) (*chart.Chart, error) {
+	return l.Repo.LoadVerifiedChart(ctx, artifact)
 }
 
 // MountRoutes registers every /apps route under `protected` (which must

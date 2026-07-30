@@ -136,7 +136,7 @@ func TestEC2InstanceToModel_NilAndInvalidFieldsAreSafe(t *testing.T) {
 
 func TestEC2Fetcher_SecondPageErrorDiscardsPartialItems(t *testing.T) {
 	var requests atomic.Int32
-	client := newEC2Client(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	client := newEC2Client(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		if requests.Add(1) == 1 {
 			writer.Header().Set("Content-Type", "text/xml")
 			_, _ = writer.Write([]byte(describeInstancesPage1))
@@ -161,7 +161,7 @@ func TestEC2Fetcher_RepeatedPaginationTokenDiscardsPartialItems(t *testing.T) {
 		describeInstancesPage("token-a", "i-third"),
 	}
 	var requests atomic.Int32
-	client := newEC2Client(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	client := newEC2Client(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		call := int(requests.Add(1))
 		if call > len(responses) {
 			t.Errorf("request %d proves the repeated token loop was not stopped", call)

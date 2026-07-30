@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/version"
 
 	"optimus-be/internal/infra/db"
@@ -80,6 +81,9 @@ func (f *fakeConsumer) GetKubeconfig(_ context.Context, _ uint64, _ string) (*cr
 }
 func (f *fakeConsumer) GetCloudKey(context.Context, uint64, string) (*credentials.CloudKey, error) {
 	return nil, errors.New("not used")
+}
+func (f *fakeConsumer) GetHTTPCredential(context.Context, uint64, string) (*credentials.HTTPCredential, error) {
+	return nil, errors.New("unused")
 }
 
 // fakeVersionProbe satisfies cluster.VersionProbe.
@@ -245,11 +249,19 @@ func TestService_Ping_NoProber(t *testing.T) {
 // fakeAppsCounter satisfies cluster.AppsApplicationCounter for the P3
 // delete-refused test. n is the count returned for any cluster id.
 type fakeAppsCounter struct {
-	n   int
-	err error
+	n       int
+	err     error
+	txCalls int
+	calls   int
+}
+
+func (f *fakeAppsCounter) CountByClusterIDTx(context.Context, *gorm.DB, uint64) (int, error) {
+	f.txCalls++
+	return f.n, f.err
 }
 
 func (f *fakeAppsCounter) CountByClusterID(_ context.Context, _ uint64) (int, error) {
+	f.calls++
 	return f.n, f.err
 }
 
@@ -262,17 +274,54 @@ func TestService_Delete_RefusedWhenAppsReference(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svc.SetAppsCounter(&fakeAppsCounter{n: 3})
+	blocked := &fakeAppsCounter{n: 3}
+	svc.SetAppsCounter(blocked)
 	err = svc.Delete(ctx, 0, "", "", det.ID)
 	require.Error(t, err)
 	be, ok := apperr.AsBiz(err)
 	require.True(t, ok)
 	require.Equal(t, apperr.CodeAppsApplicationInUse, be.Code)
 	require.Equal(t, "k8s.cluster.in_use_by_apps", be.MessageKey)
+	require.Equal(t, 1, blocked.txCalls)
+	require.Zero(t, blocked.calls)
 
 	// Re-checking with n=0 should allow the delete.
-	svc.SetAppsCounter(&fakeAppsCounter{n: 0})
+	allowed := &fakeAppsCounter{n: 0}
+	svc.SetAppsCounter(allowed)
 	require.NoError(t, svc.Delete(ctx, 0, "", "", det.ID))
+	require.Equal(t, 1, allowed.txCalls)
+	require.Zero(t, allowed.calls)
+}
+
+type fakeObservabilityCounter struct {
+	n       int64
+	err     error
+	txCalls int
+}
+
+func (f *fakeObservabilityCounter) CountByClusterIDTx(context.Context, *gorm.DB, uint64) (int64, error) {
+	f.txCalls++
+	return f.n, f.err
+}
+
+func (f *fakeObservabilityCounter) CountByClusterID(context.Context, uint64) (int64, error) {
+	return f.n, f.err
+}
+
+func TestService_Delete_RefusedWhenObservabilityReferences(t *testing.T) {
+	svc, kcID, td := newSvc(t, []byte(goodYAML), nil)
+	defer td()
+	det, err := svc.Create(t.Context(), 0, "", "", cluster.CreateRequest{Name: "metrics", KubeconfigID: kcID, Context: "ctx"})
+	require.NoError(t, err)
+	counter := &fakeObservabilityCounter{n: 1}
+	svc.SetObservabilityCounter(counter)
+	err = svc.Delete(t.Context(), 0, "", "", det.ID)
+	require.Error(t, err)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeConflict, be.Code)
+	require.Equal(t, "k8s.cluster.in_use_by_observability", be.MessageKey)
+	require.Equal(t, 1, counter.txCalls)
 }
 
 func TestService_Delete(t *testing.T) {

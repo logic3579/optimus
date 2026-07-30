@@ -15,16 +15,15 @@ Monorepo with two deployable apps plus shared deployment assets:
 
 ## Current project phase
 
-As of 2026-07-20, P0-P4 are implemented. P4 Assets completed its 25-task
-plan and was pushed to `origin/dev` at `d667316`; the user owns the manual PR
-or merge from `dev` to `main`. At this checkpoint `origin/main` remains
-`b6d6555` (P3), and no P5/P6 design or implementation plan has been approved.
+As of 2026-07-24, P0-P5 are implemented. P5 Observability completed the
+approved design and plan under `docs/superpowers/` on `p5-observability`,
+including the complete Task 16 backend, frontend, coverage,
+generated-artifact, and hygiene gates. P6 has no approved design or
+implementation plan.
 
-For P4 maintenance, read the P4 design and plan before changing behavior and
-run `optimus-be/scripts/p4-smoke.md` with a disposable read-only AWS
-credential before release sign-off. The next new delivery should start with
-the Superpowers brainstorming workflow for P5, then an approved design and
-task-by-task plan; do not infer P5 scope from the P4 `assets.Consumer` seam.
+For release sign-off, use `optimus-be/scripts/p4-smoke.md` with a disposable
+read-only AWS credential for P4 and `optimus-be/scripts/p5-smoke.md` with
+disposable local Prometheus containers for P5.
 
 ## Daily commands
 
@@ -156,6 +155,40 @@ deleting a referenced cloud key fails with `43001`.
 `OPTIMUS_ASSETS_SYNC_STARTUP_DELAY`,
 `OPTIMUS_ASSETS_SYNC_RUN_RETENTION_DAYS`, and
 `OPTIMUS_ASSETS_AWS_REQUEST_TIMEOUT`.
+
+## Architecture — observability (P5)
+
+**Scope**: P5 is a read-only metrics observability MVP. It stores Prometheus
+data-source configuration and custom dashboard definitions, proxies bounded
+instant/range/metadata queries, and renders built-in Kubernetes dashboards.
+It does not persist metric samples. Alerts, alert rules, notifications,
+Alertmanager, CloudWatch, logs, traces, and APM are explicitly out of scope.
+
+**Data sources and credentials**: Basic and bearer secrets are P1 HTTP
+credentials consumed only through `credentials.Consumer`. Custom CA PEM is
+public trust material but is never returned or audited. Metric-only operators
+use `GET /observability/query-sources`, limited to `id`, `name`, and nullable
+`cluster_id`; built-ins must not call the administrative data-source list.
+
+**SSRF and clients**: reject userinfo, non-HTTP(S) schemes, metadata,
+loopback, link-local, reserved, mapped/translated private addresses, and mixed
+DNS answers containing a denied address. Private destinations require a
+narrow explicit CIDR. Redirects are never followed. Prometheus clients and
+authorization headers are request-scoped and must not be cached or forwarded.
+
+**Queries, audits, and RBAC**: enforce query count, concurrency, PromQL size,
+range, step, points, series, response bytes, timeout, and enrichment limits.
+Full PromQL, credentials, authorization headers, custom CA PEM, and raw
+upstream errors must not enter logs, audits, Swagger, or client errors.
+Dashboard audits use bounded SHA-256 PromQL fingerprints. Data-source,
+dashboard, and metric permissions are independent; Kubernetes built-ins need
+only metric read. Separate abort generations prevent stale definition/query
+responses from updating newer views.
+
+**Verification**: run backend `make test`, `make test-int`, `make lint`,
+`make swagger-diff`, and `make perm-check`; frontend frozen install, lint,
+typecheck, i18n check, tests, and build; then complete
+`optimus-be/scripts/p5-smoke.md`.
 
 ## Conventions worth knowing
 

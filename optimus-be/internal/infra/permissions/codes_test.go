@@ -3,6 +3,8 @@ package permissions
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAll_UniqueCodes(t *testing.T) {
@@ -12,6 +14,39 @@ func TestAll_UniqueCodes(t *testing.T) {
 			t.Errorf("duplicate permission code: %s", p.Code)
 		}
 		seen[p.Code] = true
+	}
+}
+
+func TestAll_IncludesDeliveryPermissionsExactlyOnce(t *testing.T) {
+	want := []string{
+		"delivery:project:read",
+		"delivery:project:write",
+		"delivery:project:delete",
+		"delivery:pipeline:read",
+		"delivery:pipeline:write",
+		"delivery:run:read",
+		"delivery:run:create",
+		"delivery:run:cancel",
+		"delivery:approval:read",
+		"delivery:approval:decide",
+	}
+
+	got := make(map[string]Permission, len(want))
+	for _, permission := range All {
+		if permission.Category == "delivery" {
+			_, duplicate := got[permission.Code]
+			require.Falsef(t, duplicate, "duplicate delivery permission %q", permission.Code)
+			got[permission.Code] = permission
+		}
+	}
+
+	require.Len(t, got, len(want))
+	for _, code := range want {
+		permission, ok := got[code]
+		require.Truef(t, ok, "missing delivery permission %q", code)
+		require.Equal(t, "delivery", permission.Category)
+		require.Equal(t, "perm."+strings.ReplaceAll(code, ":", "."), permission.Name)
+		require.NotEmpty(t, permission.Description)
 	}
 }
 

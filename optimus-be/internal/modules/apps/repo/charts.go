@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -14,6 +16,7 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/registry"
 	helmrepo "helm.sh/helm/v3/pkg/repo"
+	"sigs.k8s.io/yaml"
 
 	apperr "optimus-be/internal/infra/errors"
 	"optimus-be/internal/models"
@@ -106,11 +109,14 @@ func (s *Service) LoadChart(ctx context.Context, repoID uint64, chartName, versi
 	var tgz []byte
 	switch m.Type {
 	case "http":
-		tgz, err = chartTgzHTTP(m, pwd, chartName, version)
+		tgz, err = chartTgzHTTP(ctx, nil, m, pwd, chartName, version)
 	case "oci":
-		tgz, err = chartTgzOCI(m, pwd, chartName, version)
+		tgz, err = chartTgzOCI(ctx, m, pwd, chartName, version)
 	default:
 		return nil, apperr.New(apperr.CodeAppsRepoOther, "apps.repo.unknown_type", "unsupported repo type: "+m.Type)
+	}
+	if tgz != nil {
+		defer wipeChartBytes(tgz)
 	}
 	if err != nil {
 		return nil, err
@@ -125,10 +131,26 @@ func (s *Service) LoadChart(ctx context.Context, repoID uint64, chartName, versi
 // chartTgzHTTP downloads the raw .tgz for (chartName, version) from an HTTP
 // chart repo. Mirrors defaultValuesHTTP's lookup path but returns bytes rather
 // than reading values.yaml out.
-func chartTgzHTTP(m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
-	idx, err := fetchHTTPIndex(m, pwd)
+func chartTgzHTTP(
+	ctx context.Context,
+	client *http.Client,
+	m *models.AppsChartRepo,
+	pwd, chartName, version string,
+) ([]byte, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	client = secureArtifactHTTPClient(client, m.URL)
+	indexBytes, err := downloadHTTPBytes(ctx, client, absoluteURL(m.URL, "index.yaml"), m.URL, m.Username, pwd)
+	if indexBytes != nil {
+		defer wipeChartBytes(indexBytes)
+	}
 	if err != nil {
 		return nil, err
+	}
+	idx := helmrepo.NewIndexFile()
+	if err := yaml.Unmarshal(indexBytes, idx); err != nil || idx.APIVersion == "" || idx.Entries == nil {
+		return nil, apperr.New(apperr.CodeAppsRepoInvalidIndex, "apps.repo.bad_index", "invalid chart repository index")
 	}
 	entries, ok := idx.Entries[chartName]
 	if !ok {
@@ -148,25 +170,99 @@ func chartTgzHTTP(m *models.AppsChartRepo, pwd, chartName, version string) ([]by
 		return nil, apperr.New(apperr.CodeAppsRepoInvalidIndex, "apps.repo.bad_index", chartName)
 	}
 	tgzURL := absoluteURL(m.URL, picked.URLs[0])
-	opts := []getter.Option{}
-	if m.Username != "" || pwd != "" {
-		opts = append(opts, getter.WithBasicAuth(m.Username, pwd))
+	return downloadHTTPBytes(ctx, client, tgzURL, m.URL, m.Username, pwd)
+}
+
+const maxArtifactRedirects = 3
+
+func secureArtifactHTTPClient(base *http.Client, authBase string) *http.Client {
+	client := *base
+	prior := client.CheckRedirect
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if !sameOrigin(authBase, req.URL.String()) {
+			req.Header.Del("Authorization")
+		}
+		if len(via) > maxArtifactRedirects {
+			return errors.New("chart repository redirect limit exceeded")
+		}
+		if prior != nil {
+			if err := prior(req, via); err != nil {
+				return err
+			}
+		}
+		if !sameOrigin(authBase, req.URL.String()) {
+			req.Header.Del("Authorization")
+		}
+		return nil
 	}
-	g, err := getter.NewHTTPGetter(opts...)
+	return &client
+}
+
+func downloadHTTPBytes(ctx context.Context, client *http.Client, rawURL, authBase, username, password string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, apps.MapError(err)
 	}
-	buf, err := g.Get(tgzURL)
+	if (username != "" || password != "") && sameOrigin(authBase, rawURL) {
+		req.SetBasicAuth(username, password)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, apps.MapError(err)
 	}
-	return buf.Bytes(), nil
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, apperr.New(apperr.CodeAppsRepoUnauthorized, "apps.repo.unauthorized", "chart repository authentication failed")
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, apperr.New(apperr.CodeAppsRepoUnreachable, "apps.repo.unreachable", "chart repository request failed")
+	}
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return b, apps.MapError(err)
+	}
+	return b, nil
+}
+
+func sameOrigin(left, right string) bool {
+	a, err := url.Parse(left)
+	if err != nil {
+		return false
+	}
+	b, err := url.Parse(right)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(a.Scheme, b.Scheme) && strings.EqualFold(a.Host, b.Host)
 }
 
 // chartTgzOCI pulls the chart .tgz from an OCI registry. Mirrors
 // defaultValuesOCI's auth + Pull flow but returns the raw chart bytes.
-func chartTgzOCI(m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
-	rc, err := registry.NewClient()
+type ociPullFunc func(context.Context, *registry.Client, string, ...registry.PullOption) (*registry.PullResult, error)
+
+func defaultOCIPull(ctx context.Context, client *registry.Client, ref string, opts ...registry.PullOption) (*registry.PullResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return client.Pull(ref, opts...)
+}
+
+func chartTgzOCI(ctx context.Context, m *models.AppsChartRepo, pwd, chartName, version string) ([]byte, error) {
+	return chartTgzOCIWithPull(ctx, m, pwd, chartName, version, defaultOCIPull)
+}
+
+func chartTgzOCIWithPull(
+	ctx context.Context,
+	m *models.AppsChartRepo,
+	pwd, chartName, version string,
+	pullChart ociPullFunc,
+) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	rc, err := registry.NewClient(registry.ClientOptHTTPClient(&http.Client{
+		Transport: contextRoundTripper{ctx: ctx, base: http.DefaultTransport},
+	}))
 	if err != nil {
 		return nil, apps.MapError(err)
 	}
@@ -176,15 +272,34 @@ func chartTgzOCI(m *models.AppsChartRepo, pwd, chartName, version string) ([]byt
 			return nil, apps.MapError(err)
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	ref := ociRef(m.URL, chartName) + ":" + version
-	pull, err := rc.Pull(ref, registry.PullOptWithChart(true))
+	pull, err := pullChart(ctx, rc, ref, registry.PullOptWithChart(true))
+	var data []byte
+	if pull != nil && pull.Chart != nil {
+		data = pull.Chart.Data
+	}
 	if err != nil {
-		return nil, apps.MapError(err)
+		return data, apps.MapError(err)
 	}
 	if pull == nil || pull.Chart == nil {
 		return nil, apperr.New(apperr.CodeAppsRepoOCIError, "apps.repo.oci_empty_chart", "empty chart pull result")
 	}
-	return pull.Chart.Data, nil
+	return data, nil
+}
+
+type contextRoundTripper struct {
+	ctx  context.Context
+	base http.RoundTripper
+}
+
+func (t contextRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := t.ctx.Err(); err != nil {
+		return nil, err
+	}
+	return t.base.RoundTrip(req.Clone(t.ctx))
 }
 
 // mapNotFound translates gorm.ErrRecordNotFound into the apps domain's 40401.

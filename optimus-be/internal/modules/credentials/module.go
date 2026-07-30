@@ -7,6 +7,7 @@ import (
 	"optimus-be/internal/infra/middleware"
 	"optimus-be/internal/modules/audit"
 	"optimus-be/internal/modules/credentials/cloudkey"
+	"optimus-be/internal/modules/credentials/httpcredential"
 	"optimus-be/internal/modules/credentials/kubeconfig"
 	"optimus-be/internal/modules/credentials/sshkey"
 	"optimus-be/internal/modules/credentials/vault"
@@ -19,11 +20,13 @@ type Module struct {
 	SSH        *sshkey.Service
 	Kubeconfig *kubeconfig.Service
 	CloudKey   *cloudkey.Service
+	HTTP       *httpcredential.Service
 	Consumer   Consumer
 
-	sshHandler *sshkey.Handler
-	kcHandler  *kubeconfig.Handler
-	ckHandler  *cloudkey.Handler
+	sshHandler  *sshkey.Handler
+	kcHandler   *kubeconfig.Handler
+	ckHandler   *cloudkey.Handler
+	httpHandler *httpcredential.Handler
 }
 
 // New constructs the module. cipher must be a real *vault.Cipher (or test fake).
@@ -31,14 +34,17 @@ func New(db *gorm.DB, cipher *vault.Cipher, rec *audit.Recorder) *Module {
 	ssvc := sshkey.NewService(sshkey.NewRepo(db), cipher, rec)
 	ksvc := kubeconfig.NewService(kubeconfig.NewRepo(db), cipher, rec)
 	csvc := cloudkey.NewService(cloudkey.NewRepo(db), cipher, rec)
+	hsvc := httpcredential.NewService(httpcredential.NewRepo(db), cipher, rec)
 	return &Module{
-		SSH:        ssvc,
-		Kubeconfig: ksvc,
-		CloudKey:   csvc,
-		Consumer:   NewConsumer(ssvc, ksvc, csvc),
-		sshHandler: sshkey.NewHandler(ssvc),
-		kcHandler:  kubeconfig.NewHandler(ksvc),
-		ckHandler:  cloudkey.NewHandler(csvc),
+		SSH:         ssvc,
+		Kubeconfig:  ksvc,
+		CloudKey:    csvc,
+		HTTP:        hsvc,
+		Consumer:    NewConsumer(ssvc, ksvc, csvc, hsvc),
+		sshHandler:  sshkey.NewHandler(ssvc),
+		kcHandler:   kubeconfig.NewHandler(ksvc),
+		ckHandler:   cloudkey.NewHandler(csvc),
+		httpHandler: httpcredential.NewHandler(hsvc),
 	}
 }
 
@@ -74,4 +80,7 @@ func (m *Module) MountRoutes(protected *gin.RouterGroup, cache *rbac.PermissionC
 	mount("ssh-keys", "ssh_key", m.sshHandler)
 	mount("kubeconfigs", "kubeconfig", m.kcHandler)
 	mount("cloud-keys", "cloud_key", m.ckHandler)
+	m.httpHandler.Mount(protected.Group("/credentials/http-credentials"), func(code string) gin.HandlerFunc {
+		return middleware.RequirePermission(cache, code)
+	})
 }

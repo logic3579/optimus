@@ -26,12 +26,19 @@ type HelmInstalledChecker interface {
 	IsReleaseInstalled(ctx context.Context, app *models.AppsApplication) (bool, error)
 }
 
+// DeliveryApplicationCounter reports active delivery environment bindings for
+// an application. It is wired by the delivery module at composition time.
+type DeliveryApplicationCounter interface {
+	CountByApplicationID(ctx context.Context, applicationID uint64) (int64, error)
+}
+
 // Service owns audit emission and the optional helm seams.
 type Service struct {
-	repo    *Repo
-	audit   *audit.Recorder
-	probe   HelmStatusProbe
-	checker HelmInstalledChecker
+	repo            *Repo
+	audit           *audit.Recorder
+	probe           HelmStatusProbe
+	checker         HelmInstalledChecker
+	deliveryCounter DeliveryApplicationCounter
 }
 
 // NewService returns a Service bound to a repo + audit recorder. The helm
@@ -49,6 +56,12 @@ func (s *Service) SetHelmStatusProbe(p HelmStatusProbe) { s.probe = p }
 
 // SetHelmInstalledChecker wires the delete pre-check.
 func (s *Service) SetHelmInstalledChecker(c HelmInstalledChecker) { s.checker = c }
+
+// SetDeliveryApplicationCounter wires the delivery binding pre-delete check.
+// nil is safe and preserves existing behavior when delivery is not composed.
+func (s *Service) SetDeliveryApplicationCounter(counter DeliveryApplicationCounter) {
+	s.deliveryCounter = counter
+}
 
 // --- queries ---------------------------------------------------------------
 
@@ -215,25 +228,11 @@ func (s *Service) Update(ctx context.Context, actorID uint64, ip, ua string, id 
 // if the HelmInstalledChecker seam reports the underlying helm release is still
 // installed on the cluster.
 func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id uint64) error {
-	m, err := s.repo.Get(ctx, id)
+	m, err := deleteApplication(ctx, s.repo, s.deliveryCounter, s.checker, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return apperr.New(apperr.CodeNotFound, "apps.application.not_found", "application not found")
 		}
-		return err
-	}
-	if s.checker != nil {
-		installed, cerr := s.checker.IsReleaseInstalled(ctx, m)
-		if cerr != nil {
-			return cerr
-		}
-		if installed {
-			return apperr.New(apperr.CodeAppsReleaseStillPresent,
-				"apps.application.release_still_installed",
-				"helm release still installed; uninstall before deleting the application record")
-		}
-	}
-	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.writeAudit(ctx, ptrIfNonZero(actorID), "apps.application.delete", id, ip, ua, map[string]any{
@@ -242,6 +241,79 @@ func (s *Service) Delete(ctx context.Context, actorID uint64, ip, ua string, id 
 		"namespace":    m.Namespace,
 		"release_name": m.ReleaseName,
 	})
+	return nil
+}
+
+type applicationDeletionRepository interface {
+	transaction(ctx context.Context, fn func(applicationDeletionRepository) error) error
+	lockApplication(ctx context.Context, id uint64) error
+	Get(ctx context.Context, id uint64) (*models.AppsApplication, error)
+	Delete(ctx context.Context, id uint64) error
+}
+
+func deleteApplication(
+	ctx context.Context,
+	repo applicationDeletionRepository,
+	counter DeliveryApplicationCounter,
+	checker HelmInstalledChecker,
+	id uint64,
+) (*models.AppsApplication, error) {
+	if checker != nil {
+		application, err := repo.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		installed, err := checker.IsReleaseInstalled(ctx, application)
+		if err != nil {
+			return nil, err
+		}
+		if installed {
+			return nil, apperr.New(
+				apperr.CodeAppsReleaseStillPresent,
+				"apps.application.release_still_installed",
+				"helm release still installed; uninstall before deleting the application record",
+			)
+		}
+	}
+
+	var application *models.AppsApplication
+	err := repo.transaction(ctx, func(tx applicationDeletionRepository) error {
+		if err := tx.lockApplication(ctx, id); err != nil {
+			return err
+		}
+		var err error
+		application, err = tx.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err := checkDeliveryApplicationUse(ctx, counter, id); err != nil {
+			return err
+		}
+		return tx.Delete(ctx, id)
+	})
+	return application, err
+}
+
+func checkDeliveryApplicationUse(ctx context.Context, counter DeliveryApplicationCounter, id uint64) error {
+	if counter == nil {
+		return nil
+	}
+	count, err := counter.CountByApplicationID(ctx, id)
+	if err != nil {
+		return apperr.Wrap(
+			err,
+			apperr.CodeDeliveryApplicationUnavailable,
+			"delivery.application.unavailable",
+			"delivery application binding lookup is unavailable",
+		)
+	}
+	if count != 0 {
+		return apperr.New(
+			apperr.CodeDeliveryEnvironmentInUse,
+			"delivery.environment.in_use",
+			"application is bound to an active delivery environment",
+		)
+	}
 	return nil
 }
 

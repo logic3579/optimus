@@ -20,6 +20,27 @@ type UpgradeRequest struct {
 	ValuesYAML   string  `json:"values_yaml"   binding:"max=1048576"`
 }
 
+// DeliveryUpgradeRequest is the closed in-process request accepted from the
+// P6 worker. It deliberately has no Helm values, flags, manifests, notes, or
+// arbitrary executor input.
+type DeliveryUpgradeRequest struct {
+	ApplicationID uint64
+	OperationID   string
+	RepoID        uint64
+	ChartName     string
+	ChartVersion  string
+	Digest        string
+	InitiatorID   uint64
+	Purpose       string
+}
+
+// DeliveryUpgradeResult is the safe structured result returned to P6.
+type DeliveryUpgradeResult struct {
+	Revision int
+	Status   string
+	Digest   string
+}
+
 // RollbackRequest selects the revision to roll back to. Revision must be a
 // positive integer present in helm history; missing revisions return
 // CodeAppsReleaseHistoryTooShort (42203).

@@ -49,10 +49,7 @@ func validateListQuery(query ListQuery) (ListFilter, error) {
 	if query.Page-1 > math.MaxInt/query.Size {
 		return ListFilter{}, validationError("pagination offset exceeds supported range")
 	}
-	return ListFilter{
-		AccountID: query.AccountID, Region: query.Region, Engine: query.Engine, Status: query.Status,
-		Q: query.Q, IncludeDeleted: query.IncludeDeleted, Page: query.Page, Size: query.Size,
-	}, nil
+	return ListFilter(query), nil
 }
 
 func validationError(message string) error {

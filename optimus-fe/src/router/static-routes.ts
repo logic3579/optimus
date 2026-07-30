@@ -68,6 +68,18 @@ export const staticRoutes: RouteRecordRaw[] = [
         name: 'assets.vpcs.detail',
         component: () => import('@/views/assets/vpcs/Detail.vue'),
         meta: { permission: 'assets:resource:read' }
+      },
+      {
+        path: 'delivery/projects/:id(\\d+)',
+        name: 'delivery.projects.detail',
+        component: () => import('@/views/delivery/projects/Detail.vue'),
+        meta: { permission: 'delivery:project:read' }
+      },
+      {
+        path: 'delivery/runs/:id(\\d+)',
+        name: 'delivery.runs.detail',
+        component: () => import('@/views/delivery/runs/Detail.vue'),
+        meta: { permission: 'delivery:run:read' }
       }
     ]
   },
