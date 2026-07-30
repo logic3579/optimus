@@ -240,7 +240,7 @@ func manualSyncTimeout(requestTimeout time.Duration, regionCount int) time.Durat
 	if regionCount < 1 {
 		regionCount = 1
 	}
-	if uint64(regionCount) > uint64(math.MaxInt64/3) {
+	if int64(regionCount) > math.MaxInt64/3 {
 		return time.Duration(math.MaxInt64)
 	}
 	units := int64(regionCount) * 3

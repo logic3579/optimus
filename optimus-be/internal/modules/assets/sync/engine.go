@@ -238,7 +238,7 @@ func (e *Engine) finishRun(ctx context.Context, runID uint64, request runs.Finis
 
 func (e *Engine) finishUpstreamFailure(ctx context.Context, runID uint64, cause error) error {
 	code, message := safeSyncRunError(cause)
-	return e.finishRun(ctx, runID, runs.FinishRequest{Status: "failed", Error: message, ErrorCode: int32(code)})
+	return e.finishRun(ctx, runID, runs.FinishRequest{Status: "failed", Error: message, ErrorCode: saturatingInt32(int64(code))})
 }
 
 func safeSyncRunError(cause error) (apperr.Code, string) {

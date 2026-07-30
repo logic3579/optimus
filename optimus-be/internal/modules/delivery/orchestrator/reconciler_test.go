@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +68,15 @@ func TestBoundedAdvisoryReleaseDiscardsSessionOnTimeoutOrUnlockFailure(t *testin
 	discarded := false
 	boundedAdvisoryRelease(context.Background(), time.Second, func(context.Context) (bool, error) { return true, nil }, func() { discarded = true })
 	require.False(t, discarded)
+}
+
+func TestReconcileAdvisoryKeyRejectsOutOfRangeRunID(t *testing.T) {
+	_, err := reconcileAdvisoryKey(uint64(math.MaxInt64) + 1)
+	require.Error(t, err)
+
+	key, err := reconcileAdvisoryKey(uint64(math.MaxInt64))
+	require.NoError(t, err)
+	require.NotZero(t, key)
 }
 
 func (s *reconcileMemoryStore) Load(context.Context, uint64, time.Time) (*reconcileCandidate, error) {

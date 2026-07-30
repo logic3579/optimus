@@ -15,15 +15,22 @@ Monorepo with two deployable apps plus shared deployment assets:
 
 ## Current project phase
 
-As of 2026-07-24, P0-P5 are implemented. P5 Observability completed the
-approved design and plan under `docs/superpowers/` on `p5-observability`,
-including the complete Task 16 backend, frontend, coverage,
-generated-artifact, and hygiene gates. P6 has no approved design or
-implementation plan.
+As of 2026-07-30, P0-P6 are implemented on `dev`. P6 Application Delivery
+completed its approved 2026-07-27 design and all 29 implementation tasks. The
+final disposable Kind/Helm smoke found and fixed two production wiring gaps:
+system kubeconfig purposes now receive the required `system:` prefix, and the
+production Helm adapter forwards `LoadVerifiedChart`. `dev` and `origin/dev`
+both resolve to `57a0c58`; the worktree is clean.
+
+The next milestone is release integration rather than another feature phase:
+review and merge `dev` into `main`, run a production-like deployment/upgrade
+smoke (including migration `00023_p6_delivery.sql`), and only then tag/release.
 
 For release sign-off, use `optimus-be/scripts/p4-smoke.md` with a disposable
 read-only AWS credential for P4 and `optimus-be/scripts/p5-smoke.md` with
 disposable local Prometheus containers for P5.
+Use `optimus-be/scripts/p6-smoke.md` with disposable PostgreSQL, Kind, and a
+local HTTP chart repository for P6.
 
 ## Daily commands
 
@@ -189,6 +196,36 @@ responses from updating newer views.
 `make swagger-diff`, and `make perm-check`; frontend frozen install, lint,
 typecheck, i18n check, tests, and build; then complete
 `optimus-be/scripts/p5-smoke.md`.
+
+## Architecture — application delivery (P6)
+
+**Scope**: P6 promotes an immutable Helm chart artifact through an ordered
+pipeline of environments bound to existing P3 applications. It supports
+projects, immutable environment bindings, versioned pipelines, runs, approvals,
+SSE timelines, cancellation, reconciliation, and linked retries. Arbitrary
+shell commands, scripts, manifests, values, images, and credential inputs are
+outside the execution contract.
+
+**Execution and governance**: run creation resolves and freezes the chart
+digest and all stage targets. The leased worker executes only the closed
+`UpgradeExisting` operation using stable operation IDs. P3 direct
+upgrade/uninstall is denied for managed applications; delivery receives a
+narrow in-process capability. Initiators cannot approve their own runs.
+Ambiguous executor outcomes become `outcome_unknown` and require persisted
+inspection/reconciliation rather than an assumed retry.
+
+**Credential and artifact boundaries**: Helm clients are fresh per operation.
+System kubeconfig consumption is prefixed with `system:` before crossing
+`credentials.Consumer`. `HelmChartLoader.LoadVerifiedChart` delegates digest
+verification, parsing, and byte wiping to the P3 repository service. Values,
+kubeconfigs, authorization headers, manifests, Helm notes, and raw errors must
+not enter API, SSE, audit, or logs.
+
+**Verification**: the approved spec and plan are
+`docs/superpowers/specs/2026-07-27-p6-application-delivery-design.md` and
+`docs/superpowers/plans/2026-07-27-p6-application-delivery.md`. Complete backend,
+frontend, generated-artifact, architectural scan, and real disposable
+`optimus-be/scripts/p6-smoke.md` gates before release.
 
 ## Conventions worth knowing
 

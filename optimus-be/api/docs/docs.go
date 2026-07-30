@@ -105,7 +105,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/application.CreateRequest"
+                            "$ref": "#/definitions/internal_modules_apps_application.CreateRequest"
                         }
                     }
                 ],
@@ -181,7 +181,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/application.UpdateRequest"
+                            "$ref": "#/definitions/internal_modules_apps_application.UpdateRequest"
                         }
                     }
                 ],
@@ -3083,7 +3083,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/approval.PendingApproval"
+                                                "$ref": "#/definitions/internal_modules_delivery_approval.PendingApproval"
                                             }
                                         }
                                     }
@@ -3139,7 +3139,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project.ListResponse"
+                                            "$ref": "#/definitions/internal_modules_delivery_project.ListResponse"
                                         }
                                     }
                                 }
@@ -3168,7 +3168,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project.CreateProjectRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_project.CreateProjectRequest"
                         }
                     }
                 ],
@@ -3184,7 +3184,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project.ProjectDetail"
+                                            "$ref": "#/definitions/internal_modules_delivery_project.ProjectDetail"
                                         }
                                     }
                                 }
@@ -3226,7 +3226,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project.ProjectDetail"
+                                            "$ref": "#/definitions/internal_modules_delivery_project.ProjectDetail"
                                         }
                                     }
                                 }
@@ -3262,7 +3262,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project.UpdateProjectRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_project.UpdateProjectRequest"
                         }
                     }
                 ],
@@ -3278,7 +3278,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project.ProjectDetail"
+                                            "$ref": "#/definitions/internal_modules_delivery_project.ProjectDetail"
                                         }
                                     }
                                 }
@@ -3350,7 +3350,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/pipeline.ArtifactVersion"
+                                                "$ref": "#/definitions/internal_modules_delivery_pipeline.ArtifactVersion"
                                             }
                                         }
                                     }
@@ -3389,7 +3389,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pipeline.ResolveArtifactRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_pipeline.ResolveArtifactRequest"
                         }
                     }
                 ],
@@ -3405,7 +3405,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/pipeline.ResolvedArtifact"
+                                            "$ref": "#/definitions/internal_modules_delivery_pipeline.ResolvedArtifact"
                                         }
                                     }
                                 }
@@ -3449,7 +3449,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/project.Environment"
+                                                "$ref": "#/definitions/internal_modules_delivery_project.Environment"
                                             }
                                         }
                                     }
@@ -3486,7 +3486,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project.BindEnvironmentRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_project.BindEnvironmentRequest"
                         }
                     }
                 ],
@@ -3502,7 +3502,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project.Environment"
+                                            "$ref": "#/definitions/internal_modules_delivery_project.Environment"
                                         }
                                     }
                                 }
@@ -3547,7 +3547,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/project.UpdateEnvironmentRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_project.UpdateEnvironmentRequest"
                         }
                     }
                 ],
@@ -3563,7 +3563,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/project.Environment"
+                                            "$ref": "#/definitions/internal_modules_delivery_project.Environment"
                                         }
                                     }
                                 }
@@ -3640,7 +3640,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/pipeline.Pipeline"
+                                            "$ref": "#/definitions/internal_modules_delivery_pipeline.Pipeline"
                                         }
                                     }
                                 }
@@ -3676,7 +3676,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pipeline.PublishRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_pipeline.PublishRequest"
                         }
                     }
                 ],
@@ -3692,7 +3692,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/pipeline.Pipeline"
+                                            "$ref": "#/definitions/internal_modules_delivery_pipeline.Pipeline"
                                         }
                                     }
                                 }
@@ -3748,7 +3748,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/run.ListResponse"
+                                            "$ref": "#/definitions/internal_modules_delivery_run.ListResponse"
                                         }
                                     }
                                 }
@@ -3791,7 +3791,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/run.CreateRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_run.CreateRequest"
                         }
                     }
                 ],
@@ -3807,7 +3807,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/run.RunView"
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
                                         }
                                     }
                                 }
@@ -3845,7 +3845,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/approval.DecisionRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_approval.DecisionRequest"
                         }
                     }
                 ],
@@ -3861,7 +3861,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/approval.Decision"
+                                            "$ref": "#/definitions/internal_modules_delivery_approval.Decision"
                                         }
                                     }
                                 }
@@ -3899,7 +3899,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/approval.DecisionRequest"
+                            "$ref": "#/definitions/internal_modules_delivery_approval.DecisionRequest"
                         }
                     }
                 ],
@@ -3915,7 +3915,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/approval.Decision"
+                                            "$ref": "#/definitions/internal_modules_delivery_approval.Decision"
                                         }
                                     }
                                 }
@@ -3957,7 +3957,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/run.RunView"
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
                                         }
                                     }
                                 }
@@ -3999,7 +3999,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/run.RunView"
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
                                         }
                                     }
                                 }
@@ -4086,7 +4086,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/run.RunView"
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
                                         }
                                     }
                                 }
@@ -4135,7 +4135,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/run.RunView"
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
                                         }
                                     }
                                 }
@@ -6479,7 +6479,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "application.CreateRequest": {
+        "internal_modules_apps_application.CreateRequest": {
             "type": "object",
             "required": [
                 "chart_name",
@@ -6527,7 +6527,7 @@ const docTemplate = `{
                 }
             }
         },
-        "application.UpdateRequest": {
+        "internal_modules_apps_application.UpdateRequest": {
             "type": "object",
             "properties": {
                 "description": {
@@ -6542,88 +6542,6 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
-                }
-            }
-        },
-        "approval.Decision": {
-            "type": "object",
-            "properties": {
-                "comment": {
-                    "type": "string"
-                },
-                "decided_at": {
-                    "type": "string"
-                },
-                "decided_by_user_id": {
-                    "type": "integer"
-                },
-                "decision": {
-                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryApprovalDecision"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "run_id": {
-                    "type": "integer"
-                },
-                "run_stage_id": {
-                    "type": "integer"
-                }
-            }
-        },
-        "approval.DecisionRequest": {
-            "type": "object",
-            "required": [
-                "comment"
-            ],
-            "properties": {
-                "comment": {
-                    "type": "string",
-                    "maxLength": 512
-                }
-            }
-        },
-        "approval.PendingApproval": {
-            "type": "object",
-            "properties": {
-                "chart_digest": {
-                    "type": "string"
-                },
-                "chart_name": {
-                    "type": "string"
-                },
-                "chart_version": {
-                    "type": "string"
-                },
-                "environment_key": {
-                    "type": "string"
-                },
-                "environment_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "initiator_user_id": {
-                    "type": "integer"
-                },
-                "project_id": {
-                    "type": "integer"
-                },
-                "project_name": {
-                    "type": "string"
-                },
-                "requested_at": {
-                    "type": "string"
-                },
-                "run_id": {
-                    "type": "integer"
-                },
-                "run_stage_id": {
-                    "type": "integer"
-                },
-                "stage_order": {
-                    "type": "integer"
                 }
             }
         },
@@ -7549,6 +7467,601 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "maxLength": 64
+                }
+            }
+        },
+        "internal_modules_delivery_approval.Decision": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "decided_at": {
+                    "type": "string"
+                },
+                "decided_by_user_id": {
+                    "type": "integer"
+                },
+                "decision": {
+                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryApprovalDecision"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "run_id": {
+                    "type": "integer"
+                },
+                "run_stage_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_approval.DecisionRequest": {
+            "type": "object",
+            "required": [
+                "comment"
+            ],
+            "properties": {
+                "comment": {
+                    "type": "string",
+                    "maxLength": 512
+                }
+            }
+        },
+        "internal_modules_delivery_approval.PendingApproval": {
+            "type": "object",
+            "properties": {
+                "chart_digest": {
+                    "type": "string"
+                },
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_version": {
+                    "type": "string"
+                },
+                "environment_key": {
+                    "type": "string"
+                },
+                "environment_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "initiator_user_id": {
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "project_name": {
+                    "type": "string"
+                },
+                "requested_at": {
+                    "type": "string"
+                },
+                "run_id": {
+                    "type": "integer"
+                },
+                "run_stage_id": {
+                    "type": "integer"
+                },
+                "stage_order": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_pipeline.ArtifactVersion": {
+            "type": "object",
+            "properties": {
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_pipeline.Pipeline": {
+            "type": "object",
+            "properties": {
+                "created_by_user_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_pipeline.Stage"
+                    }
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_pipeline.PublishRequest": {
+            "type": "object",
+            "required": [
+                "stages"
+            ],
+            "properties": {
+                "stages": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_pipeline.StageInput"
+                    }
+                }
+            }
+        },
+        "internal_modules_delivery_pipeline.ResolveArtifactRequest": {
+            "type": "object",
+            "required": [
+                "chart_name",
+                "chart_repo_id",
+                "chart_version"
+            ],
+            "properties": {
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "chart_version": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_pipeline.ResolvedArtifact": {
+            "type": "object",
+            "properties": {
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "digest": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_pipeline.Stage": {
+            "type": "object",
+            "properties": {
+                "approval_required": {
+                    "type": "boolean"
+                },
+                "environment_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "10m"
+                }
+            }
+        },
+        "internal_modules_delivery_pipeline.StageInput": {
+            "type": "object",
+            "required": [
+                "environment_id"
+            ],
+            "properties": {
+                "approval_required": {
+                    "type": "boolean"
+                },
+                "environment_id": {
+                    "type": "integer"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "10m"
+                }
+            }
+        },
+        "internal_modules_delivery_project.BindEnvironmentRequest": {
+            "type": "object",
+            "required": [
+                "application_id",
+                "display_name",
+                "environment_key"
+            ],
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "environment_key": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                }
+            }
+        },
+        "internal_modules_delivery_project.CreateProjectRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 4096
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "owner_user_id": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "internal_modules_delivery_project.Environment": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "application_name": {
+                    "type": "string"
+                },
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "cluster_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "environment_key": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "installed": {
+                    "type": "boolean"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "release_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_project.ListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_project.ProjectSummary"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_project.ProjectDetail": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "environment_count": {
+                    "type": "integer"
+                },
+                "environments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_project.Environment"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_user_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_project.ProjectSummary": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "environment_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_user_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_project.UpdateEnvironmentRequest": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "description": "ApplicationID is accepted only to return an explicit error for attempted\nrebinding. Application bindings are immutable in the MVP.",
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "display_name": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "environment_key": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                }
+            }
+        },
+        "internal_modules_delivery_project.UpdateProjectRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 4096
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "owner_user_id": {
+                    "description": "OwnerUserID uses zero to clear the nullable owner and a non-zero value to set it.",
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_run.CreateRequest": {
+            "type": "object",
+            "required": [
+                "chart_name",
+                "chart_repo_id",
+                "chart_version"
+            ],
+            "properties": {
+                "chart_name": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "chart_version": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            }
+        },
+        "internal_modules_delivery_run.ListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_run.RunView"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_run.RunView": {
+            "type": "object",
+            "properties": {
+                "chart_digest": {
+                    "type": "string"
+                },
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "chart_version": {
+                    "type": "string"
+                },
+                "correlation_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error_code": {
+                    "type": "integer"
+                },
+                "error_message_key": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "initiator_user_id": {
+                    "type": "integer"
+                },
+                "pipeline_id": {
+                    "type": "integer"
+                },
+                "pipeline_version": {
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "retry_of_run_id": {
+                    "type": "integer"
+                },
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_run.StageView"
+                    }
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "state": {
+                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryRunState"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_run.StageView": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "approval_required": {
+                    "type": "boolean"
+                },
+                "cluster_id": {
+                    "type": "integer"
+                },
+                "correlation_id": {
+                    "type": "string"
+                },
+                "environment_id": {
+                    "type": "integer"
+                },
+                "environment_key": {
+                    "type": "string"
+                },
+                "environment_name": {
+                    "type": "string"
+                },
+                "error_code": {
+                    "type": "integer"
+                },
+                "error_message_key": {
+                    "type": "string"
+                },
+                "executor": {
+                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryExecutor"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "release_name": {
+                    "type": "string"
+                },
+                "result_digest": {
+                    "type": "string"
+                },
+                "result_revision": {
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "state": {
+                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryStageState"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "10m0s"
                 }
             }
         },
@@ -8567,519 +9080,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/optimus-be_internal_modules_observability_prometheus.Sample"
                     }
-                }
-            }
-        },
-        "pipeline.ArtifactVersion": {
-            "type": "object",
-            "properties": {
-                "chart_name": {
-                    "type": "string"
-                },
-                "chart_repo_id": {
-                    "type": "integer"
-                },
-                "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "pipeline.Pipeline": {
-            "type": "object",
-            "properties": {
-                "created_by_user_id": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_current": {
-                    "type": "boolean"
-                },
-                "project_id": {
-                    "type": "integer"
-                },
-                "published_at": {
-                    "type": "string"
-                },
-                "stages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/pipeline.Stage"
-                    }
-                },
-                "version": {
-                    "type": "integer"
-                }
-            }
-        },
-        "pipeline.PublishRequest": {
-            "type": "object",
-            "required": [
-                "stages"
-            ],
-            "properties": {
-                "stages": {
-                    "type": "array",
-                    "maxItems": 20,
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/pipeline.StageInput"
-                    }
-                }
-            }
-        },
-        "pipeline.ResolveArtifactRequest": {
-            "type": "object",
-            "required": [
-                "chart_name",
-                "chart_repo_id",
-                "chart_version"
-            ],
-            "properties": {
-                "chart_name": {
-                    "type": "string"
-                },
-                "chart_repo_id": {
-                    "type": "integer"
-                },
-                "chart_version": {
-                    "type": "string"
-                }
-            }
-        },
-        "pipeline.ResolvedArtifact": {
-            "type": "object",
-            "properties": {
-                "chart_name": {
-                    "type": "string"
-                },
-                "chart_repo_id": {
-                    "type": "integer"
-                },
-                "digest": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "pipeline.Stage": {
-            "type": "object",
-            "properties": {
-                "approval_required": {
-                    "type": "boolean"
-                },
-                "environment_id": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "order": {
-                    "type": "integer"
-                },
-                "timeout": {
-                    "type": "string",
-                    "example": "10m"
-                }
-            }
-        },
-        "pipeline.StageInput": {
-            "type": "object",
-            "required": [
-                "environment_id"
-            ],
-            "properties": {
-                "approval_required": {
-                    "type": "boolean"
-                },
-                "environment_id": {
-                    "type": "integer"
-                },
-                "timeout": {
-                    "type": "string",
-                    "example": "10m"
-                }
-            }
-        },
-        "project.BindEnvironmentRequest": {
-            "type": "object",
-            "required": [
-                "application_id",
-                "display_name",
-                "environment_key"
-            ],
-            "properties": {
-                "application_id": {
-                    "type": "integer"
-                },
-                "display_name": {
-                    "type": "string",
-                    "maxLength": 128,
-                    "minLength": 1
-                },
-                "environment_key": {
-                    "type": "string",
-                    "maxLength": 128,
-                    "minLength": 1
-                }
-            }
-        },
-        "project.CreateProjectRequest": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "maxLength": 4096
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 128,
-                    "minLength": 1
-                },
-                "owner_user_id": {
-                    "type": "integer",
-                    "minimum": 1
-                }
-            }
-        },
-        "project.Environment": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "integer"
-                },
-                "application_name": {
-                    "type": "string"
-                },
-                "chart_name": {
-                    "type": "string"
-                },
-                "chart_repo_id": {
-                    "type": "integer"
-                },
-                "cluster_id": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "environment_key": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "installed": {
-                    "type": "boolean"
-                },
-                "namespace": {
-                    "type": "string"
-                },
-                "project_id": {
-                    "type": "integer"
-                },
-                "release_name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "project.ListResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/project.ProjectSummary"
-                    }
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "page_size": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "project.ProjectDetail": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "environment_count": {
-                    "type": "integer"
-                },
-                "environments": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/project.Environment"
-                    }
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "owner_user_id": {
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "project.ProjectSummary": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "environment_count": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "owner_user_id": {
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "project.UpdateEnvironmentRequest": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "description": "ApplicationID is accepted only to return an explicit error for attempted\nrebinding. Application bindings are immutable in the MVP.",
-                    "type": "integer",
-                    "minimum": 1
-                },
-                "display_name": {
-                    "type": "string",
-                    "maxLength": 128,
-                    "minLength": 1
-                },
-                "environment_key": {
-                    "type": "string",
-                    "maxLength": 128,
-                    "minLength": 1
-                }
-            }
-        },
-        "project.UpdateProjectRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "maxLength": 4096
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 128,
-                    "minLength": 1
-                },
-                "owner_user_id": {
-                    "description": "OwnerUserID uses zero to clear the nullable owner and a non-zero value to set it.",
-                    "type": "integer"
-                }
-            }
-        },
-        "run.CreateRequest": {
-            "type": "object",
-            "required": [
-                "chart_name",
-                "chart_repo_id",
-                "chart_version"
-            ],
-            "properties": {
-                "chart_name": {
-                    "type": "string",
-                    "maxLength": 128
-                },
-                "chart_repo_id": {
-                    "type": "integer"
-                },
-                "chart_version": {
-                    "type": "string",
-                    "maxLength": 128
-                }
-            }
-        },
-        "run.ListResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/run.RunView"
-                    }
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "page_size": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "run.RunView": {
-            "type": "object",
-            "properties": {
-                "chart_digest": {
-                    "type": "string"
-                },
-                "chart_name": {
-                    "type": "string"
-                },
-                "chart_repo_id": {
-                    "type": "integer"
-                },
-                "chart_version": {
-                    "type": "string"
-                },
-                "correlation_id": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "error_code": {
-                    "type": "integer"
-                },
-                "error_message_key": {
-                    "type": "string"
-                },
-                "finished_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "initiator_user_id": {
-                    "type": "integer"
-                },
-                "pipeline_id": {
-                    "type": "integer"
-                },
-                "pipeline_version": {
-                    "type": "integer"
-                },
-                "project_id": {
-                    "type": "integer"
-                },
-                "retry_of_run_id": {
-                    "type": "integer"
-                },
-                "stages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/run.StageView"
-                    }
-                },
-                "started_at": {
-                    "type": "string"
-                },
-                "state": {
-                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryRunState"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "run.StageView": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "integer"
-                },
-                "approval_required": {
-                    "type": "boolean"
-                },
-                "cluster_id": {
-                    "type": "integer"
-                },
-                "correlation_id": {
-                    "type": "string"
-                },
-                "environment_id": {
-                    "type": "integer"
-                },
-                "environment_key": {
-                    "type": "string"
-                },
-                "environment_name": {
-                    "type": "string"
-                },
-                "error_code": {
-                    "type": "integer"
-                },
-                "error_message_key": {
-                    "type": "string"
-                },
-                "executor": {
-                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryExecutor"
-                },
-                "finished_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "namespace": {
-                    "type": "string"
-                },
-                "order": {
-                    "type": "integer"
-                },
-                "release_name": {
-                    "type": "string"
-                },
-                "result_digest": {
-                    "type": "string"
-                },
-                "result_revision": {
-                    "type": "integer"
-                },
-                "started_at": {
-                    "type": "string"
-                },
-                "state": {
-                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryStageState"
-                },
-                "timeout": {
-                    "type": "string",
-                    "example": "10m0s"
                 }
             }
         }

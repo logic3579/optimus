@@ -1,7 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { DatasourceDetail, SaveDatasource } from '@/types/observability'
-import DatasourceForm, { validateDatasourceURL } from '../components/DatasourceForm.vue'
+import DatasourceForm from '../components/DatasourceForm.vue'
+import { validateDatasourceURL } from '../components/validation'
 
 vi.mock('@/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 

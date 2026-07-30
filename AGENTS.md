@@ -19,10 +19,13 @@ If mem0 is available, search with `user_id = "logic"` for the latest
 `git status --short --branch` and recent
 `git log --oneline --decorate --max-count=20 --all`.
 
-Current expected project state (2026-07-24): P0-P5 are implemented. P5
-Observability completed the approved 2026-07-20 design and plan on
-`p5-observability`, including Task 16 backend, frontend, coverage,
-generated-artifact, and hygiene checks. P6 has no approved spec or plan.
+Current expected project state (2026-07-30): P0-P6 are implemented on `dev`.
+P6 Application Delivery completed the approved 2026-07-27 design and all 29
+plan tasks, including immutable Helm promotion runs, approvals, SSE events,
+restart/reconciliation recovery, frontend delivery pages, generated artifacts,
+and a real disposable Kind/Helm smoke. `dev` and `origin/dev` are at `57a0c58`.
+The next project task is release integration: review/merge `dev` into `main`,
+then run production-like deployment and upgrade smoke before tagging a release.
 
 ## Project Shape
 
@@ -114,6 +117,27 @@ not add AWS write/manage APIs in P4.
   commit.
 - Run `optimus-be/scripts/p5-smoke.md` with disposable local Prometheus; no
   production credential or Kubernetes cluster is needed.
+
+## P6 Application Delivery Rules
+
+- P6 promotes immutable chart artifacts through ordered environments bound to
+  existing P3 applications; it does not accept arbitrary commands, scripts,
+  manifests, values, container images, or credentials.
+- Direct P3 upgrade/uninstall of a delivery-managed application stays denied;
+  only the closed in-process delivery capability may perform an upgrade.
+- Resolve and persist the chart digest before run creation. Every stage must
+  use the frozen repository, chart name, version, digest, application, cluster,
+  namespace, release name, executor, approval policy, and timeout.
+- Initiators cannot approve their own run. Project, pipeline, run, and approval
+  permissions remain independent and every UI control uses its exact gate.
+- Workers use database leases and stable operation IDs. Ambiguous outcomes go
+  through reconciliation; never guess success or blindly replay Helm.
+- System kubeconfig consumption must use a `system:` purpose. The production
+  Helm loader must preserve `LoadVerifiedChart` digest verification.
+- SSE and audit projections must never expose values, kubeconfigs, auth
+  headers, manifests, Helm notes, or raw executor errors.
+- Run `optimus-be/scripts/p6-smoke.md` only against disposable PostgreSQL,
+  Kind, and chart-repository resources.
 
 ## Codex Environment Notes
 

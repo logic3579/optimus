@@ -5,7 +5,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	"gorm.io/datatypes"
@@ -248,6 +250,13 @@ func (s *gormReconcileStore) ClaimNextReconcileRun(ctx context.Context, now time
 const reconcileAdvisoryNamespace int64 = 0x5046523600000000
 const reconcileUnlockTimeout = time.Second
 
+func reconcileAdvisoryKey(runID uint64) (int64, error) {
+	if runID > math.MaxInt64 {
+		return 0, fmt.Errorf("delivery run ID %d exceeds advisory lock range", runID)
+	}
+	return reconcileAdvisoryNamespace ^ int64(runID), nil // #nosec G115 -- range checked above
+}
+
 func (s *gormReconcileStore) advisoryClaim(ctx context.Context, runID uint64) (*reconcileClaim, error) {
 	sqlDB, err := s.db.DB()
 	if err != nil {
@@ -257,7 +266,11 @@ func (s *gormReconcileStore) advisoryClaim(ctx context.Context, runID uint64) (*
 	if err != nil {
 		return nil, err
 	}
-	key := reconcileAdvisoryNamespace ^ int64(runID)
+	key, err := reconcileAdvisoryKey(runID)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
 	var acquired bool
 	if err := conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&acquired); err != nil {
 		_ = conn.Close()

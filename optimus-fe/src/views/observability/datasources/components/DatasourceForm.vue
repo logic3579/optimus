@@ -19,19 +19,12 @@
   </a-form>
 </template>
 
-<script lang="ts">
-export function validateDatasourceURL(value: string): boolean {
-  try {
-    const url = new URL(value)
-    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password && !url.search && !url.hash
-  } catch { return false }
-}
-</script>
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from '@/hooks/useI18n'
 import type { HTTPCredentialSummary } from '@/api/credentials/http-credential'
 import type { DatasourceDetail, NamedRef, SaveDatasource } from '@/types/observability'
+import { validateDatasourceURL } from './validation'
 
 const props = defineProps<{ initial?: DatasourceDetail | null; credentials: HTTPCredentialSummary[]; clusters: NamedRef[] }>()
 const { t } = useI18n()
