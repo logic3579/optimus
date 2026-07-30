@@ -16,7 +16,9 @@ func lifecycleLockKey(namespace string, id uint64) int64 {
 	var encoded [8]byte
 	binary.BigEndian.PutUint64(encoded[:], id)
 	_, _ = h.Write(encoded[:])
-	return int64(h.Sum64() & uint64(math.MaxInt64))
+	// The mask clears the sign bit before converting the hash to PostgreSQL's
+	// signed advisory-lock key space.
+	return int64(h.Sum64() & uint64(math.MaxInt64)) // #nosec G115 -- masked to MaxInt64
 }
 
 func lockLifecycle(ctx context.Context, tx *gorm.DB, key int64, resource string) error {
