@@ -70,7 +70,7 @@ func (s *Service) ReadAfter(ctx context.Context, runID, cursor uint64) ([]Event,
 		return nil, err
 	}
 	result := make([]Event, 0, len(rows))
-	var previous uint64 = cursor
+	previous := cursor
 	for i := range rows {
 		if rows[i].RunID != runID || rows[i].ID <= previous {
 			return nil, errors.New("delivery event repository returned an invalid cursor page")

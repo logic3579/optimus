@@ -23,11 +23,14 @@ type ApplicationReader interface {
 
 // ProjectActivity distinguishes ordinary active work from an unknown outcome,
 // because the latter requires operator reconciliation before destructive edits.
+//
+//nolint:revive // Cross-module seam is clearer with the project qualifier.
 type ProjectActivity struct {
 	Active         bool
 	OutcomeUnknown bool
 }
 
+//nolint:revive // Cross-module seam is clearer with the project qualifier.
 type ProjectActivityReader interface {
 	ProjectActivity(ctx context.Context, projectID uint64) (ProjectActivity, error)
 }
@@ -542,6 +545,6 @@ func cloneUint64(value *uint64) *uint64 {
 	if value == nil {
 		return nil
 	}
-	copy := *value
-	return &copy
+	copied := *value
+	return &copied
 }

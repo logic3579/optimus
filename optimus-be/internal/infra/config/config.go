@@ -286,16 +286,16 @@ func (c *Config) validateDelivery() error {
 	return nil
 }
 
-func validateDeliveryIntRange(field string, value, min, max int) error {
-	if value < min || value > max {
-		return fmt.Errorf("%s must be within allowed range [%d, %d]", field, min, max)
+func validateDeliveryIntRange(field string, value, minimum, maximum int) error {
+	if value < minimum || value > maximum {
+		return fmt.Errorf("%s must be within allowed range [%d, %d]", field, minimum, maximum)
 	}
 	return nil
 }
 
-func validateDeliveryDurationRange(field string, value, min, max time.Duration) error {
-	if value < min || value > max {
-		return fmt.Errorf("%s must be within allowed range [%s, %s]", field, min, max)
+func validateDeliveryDurationRange(field string, value, minimum, maximum time.Duration) error {
+	if value < minimum || value > maximum {
+		return fmt.Errorf("%s must be within allowed range [%s, %s]", field, minimum, maximum)
 	}
 	return nil
 }

@@ -114,11 +114,17 @@ func TestArtifactCatalogHidesResolverErrorsAndMalformedDigest(t *testing.T) {
 	base := artifactCatalog{projects: projectEnvironmentStub{environments: []project.Environment{{ChartRepoID: 4, ChartName: "demo"}}}, versions: versionListerStub{items: []pipeline.ArtifactVersion{{Version: "1.2.3"}}}}
 	for _, resolver := range []artifactResolverStub{{err: errors.New("registry token=secret")}, {artifact: &run.Artifact{RepoID: 4, ChartName: "demo", Version: "1.2.3", Digest: "sha256:bad"}}} {
 		base.resolver = resolver
-		_, err := base.ResolveArtifact(context.Background(), 9, pipeline.ResolveArtifactRequest{ChartRepoID: 4, ChartName: "demo", ChartVersion: "1.2.3"})
-		var business *apperr.BizError
-		require.ErrorAs(t, err, &business)
-		require.Equal(t, apperr.CodeDeliveryExecutionUnavailable, business.Code)
-		require.NotContains(t, business.Error(), "secret")
+		h := pipeline.NewHandler(pipeline.NewHTTPService(nil, nil, base))
+		r := gin.New()
+		r.POST("/projects/:id/artifacts/resolve", h.ResolveArtifact)
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/projects/9/artifacts/resolve", strings.NewReader(`{"chart_repo_id":4,"chart_name":"demo","chart_version":"1.2.3"}`))
+		req.Header.Set("Content-Type", "application/json")
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusServiceUnavailable, w.Code, w.Body.String())
+		require.Contains(t, w.Body.String(), `"message_key":"delivery.execution.unavailable"`)
+		require.NotContains(t, w.Body.String(), "secret")
+		require.NotContains(t, w.Body.String(), "sha256:bad")
 	}
 }
 

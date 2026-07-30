@@ -1,5 +1,52 @@
 basePath: /api/v1
 definitions:
+  application.CreateRequest:
+    properties:
+      chart_name:
+        maxLength: 128
+        type: string
+      chart_repo_id:
+        type: integer
+      cluster_id:
+        type: integer
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 64
+        type: string
+      namespace:
+        maxLength: 63
+        type: string
+      owner_user_id:
+        type: integer
+      release_name:
+        maxLength: 53
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    required:
+    - chart_name
+    - chart_repo_id
+    - cluster_id
+    - name
+    - namespace
+    - release_name
+    type: object
+  application.UpdateRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      owner_user_id:
+        type: integer
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
   approval.Decision:
     properties:
       comment:
@@ -53,53 +100,6 @@ definitions:
         type: integer
       stage_order:
         type: integer
-    type: object
-  internal_modules_apps_application.CreateRequest:
-    properties:
-      chart_name:
-        maxLength: 128
-        type: string
-      chart_repo_id:
-        type: integer
-      cluster_id:
-        type: integer
-      description:
-        maxLength: 4096
-        type: string
-      name:
-        maxLength: 64
-        type: string
-      namespace:
-        maxLength: 63
-        type: string
-      owner_user_id:
-        type: integer
-      release_name:
-        maxLength: 53
-        type: string
-      tags:
-        items:
-          type: string
-        type: array
-    required:
-    - chart_name
-    - chart_repo_id
-    - cluster_id
-    - name
-    - namespace
-    - release_name
-    type: object
-  internal_modules_apps_application.UpdateRequest:
-    properties:
-      description:
-        maxLength: 4096
-        type: string
-      owner_user_id:
-        type: integer
-      tags:
-        items:
-          type: string
-        type: array
     type: object
   internal_modules_apps_release.InstallRequest:
     properties:
@@ -726,266 +726,6 @@ definitions:
         type: string
       username:
         maxLength: 64
-        type: string
-    type: object
-  internal_modules_delivery_project.BindEnvironmentRequest:
-    properties:
-      application_id:
-        type: integer
-      display_name:
-        maxLength: 128
-        minLength: 1
-        type: string
-      environment_key:
-        maxLength: 128
-        minLength: 1
-        type: string
-    required:
-    - application_id
-    - display_name
-    - environment_key
-    type: object
-  internal_modules_delivery_project.CreateProjectRequest:
-    properties:
-      description:
-        maxLength: 4096
-        type: string
-      name:
-        maxLength: 128
-        minLength: 1
-        type: string
-      owner_user_id:
-        minimum: 1
-        type: integer
-    required:
-    - name
-    type: object
-  internal_modules_delivery_project.Environment:
-    properties:
-      application_id:
-        type: integer
-      application_name:
-        type: string
-      chart_name:
-        type: string
-      chart_repo_id:
-        type: integer
-      cluster_id:
-        type: integer
-      created_at:
-        type: string
-      display_name:
-        type: string
-      environment_key:
-        type: string
-      id:
-        type: integer
-      installed:
-        type: boolean
-      namespace:
-        type: string
-      project_id:
-        type: integer
-      release_name:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  internal_modules_delivery_project.ListResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/internal_modules_delivery_project.ProjectSummary'
-        type: array
-      page:
-        type: integer
-      page_size:
-        type: integer
-      total:
-        type: integer
-    type: object
-  internal_modules_delivery_project.ProjectDetail:
-    properties:
-      created_at:
-        type: string
-      description:
-        type: string
-      environment_count:
-        type: integer
-      environments:
-        items:
-          $ref: '#/definitions/internal_modules_delivery_project.Environment'
-        type: array
-      id:
-        type: integer
-      name:
-        type: string
-      owner_user_id:
-        type: integer
-      updated_at:
-        type: string
-    type: object
-  internal_modules_delivery_project.ProjectSummary:
-    properties:
-      created_at:
-        type: string
-      description:
-        type: string
-      environment_count:
-        type: integer
-      id:
-        type: integer
-      name:
-        type: string
-      owner_user_id:
-        type: integer
-      updated_at:
-        type: string
-    type: object
-  internal_modules_delivery_project.UpdateEnvironmentRequest:
-    properties:
-      application_id:
-        description: |-
-          ApplicationID is accepted only to return an explicit error for attempted
-          rebinding. Application bindings are immutable in the MVP.
-        minimum: 1
-        type: integer
-      display_name:
-        maxLength: 128
-        minLength: 1
-        type: string
-      environment_key:
-        maxLength: 128
-        minLength: 1
-        type: string
-    type: object
-  internal_modules_delivery_project.UpdateProjectRequest:
-    properties:
-      description:
-        maxLength: 4096
-        type: string
-      name:
-        maxLength: 128
-        minLength: 1
-        type: string
-      owner_user_id:
-        description: OwnerUserID uses zero to clear the nullable owner and a non-zero
-          value to set it.
-        type: integer
-    type: object
-  internal_modules_delivery_run.CreateRequest:
-    properties:
-      chart_name:
-        maxLength: 128
-        type: string
-      chart_repo_id:
-        type: integer
-      chart_version:
-        maxLength: 128
-        type: string
-    required:
-    - chart_name
-    - chart_repo_id
-    - chart_version
-    type: object
-  internal_modules_delivery_run.ListResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/internal_modules_delivery_run.RunView'
-        type: array
-      page:
-        type: integer
-      page_size:
-        type: integer
-      total:
-        type: integer
-    type: object
-  internal_modules_delivery_run.RunView:
-    properties:
-      chart_digest:
-        type: string
-      chart_name:
-        type: string
-      chart_repo_id:
-        type: integer
-      chart_version:
-        type: string
-      correlation_id:
-        type: string
-      created_at:
-        type: string
-      error_code:
-        type: integer
-      error_message_key:
-        type: string
-      finished_at:
-        type: string
-      id:
-        type: integer
-      initiator_user_id:
-        type: integer
-      pipeline_id:
-        type: integer
-      pipeline_version:
-        type: integer
-      project_id:
-        type: integer
-      retry_of_run_id:
-        type: integer
-      stages:
-        items:
-          $ref: '#/definitions/internal_modules_delivery_run.StageView'
-        type: array
-      started_at:
-        type: string
-      state:
-        $ref: '#/definitions/optimus-be_internal_models.DeliveryRunState'
-      updated_at:
-        type: string
-    type: object
-  internal_modules_delivery_run.StageView:
-    properties:
-      application_id:
-        type: integer
-      approval_required:
-        type: boolean
-      cluster_id:
-        type: integer
-      correlation_id:
-        type: string
-      environment_id:
-        type: integer
-      environment_key:
-        type: string
-      environment_name:
-        type: string
-      error_code:
-        type: integer
-      error_message_key:
-        type: string
-      executor:
-        $ref: '#/definitions/optimus-be_internal_models.DeliveryExecutor'
-      finished_at:
-        type: string
-      id:
-        type: integer
-      namespace:
-        type: string
-      order:
-        type: integer
-      release_name:
-        type: string
-      result_digest:
-        type: string
-      result_revision:
-        type: integer
-      started_at:
-        type: string
-      state:
-        $ref: '#/definitions/optimus-be_internal_models.DeliveryStageState'
-      timeout:
-        example: 10m0s
         type: string
     type: object
   internal_modules_k8s_cluster.CreateRequest:
@@ -1782,6 +1522,266 @@ definitions:
     required:
     - environment_id
     type: object
+  project.BindEnvironmentRequest:
+    properties:
+      application_id:
+        type: integer
+      display_name:
+        maxLength: 128
+        minLength: 1
+        type: string
+      environment_key:
+        maxLength: 128
+        minLength: 1
+        type: string
+    required:
+    - application_id
+    - display_name
+    - environment_key
+    type: object
+  project.CreateProjectRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        minLength: 1
+        type: string
+      owner_user_id:
+        minimum: 1
+        type: integer
+    required:
+    - name
+    type: object
+  project.Environment:
+    properties:
+      application_id:
+        type: integer
+      application_name:
+        type: string
+      chart_name:
+        type: string
+      chart_repo_id:
+        type: integer
+      cluster_id:
+        type: integer
+      created_at:
+        type: string
+      display_name:
+        type: string
+      environment_key:
+        type: string
+      id:
+        type: integer
+      installed:
+        type: boolean
+      namespace:
+        type: string
+      project_id:
+        type: integer
+      release_name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  project.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/project.ProjectSummary'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  project.ProjectDetail:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      environment_count:
+        type: integer
+      environments:
+        items:
+          $ref: '#/definitions/project.Environment'
+        type: array
+      id:
+        type: integer
+      name:
+        type: string
+      owner_user_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  project.ProjectSummary:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      environment_count:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      owner_user_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  project.UpdateEnvironmentRequest:
+    properties:
+      application_id:
+        description: |-
+          ApplicationID is accepted only to return an explicit error for attempted
+          rebinding. Application bindings are immutable in the MVP.
+        minimum: 1
+        type: integer
+      display_name:
+        maxLength: 128
+        minLength: 1
+        type: string
+      environment_key:
+        maxLength: 128
+        minLength: 1
+        type: string
+    type: object
+  project.UpdateProjectRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        minLength: 1
+        type: string
+      owner_user_id:
+        description: OwnerUserID uses zero to clear the nullable owner and a non-zero
+          value to set it.
+        type: integer
+    type: object
+  run.CreateRequest:
+    properties:
+      chart_name:
+        maxLength: 128
+        type: string
+      chart_repo_id:
+        type: integer
+      chart_version:
+        maxLength: 128
+        type: string
+    required:
+    - chart_name
+    - chart_repo_id
+    - chart_version
+    type: object
+  run.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/run.RunView'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  run.RunView:
+    properties:
+      chart_digest:
+        type: string
+      chart_name:
+        type: string
+      chart_repo_id:
+        type: integer
+      chart_version:
+        type: string
+      correlation_id:
+        type: string
+      created_at:
+        type: string
+      error_code:
+        type: integer
+      error_message_key:
+        type: string
+      finished_at:
+        type: string
+      id:
+        type: integer
+      initiator_user_id:
+        type: integer
+      pipeline_id:
+        type: integer
+      pipeline_version:
+        type: integer
+      project_id:
+        type: integer
+      retry_of_run_id:
+        type: integer
+      stages:
+        items:
+          $ref: '#/definitions/run.StageView'
+        type: array
+      started_at:
+        type: string
+      state:
+        $ref: '#/definitions/optimus-be_internal_models.DeliveryRunState'
+      updated_at:
+        type: string
+    type: object
+  run.StageView:
+    properties:
+      application_id:
+        type: integer
+      approval_required:
+        type: boolean
+      cluster_id:
+        type: integer
+      correlation_id:
+        type: string
+      environment_id:
+        type: integer
+      environment_key:
+        type: string
+      environment_name:
+        type: string
+      error_code:
+        type: integer
+      error_message_key:
+        type: string
+      executor:
+        $ref: '#/definitions/optimus-be_internal_models.DeliveryExecutor'
+      finished_at:
+        type: string
+      id:
+        type: integer
+      namespace:
+        type: string
+      order:
+        type: integer
+      release_name:
+        type: string
+      result_digest:
+        type: string
+      result_revision:
+        type: integer
+      started_at:
+        type: string
+      state:
+        $ref: '#/definitions/optimus-be_internal_models.DeliveryStageState'
+      timeout:
+        example: 10m0s
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -1843,7 +1843,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_apps_application.CreateRequest'
+          $ref: '#/definitions/application.CreateRequest'
       produces:
       - application/json
       responses:
@@ -1909,7 +1909,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_apps_application.UpdateRequest'
+          $ref: '#/definitions/application.UpdateRequest'
       produces:
       - application/json
       responses:
@@ -3727,7 +3727,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_project.ListResponse'
+                  $ref: '#/definitions/project.ListResponse'
               type: object
       security:
       - BearerAuth: []
@@ -3743,7 +3743,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_delivery_project.CreateProjectRequest'
+          $ref: '#/definitions/project.CreateProjectRequest'
       responses:
         "200":
           description: OK
@@ -3752,7 +3752,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_project.ProjectDetail'
+                  $ref: '#/definitions/project.ProjectDetail'
               type: object
       security:
       - BearerAuth: []
@@ -3792,7 +3792,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_project.ProjectDetail'
+                  $ref: '#/definitions/project.ProjectDetail'
               type: object
       security:
       - BearerAuth: []
@@ -3813,7 +3813,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_delivery_project.UpdateProjectRequest'
+          $ref: '#/definitions/project.UpdateProjectRequest'
       responses:
         "200":
           description: OK
@@ -3822,7 +3822,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_project.ProjectDetail'
+                  $ref: '#/definitions/project.ProjectDetail'
               type: object
       security:
       - BearerAuth: []
@@ -3902,7 +3902,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/internal_modules_delivery_project.Environment'
+                    $ref: '#/definitions/project.Environment'
                   type: array
               type: object
       security:
@@ -3924,7 +3924,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_delivery_project.BindEnvironmentRequest'
+          $ref: '#/definitions/project.BindEnvironmentRequest'
       responses:
         "200":
           description: OK
@@ -3933,7 +3933,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_project.Environment'
+                  $ref: '#/definitions/project.Environment'
               type: object
       security:
       - BearerAuth: []
@@ -3982,7 +3982,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_delivery_project.UpdateEnvironmentRequest'
+          $ref: '#/definitions/project.UpdateEnvironmentRequest'
       responses:
         "200":
           description: OK
@@ -3991,7 +3991,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_project.Environment'
+                  $ref: '#/definitions/project.Environment'
               type: object
       security:
       - BearerAuth: []
@@ -4077,7 +4077,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_run.ListResponse'
+                  $ref: '#/definitions/run.ListResponse'
               type: object
       security:
       - BearerAuth: []
@@ -4103,7 +4103,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_delivery_run.CreateRequest'
+          $ref: '#/definitions/run.CreateRequest'
       responses:
         "200":
           description: OK
@@ -4112,7 +4112,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+                  $ref: '#/definitions/run.RunView'
               type: object
       security:
       - BearerAuth: []
@@ -4197,7 +4197,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+                  $ref: '#/definitions/run.RunView'
               type: object
       security:
       - BearerAuth: []
@@ -4220,7 +4220,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+                  $ref: '#/definitions/run.RunView'
               type: object
       security:
       - BearerAuth: []
@@ -4271,7 +4271,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+                  $ref: '#/definitions/run.RunView'
               type: object
       security:
       - BearerAuth: []
@@ -4299,7 +4299,7 @@ paths:
             - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+                  $ref: '#/definitions/run.RunView'
               type: object
       security:
       - BearerAuth: []

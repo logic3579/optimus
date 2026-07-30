@@ -41,7 +41,7 @@ func newMemoryRepository() *memoryRepository {
 	}
 }
 
-func (r *memoryRepository) Transaction(ctx context.Context, fn func(repository) error) error {
+func (r *memoryRepository) Transaction(_ context.Context, fn func(repository) error) error {
 	err := fn(r)
 	if err != nil {
 		return err

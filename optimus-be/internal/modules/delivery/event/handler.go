@@ -105,11 +105,11 @@ func (h *Handler) Stream(c *gin.Context) {
 	defer heartbeat.Stop()
 	defer poll.Stop()
 	defer expires.Stop()
-	if next, ok := emitEvents(c, cursor, prefetched); !ok {
+	next, ok := emitEvents(c, cursor, prefetched)
+	if !ok {
 		return
-	} else {
-		cursor = next
 	}
+	cursor = next
 	for {
 		select {
 		case <-c.Request.Context().Done():

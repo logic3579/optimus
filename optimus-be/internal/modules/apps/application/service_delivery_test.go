@@ -35,8 +35,8 @@ func (r *deletionRepositoryFake) Get(_ context.Context, id uint64) (*models.Apps
 	if r.deleted || r.row == nil || r.row.ID != id {
 		return nil, gorm.ErrRecordNotFound
 	}
-	copy := *r.row
-	return &copy, nil
+	copied := *r.row
+	return &copied, nil
 }
 
 func (r *deletionRepositoryFake) Delete(_ context.Context, id uint64) error {

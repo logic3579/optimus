@@ -57,6 +57,8 @@ type StageView struct {
 
 // RunView omits the internal request fingerprint and exposes only stable,
 // localized failure metadata suitable for recovery UI.
+//
+//nolint:revive // Explicit DTO name distinguishes it from the internal Run type.
 type RunView struct {
 	ID              uint64                  `json:"id"`
 	ProjectID       uint64                  `json:"project_id"`

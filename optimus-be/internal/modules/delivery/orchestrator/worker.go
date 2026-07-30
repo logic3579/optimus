@@ -333,7 +333,7 @@ func (s *gormStore) Complete(ctx context.Context, w claimedWork, owner string, n
 	})
 }
 
-func (s *gormStore) reconcile(tx *gorm.DB, run *models.DeliveryRun, stage *models.DeliveryRunStage, owner string, now time.Time, intent recoveryIntent) error {
+func (s *gormStore) reconcile(tx *gorm.DB, run *models.DeliveryRun, stage *models.DeliveryRunStage, _ string, now time.Time, intent recoveryIntent) error {
 	if stage.State != models.DeliveryStageRunning {
 		return nil
 	}

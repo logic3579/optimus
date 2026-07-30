@@ -40,7 +40,7 @@ func (r *memoryRepo) LockProject(ctx context.Context, id uint64) (*models.Delive
 }
 func (r *memoryRepo) LockApplication(context.Context, uint64) error { return nil }
 
-func (r *memoryRepo) ListProjects(_ context.Context, q ListQuery) ([]models.DeliveryProject, int64, error) {
+func (r *memoryRepo) ListProjects(_ context.Context, _ ListQuery) ([]models.DeliveryProject, int64, error) {
 	rows := make([]models.DeliveryProject, 0, len(r.projects))
 	for _, row := range r.projects {
 		if !row.DeletedAt.Valid {
@@ -55,8 +55,8 @@ func (r *memoryRepo) GetProject(_ context.Context, id uint64) (*models.DeliveryP
 	if !ok || row.DeletedAt.Valid {
 		return nil, projectNotFoundError()
 	}
-	copy := *row
-	return &copy, nil
+	copied := *row
+	return &copied, nil
 }
 func (r *memoryRepo) CreateProject(_ context.Context, row *models.DeliveryProject) error {
 	for _, existing := range r.projects {
@@ -67,8 +67,8 @@ func (r *memoryRepo) CreateProject(_ context.Context, row *models.DeliveryProjec
 	row.ID = r.nextProjectID
 	r.nextProjectID++
 	row.CreatedAt, row.UpdatedAt = time.Now(), time.Now()
-	copy := *row
-	r.projects[row.ID] = &copy
+	copied := *row
+	r.projects[row.ID] = &copied
 	return nil
 }
 func (r *memoryRepo) UpdateProject(_ context.Context, id uint64, fields map[string]any) error {
@@ -126,8 +126,8 @@ func (r *memoryRepo) GetEnvironment(_ context.Context, projectID, id uint64) (*m
 	if !ok || row.DeletedAt.Valid || row.ProjectID != projectID {
 		return nil, environmentNotFoundError()
 	}
-	copy := *row
-	return &copy, nil
+	copied := *row
+	return &copied, nil
 }
 func (r *memoryRepo) ApplicationBound(_ context.Context, applicationID uint64) (bool, error) {
 	for _, row := range r.environments {
@@ -152,8 +152,8 @@ func (r *memoryRepo) CreateEnvironment(_ context.Context, row *models.DeliveryEn
 	row.ID = r.nextEnvID
 	r.nextEnvID++
 	row.CreatedAt, row.UpdatedAt = time.Now(), time.Now()
-	copy := *row
-	r.environments[row.ID] = &copy
+	copied := *row
+	r.environments[row.ID] = &copied
 	return nil
 }
 func (r *memoryRepo) UpdateEnvironment(_ context.Context, projectID, id uint64, fields map[string]any) error {
@@ -204,8 +204,8 @@ func (s *applicationReaderStub) GetApplication(_ context.Context, id uint64) (*A
 	if !ok {
 		return nil, gorm.ErrRecordNotFound
 	}
-	copy := app
-	return &copy, nil
+	copied := app
+	return &copied, nil
 }
 
 type activityReaderStub struct{ activity ProjectActivity }
@@ -445,8 +445,8 @@ func TestServiceEnvironmentUpdateImmutableBindingOrderingAndAudit(t *testing.T) 
 func TestServiceEnvironmentUnbindGuardsAndReleasesBinding(t *testing.T) {
 	ctx := context.Background()
 	makeBound := func(activity ProjectActivity) (*Service, *memoryRepo, uint64, uint64) {
-		svc, repo, apps, audits := setupService()
-		svc = NewService(repo, apps, activityReaderStub{activity: activity}, audits)
+		_, repo, apps, audits := setupService()
+		svc := NewService(repo, apps, activityReaderStub{activity: activity}, audits)
 		project, _ := svc.CreateProject(ctx, 0, "", "", CreateProjectRequest{Name: "p"})
 		env, _ := svc.BindEnvironment(ctx, 0, "", "", project.ID, BindEnvironmentRequest{EnvironmentKey: "dev", DisplayName: "Dev", ApplicationID: 10})
 		return svc, repo, project.ID, env.ID
@@ -483,8 +483,8 @@ func TestServiceProjectDeleteGuardsBindingsAndNilGuard(t *testing.T) {
 		{name: "outcome unknown", activity: ProjectActivity{OutcomeUnknown: true}, code: errs.CodeOutcomeUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			svc, repo, apps, audits := setupService()
-			svc = NewService(repo, apps, activityReaderStub{activity: tc.activity}, audits)
+			_, repo, apps, audits := setupService()
+			svc := NewService(repo, apps, activityReaderStub{activity: tc.activity}, audits)
 			project, _ := svc.CreateProject(ctx, 0, "", "", CreateProjectRequest{Name: "p"})
 			require.Equal(t, tc.code, bizCode(t, svc.DeleteProject(ctx, 0, "", "", project.ID)))
 		})

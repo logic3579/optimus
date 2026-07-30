@@ -34,6 +34,8 @@ type Environment struct {
 }
 
 // ProjectSummary is the project list-row shape.
+//
+//nolint:revive // Explicit DTO name distinguishes it from domain and model summaries.
 type ProjectSummary struct {
 	ID               uint64    `json:"id"`
 	Name             string    `json:"name"`
@@ -45,6 +47,8 @@ type ProjectSummary struct {
 }
 
 // ProjectDetail includes active environments in stable key order.
+//
+//nolint:revive // Explicit DTO name distinguishes it from domain and model details.
 type ProjectDetail struct {
 	ProjectSummary
 	Environments []Environment `json:"environments"`
