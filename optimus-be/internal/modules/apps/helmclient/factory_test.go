@@ -125,17 +125,6 @@ users:
       name: gcp
 `
 
-func newOKFactory() *helmclient.Factory {
-	return helmclient.NewFactory(
-		&fakeConsumer{kc: &credentials.Kubeconfig{
-			Name: "kc1", DefaultNamespace: "default", YAML: []byte(validKubeconfig),
-		}},
-		&fakeClusters{c: &cluster.Detail{
-			ID: 1, Name: "c1", KubeconfigID: 7, Context: "test-ctx",
-		}},
-	)
-}
-
 // --- tests -----------------------------------------------------------------
 
 func TestNewFactory_PanicsOnNilSeams(t *testing.T) {
