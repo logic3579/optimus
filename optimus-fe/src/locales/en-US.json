@@ -14,7 +14,7 @@
     "theme": "Theme",
     "theme_light": "Light",
     "theme_dark": "Dark",
-    "actions": "Actions",
+    "actions": "Actions", "error": "Error", "created_at": "Created", "search": "Search",
     "button": {
       "back": "Back",
       "next": "Next",
@@ -628,6 +628,18 @@
     "tls_warning": "TLS certificate verification is disabled",
     "builtin": { "kubernetes": "Kubernetes", "namespace": "Namespace", "workload": "Workload", "asset_enrichment": "Asset enrichment" },
     "credentials": { "auth_type": "Authentication type", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "Leave blank to keep the existing secret" }
+  },
+  "delivery": {
+    "project": { "title": "Delivery projects", "name": "Name", "description": "Description", "owner": "Owner", "environment_count": "Environments", "not_found": "Delivery project not found", "name_conflict": "A project with this name already exists" },
+    "environment": { "title": "Environments", "create": "Bind environment", "key": "Environment key", "name": "Display name", "application": "Application", "duplicate": "This application is already bound", "not_installed": "The application must have an installed release", "not_found": "Environment not found", "in_use": "Environment is used by an active run" },
+    "pipeline": { "title": "Pipeline", "approval_required": "Approval required", "publish_version": "Publish version {version}", "publish_confirm": "Publish immutable pipeline version {version}?", "empty": "Add at least one stage", "timeout_invalid": "Timeout must be between 1 minute and 24 hours", "missing": "No pipeline has been published", "invalid": "Pipeline configuration is invalid", "version_conflict": "The pipeline changed; reload and try again" },
+    "run": { "title": "Promotion run", "history": "Run history", "create": "Create run", "confirm": "Confirm immutable promotion", "cancel": "Cancel", "reconcile": "Reconcile", "retry": "Retry", "state": "State", "version": "Version", "digest": "Digest", "revision": "Revision", "artifact": "Artifact", "initiator": "Initiator", "p3_recovery": "Open application recovery", "not_found": "Run not found", "active": "A promotion is already active", "idempotency_conflict": "This request key was already used for different input", "idempotency_missing": "The request key is missing", "invalid_state": "The run is not in a valid state for this action", "cancel_conflict": "The run can no longer be canceled", "retry_unavailable": "This run cannot be retried" },
+    "approval": { "title": "My approvals", "required": "Approval required", "approve": "Approve", "reject": "Reject", "approve_confirm": "Approve this promotion stage?", "reject_confirm": "Reject this promotion stage?", "requested_at": "Requested", "comment_required": "A comment of at most 512 characters is required", "not_found": "Approval not found", "self_approval": "You cannot approve your own run", "already_decided": "This approval was already decided", "decision_conflict": "This approval has a conflicting decision", "comment_invalid": "Approval comment is invalid" },
+    "state": { "pending": "Pending", "queued": "Queued", "running": "Running", "waiting_approval": "Waiting for approval", "cancel_requested": "Cancellation requested", "reconciling": "Reconciling", "succeeded": "Succeeded", "failed": "Failed", "rejected": "Rejected", "canceled": "Canceled", "timed_out": "Timed out", "outcome_unknown": "Outcome unknown" },
+    "execution": { "unavailable": "Delivery execution is temporarily unavailable", "operation_busy": "The application has another operation in progress", "artifact_drift": "The deployed artifact differs from the immutable target", "reconciliation_required": "Reconciliation is required", "outcome_unknown": "The operation outcome is unknown", "timeout": "The operation timed out" },
+    "chart": { "identity_mismatch": "The chart identity does not match the delivery project" },
+    "application": { "already_bound": "The application is already bound", "unavailable": "The application is unavailable" },
+    "event": { "transition": "State changed from {old} to {new}", "approved": "Stage approved", "rejected": "Stage rejected" }
   },
   "apps": {
     "title": "Applications",

@@ -14,7 +14,7 @@
     "theme": "主题",
     "theme_light": "浅色",
     "theme_dark": "深色",
-    "actions": "操作",
+    "actions": "操作", "error": "错误", "created_at": "创建时间", "search": "搜索",
     "button": {
       "back": "返回",
       "next": "下一步",
@@ -628,6 +628,18 @@
     "tls_warning": "TLS 证书校验已禁用",
     "builtin": { "kubernetes": "Kubernetes", "namespace": "命名空间", "workload": "工作负载", "asset_enrichment": "资产信息增强" },
     "credentials": { "auth_type": "认证类型", "basic": "Basic", "bearer": "Bearer", "secret_unchanged": "留空以保留现有密钥" }
+  },
+  "delivery": {
+    "project": { "title": "交付项目", "name": "名称", "description": "描述", "owner": "负责人", "environment_count": "环境数", "not_found": "交付项目不存在", "name_conflict": "同名项目已存在" },
+    "environment": { "title": "环境", "create": "绑定环境", "key": "环境标识", "name": "显示名称", "application": "应用", "duplicate": "该应用已绑定", "not_installed": "应用必须已有安装中的发布", "not_found": "环境不存在", "in_use": "环境正被活动运行使用" },
+    "pipeline": { "title": "流水线", "approval_required": "需要审批", "publish_version": "发布版本 {version}", "publish_confirm": "确认发布不可变流水线版本 {version}？", "empty": "至少添加一个阶段", "timeout_invalid": "超时必须介于 1 分钟和 24 小时之间", "missing": "尚未发布流水线", "invalid": "流水线配置无效", "version_conflict": "流水线已变化，请刷新后重试" },
+    "run": { "title": "晋级运行", "history": "运行历史", "create": "创建运行", "confirm": "确认不可变晋级", "cancel": "取消", "reconcile": "对账", "retry": "重试", "state": "状态", "version": "版本", "digest": "摘要", "revision": "修订版本", "artifact": "制品", "initiator": "发起人", "p3_recovery": "打开应用恢复", "not_found": "运行不存在", "active": "已有晋级正在运行", "idempotency_conflict": "该请求键已用于不同输入", "idempotency_missing": "缺少请求键", "invalid_state": "当前运行状态不允许此操作", "cancel_conflict": "该运行已无法取消", "retry_unavailable": "该运行无法重试" },
+    "approval": { "title": "我的审批", "required": "需要审批", "approve": "批准", "reject": "拒绝", "approve_confirm": "确认批准此晋级阶段？", "reject_confirm": "确认拒绝此晋级阶段？", "requested_at": "请求时间", "comment_required": "必须填写不超过 512 个字符的意见", "not_found": "审批不存在", "self_approval": "不能审批自己发起的运行", "already_decided": "该审批已处理", "decision_conflict": "该审批已有冲突决定", "comment_invalid": "审批意见无效" },
+    "state": { "pending": "待处理", "queued": "已排队", "running": "运行中", "waiting_approval": "等待审批", "cancel_requested": "已请求取消", "reconciling": "对账中", "succeeded": "成功", "failed": "失败", "rejected": "已拒绝", "canceled": "已取消", "timed_out": "已超时", "outcome_unknown": "结果未知" },
+    "execution": { "unavailable": "交付执行暂不可用", "operation_busy": "应用有其他操作正在进行", "artifact_drift": "已部署制品与不可变目标不一致", "reconciliation_required": "需要对账", "outcome_unknown": "操作结果未知", "timeout": "操作超时" },
+    "chart": { "identity_mismatch": "Chart 身份与交付项目不匹配" },
+    "application": { "already_bound": "应用已绑定", "unavailable": "应用不可用" },
+    "event": { "transition": "状态从 {old} 变更为 {new}", "approved": "阶段已批准", "rejected": "阶段已拒绝" }
   },
   "apps": {
     "title": "应用",
