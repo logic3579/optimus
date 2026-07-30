@@ -39,6 +39,10 @@ import { makeAssetsSyncApi } from '@/api/assets/sync'
 import { makeObservabilityDatasourceApi } from '@/api/observability/datasource'
 import { makeObservabilityQueryApi } from '@/api/observability/query'
 import { makeObservabilityDashboardApi } from '@/api/observability/dashboard'
+import { makeDeliveryProjectApi } from '@/api/delivery/project'
+import { makeDeliveryPipelineApi } from '@/api/delivery/pipeline'
+import { makeDeliveryRunApi } from '@/api/delivery/run'
+import { makeDeliveryApprovalApi } from '@/api/delivery/approval'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useAppStore } from '@/stores/app'
@@ -94,6 +98,10 @@ app.provide('assetsSyncApi', makeAssetsSyncApi(client))
 app.provide('observabilityDatasourceApi', makeObservabilityDatasourceApi(client))
 app.provide('observabilityQueryApi', makeObservabilityQueryApi(client))
 app.provide('observabilityDashboardApi', makeObservabilityDashboardApi(client))
+app.provide('deliveryProjectApi', makeDeliveryProjectApi(client))
+app.provide('deliveryPipelineApi', makeDeliveryPipelineApi(client))
+app.provide('deliveryRunApi', makeDeliveryRunApi(client))
+app.provide('deliveryApprovalApi', makeDeliveryApprovalApi(client))
 
 installGuards(router, meApi)
 app.use(router)
