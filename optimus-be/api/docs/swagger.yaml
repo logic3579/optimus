@@ -1,5 +1,59 @@
 basePath: /api/v1
 definitions:
+  approval.Decision:
+    properties:
+      comment:
+        type: string
+      decided_at:
+        type: string
+      decided_by_user_id:
+        type: integer
+      decision:
+        $ref: '#/definitions/optimus-be_internal_models.DeliveryApprovalDecision'
+      id:
+        type: integer
+      run_id:
+        type: integer
+      run_stage_id:
+        type: integer
+    type: object
+  approval.DecisionRequest:
+    properties:
+      comment:
+        maxLength: 512
+        type: string
+    required:
+    - comment
+    type: object
+  approval.PendingApproval:
+    properties:
+      chart_digest:
+        type: string
+      chart_name:
+        type: string
+      chart_version:
+        type: string
+      environment_key:
+        type: string
+      environment_name:
+        type: string
+      id:
+        type: integer
+      initiator_user_id:
+        type: integer
+      project_id:
+        type: integer
+      project_name:
+        type: string
+      requested_at:
+        type: string
+      run_id:
+        type: integer
+      run_stage_id:
+        type: integer
+      stage_order:
+        type: integer
+    type: object
   internal_modules_apps_application.CreateRequest:
     properties:
       chart_name:
@@ -674,6 +728,266 @@ definitions:
         maxLength: 64
         type: string
     type: object
+  internal_modules_delivery_project.BindEnvironmentRequest:
+    properties:
+      application_id:
+        type: integer
+      display_name:
+        maxLength: 128
+        minLength: 1
+        type: string
+      environment_key:
+        maxLength: 128
+        minLength: 1
+        type: string
+    required:
+    - application_id
+    - display_name
+    - environment_key
+    type: object
+  internal_modules_delivery_project.CreateProjectRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        minLength: 1
+        type: string
+      owner_user_id:
+        minimum: 1
+        type: integer
+    required:
+    - name
+    type: object
+  internal_modules_delivery_project.Environment:
+    properties:
+      application_id:
+        type: integer
+      application_name:
+        type: string
+      chart_name:
+        type: string
+      chart_repo_id:
+        type: integer
+      cluster_id:
+        type: integer
+      created_at:
+        type: string
+      display_name:
+        type: string
+      environment_key:
+        type: string
+      id:
+        type: integer
+      installed:
+        type: boolean
+      namespace:
+        type: string
+      project_id:
+        type: integer
+      release_name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_modules_delivery_project.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_modules_delivery_project.ProjectSummary'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_modules_delivery_project.ProjectDetail:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      environment_count:
+        type: integer
+      environments:
+        items:
+          $ref: '#/definitions/internal_modules_delivery_project.Environment'
+        type: array
+      id:
+        type: integer
+      name:
+        type: string
+      owner_user_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  internal_modules_delivery_project.ProjectSummary:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      environment_count:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      owner_user_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  internal_modules_delivery_project.UpdateEnvironmentRequest:
+    properties:
+      application_id:
+        description: |-
+          ApplicationID is accepted only to return an explicit error for attempted
+          rebinding. Application bindings are immutable in the MVP.
+        minimum: 1
+        type: integer
+      display_name:
+        maxLength: 128
+        minLength: 1
+        type: string
+      environment_key:
+        maxLength: 128
+        minLength: 1
+        type: string
+    type: object
+  internal_modules_delivery_project.UpdateProjectRequest:
+    properties:
+      description:
+        maxLength: 4096
+        type: string
+      name:
+        maxLength: 128
+        minLength: 1
+        type: string
+      owner_user_id:
+        description: OwnerUserID uses zero to clear the nullable owner and a non-zero
+          value to set it.
+        type: integer
+    type: object
+  internal_modules_delivery_run.CreateRequest:
+    properties:
+      chart_name:
+        maxLength: 128
+        type: string
+      chart_repo_id:
+        type: integer
+      chart_version:
+        maxLength: 128
+        type: string
+    required:
+    - chart_name
+    - chart_repo_id
+    - chart_version
+    type: object
+  internal_modules_delivery_run.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/internal_modules_delivery_run.RunView'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_modules_delivery_run.RunView:
+    properties:
+      chart_digest:
+        type: string
+      chart_name:
+        type: string
+      chart_repo_id:
+        type: integer
+      chart_version:
+        type: string
+      correlation_id:
+        type: string
+      created_at:
+        type: string
+      error_code:
+        type: integer
+      error_message_key:
+        type: string
+      finished_at:
+        type: string
+      id:
+        type: integer
+      initiator_user_id:
+        type: integer
+      pipeline_id:
+        type: integer
+      pipeline_version:
+        type: integer
+      project_id:
+        type: integer
+      retry_of_run_id:
+        type: integer
+      stages:
+        items:
+          $ref: '#/definitions/internal_modules_delivery_run.StageView'
+        type: array
+      started_at:
+        type: string
+      state:
+        $ref: '#/definitions/optimus-be_internal_models.DeliveryRunState'
+      updated_at:
+        type: string
+    type: object
+  internal_modules_delivery_run.StageView:
+    properties:
+      application_id:
+        type: integer
+      approval_required:
+        type: boolean
+      cluster_id:
+        type: integer
+      correlation_id:
+        type: string
+      environment_id:
+        type: integer
+      environment_key:
+        type: string
+      environment_name:
+        type: string
+      error_code:
+        type: integer
+      error_message_key:
+        type: string
+      executor:
+        $ref: '#/definitions/optimus-be_internal_models.DeliveryExecutor'
+      finished_at:
+        type: string
+      id:
+        type: integer
+      namespace:
+        type: string
+      order:
+        type: integer
+      release_name:
+        type: string
+      result_digest:
+        type: string
+      result_revision:
+        type: integer
+      started_at:
+        type: string
+      state:
+        $ref: '#/definitions/optimus-be_internal_models.DeliveryStageState'
+      timeout:
+        example: 10m0s
+        type: string
+    type: object
   internal_modules_k8s_cluster.CreateRequest:
     properties:
       context:
@@ -1276,6 +1590,74 @@ definitions:
       message_key:
         type: string
     type: object
+  optimus-be_internal_models.DeliveryApprovalDecision:
+    enum:
+    - pending
+    - approved
+    - rejected
+    type: string
+    x-enum-varnames:
+    - DeliveryApprovalPending
+    - DeliveryApprovalApproved
+    - DeliveryApprovalRejected
+  optimus-be_internal_models.DeliveryExecutor:
+    enum:
+    - helm_upgrade_existing_release
+    type: string
+    x-enum-varnames:
+    - DeliveryExecutorHelmUpgradeExistingRelease
+  optimus-be_internal_models.DeliveryRunState:
+    enum:
+    - queued
+    - running
+    - waiting_approval
+    - cancel_requested
+    - reconciling
+    - succeeded
+    - failed
+    - rejected
+    - canceled
+    - timed_out
+    - outcome_unknown
+    type: string
+    x-enum-varnames:
+    - DeliveryRunQueued
+    - DeliveryRunRunning
+    - DeliveryRunWaitingApproval
+    - DeliveryRunCancelRequested
+    - DeliveryRunReconciling
+    - DeliveryRunSucceeded
+    - DeliveryRunFailed
+    - DeliveryRunRejected
+    - DeliveryRunCanceled
+    - DeliveryRunTimedOut
+    - DeliveryRunOutcomeUnknown
+  optimus-be_internal_models.DeliveryStageState:
+    enum:
+    - pending
+    - waiting_approval
+    - queued
+    - running
+    - reconciling
+    - succeeded
+    - failed
+    - rejected
+    - canceled
+    - timed_out
+    - outcome_unknown
+    type: string
+    x-enum-varnames:
+    - DeliveryStagePending
+    - DeliveryStageWaitingApproval
+    - DeliveryStageQueued
+    - DeliveryStageRunning
+    - DeliveryStageReconciling
+    - DeliveryStageSucceeded
+    - DeliveryStageFailed
+    - DeliveryStageRejected
+    - DeliveryStageCanceled
+    - DeliveryStageTimedOut
+    - DeliveryStageOutcomeUnknown
   optimus-be_internal_modules_observability_prometheus.Result:
     properties:
       result_type:
@@ -1310,6 +1692,95 @@ definitions:
         items:
           $ref: '#/definitions/optimus-be_internal_modules_observability_prometheus.Sample'
         type: array
+    type: object
+  pipeline.ArtifactVersion:
+    properties:
+      chart_name:
+        type: string
+      chart_repo_id:
+        type: integer
+      version:
+        type: string
+    type: object
+  pipeline.Pipeline:
+    properties:
+      created_by_user_id:
+        type: integer
+      id:
+        type: integer
+      is_current:
+        type: boolean
+      project_id:
+        type: integer
+      published_at:
+        type: string
+      stages:
+        items:
+          $ref: '#/definitions/pipeline.Stage'
+        type: array
+      version:
+        type: integer
+    type: object
+  pipeline.PublishRequest:
+    properties:
+      stages:
+        items:
+          $ref: '#/definitions/pipeline.StageInput'
+        maxItems: 20
+        minItems: 1
+        type: array
+    required:
+    - stages
+    type: object
+  pipeline.ResolveArtifactRequest:
+    properties:
+      chart_name:
+        type: string
+      chart_repo_id:
+        type: integer
+      chart_version:
+        type: string
+    required:
+    - chart_name
+    - chart_repo_id
+    - chart_version
+    type: object
+  pipeline.ResolvedArtifact:
+    properties:
+      chart_name:
+        type: string
+      chart_repo_id:
+        type: integer
+      digest:
+        type: string
+      version:
+        type: string
+    type: object
+  pipeline.Stage:
+    properties:
+      approval_required:
+        type: boolean
+      environment_id:
+        type: integer
+      id:
+        type: integer
+      order:
+        type: integer
+      timeout:
+        example: 10m
+        type: string
+    type: object
+  pipeline.StageInput:
+    properties:
+      approval_required:
+        type: boolean
+      environment_id:
+        type: integer
+      timeout:
+        example: 10m
+        type: string
+    required:
+    - environment_id
     type: object
 host: localhost:8080
 info:
@@ -3212,6 +3683,629 @@ paths:
       summary: Update SSH credential
       tags:
       - credentials
+  /delivery/approvals/pending:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/approval.PendingApproval'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List actionable delivery approvals
+      tags:
+      - delivery
+  /delivery/projects:
+    get:
+      parameters:
+      - description: name search
+        in: query
+        name: q
+        type: string
+      - default: 1
+        description: page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: page size
+        in: query
+        name: page_size
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_project.ListResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List delivery projects
+      tags:
+      - delivery
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: project
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_delivery_project.CreateProjectRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_project.ProjectDetail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create a delivery project
+      tags:
+      - delivery
+  /delivery/projects/{id}:
+    delete:
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a delivery project
+      tags:
+      - delivery
+    get:
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_project.ProjectDetail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get a delivery project
+      tags:
+      - delivery
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: project
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_delivery_project.UpdateProjectRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_project.ProjectDetail'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update a delivery project
+      tags:
+      - delivery
+  /delivery/projects/{id}/artifacts:
+    get:
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/pipeline.ArtifactVersion'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List deployable artifact versions for a delivery project
+      tags:
+      - delivery
+  /delivery/projects/{id}/artifacts/resolve:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: artifact identity
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pipeline.ResolveArtifactRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/pipeline.ResolvedArtifact'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Resolve and verify an immutable artifact for run confirmation
+      tags:
+      - delivery
+  /delivery/projects/{id}/environments:
+    get:
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_modules_delivery_project.Environment'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List delivery project environments
+      tags:
+      - delivery
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: environment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_delivery_project.BindEnvironmentRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_project.Environment'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Bind an application as a delivery environment
+      tags:
+      - delivery
+  /delivery/projects/{id}/environments/{environmentId}:
+    delete:
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: environment ID
+        in: path
+        name: environmentId
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Unbind a delivery environment
+      tags:
+      - delivery
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: environment ID
+        in: path
+        name: environmentId
+        required: true
+        type: integer
+      - description: environment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_delivery_project.UpdateEnvironmentRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_project.Environment'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update delivery environment metadata
+      tags:
+      - delivery
+  /delivery/projects/{id}/pipeline:
+    get:
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/pipeline.Pipeline'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get the current delivery pipeline
+      tags:
+      - delivery
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: pipeline
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/pipeline.PublishRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/pipeline.Pipeline'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Publish a new immutable delivery pipeline version
+      tags:
+      - delivery
+  /delivery/projects/{id}/runs:
+    get:
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 1
+        description: page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: page size
+        in: query
+        name: page_size
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_run.ListResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List delivery runs for a project
+      tags:
+      - delivery
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: idempotency key
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: artifact
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_modules_delivery_run.CreateRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create an idempotent delivery run
+      tags:
+      - delivery
+  /delivery/run-stages/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: run stage ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: decision comment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/approval.DecisionRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/approval.Decision'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Approve a delivery run stage
+      tags:
+      - delivery
+  /delivery/run-stages/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: run stage ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: decision comment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/approval.DecisionRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/approval.Decision'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Reject a delivery run stage
+      tags:
+      - delivery
+  /delivery/runs/{id}:
+    get:
+      parameters:
+      - description: run ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get delivery run detail
+      tags:
+      - delivery
+  /delivery/runs/{id}/cancel:
+    post:
+      parameters:
+      - description: run ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Request delivery run cancellation
+      tags:
+      - delivery
+  /delivery/runs/{id}/events:
+    get:
+      parameters:
+      - description: run ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: event cursor
+        in: query
+        name: cursor
+        type: integer
+      - description: event cursor
+        in: header
+        name: Last-Event-ID
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: authenticated delivery event stream
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Stream delivery run events
+      tags:
+      - delivery
+  /delivery/runs/{id}/reconcile:
+    post:
+      parameters:
+      - description: run ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Request safe delivery run reconciliation
+      tags:
+      - delivery
+  /delivery/runs/{id}/retry:
+    post:
+      parameters:
+      - description: run ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: idempotency key
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/optimus-be_internal_infra_response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_modules_delivery_run.RunView'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create a linked retry delivery run
+      tags:
+      - delivery
   /health:
     get:
       produces:

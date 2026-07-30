@@ -3058,6 +3058,1093 @@ const docTemplate = `{
                 }
             }
         },
+        "/delivery/approvals/pending": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "List actionable delivery approvals",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/approval.PendingApproval"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/projects": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "List delivery projects",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_project.ListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Create a delivery project",
+                "parameters": [
+                    {
+                        "description": "project",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_delivery_project.CreateProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_project.ProjectDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/projects/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Get a delivery project",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_project.ProjectDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Update a delivery project",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "project",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_delivery_project.UpdateProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_project.ProjectDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Delete a delivery project",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/projects/{id}/artifacts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "List deployable artifact versions for a delivery project",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/pipeline.ArtifactVersion"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/projects/{id}/artifacts/resolve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Resolve and verify an immutable artifact for run confirmation",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "artifact identity",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pipeline.ResolveArtifactRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/pipeline.ResolvedArtifact"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/projects/{id}/environments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "List delivery project environments",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_modules_delivery_project.Environment"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Bind an application as a delivery environment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "environment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_delivery_project.BindEnvironmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_project.Environment"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/projects/{id}/environments/{environmentId}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Update delivery environment metadata",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "environment ID",
+                        "name": "environmentId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "environment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_delivery_project.UpdateEnvironmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_project.Environment"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Unbind a delivery environment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "environment ID",
+                        "name": "environmentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/projects/{id}/pipeline": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Get the current delivery pipeline",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/pipeline.Pipeline"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Publish a new immutable delivery pipeline version",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "pipeline",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pipeline.PublishRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/pipeline.Pipeline"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/projects/{id}/runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "List delivery runs for a project",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_run.ListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Create an idempotent delivery run",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "idempotency key",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "artifact",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_modules_delivery_run.CreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/run-stages/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Approve a delivery run stage",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "run stage ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "decision comment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/approval.DecisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/approval.Decision"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/run-stages/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Reject a delivery run stage",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "run stage ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "decision comment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/approval.DecisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/approval.Decision"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/runs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Get delivery run detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "run ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/runs/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Request delivery run cancellation",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "run ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/runs/{id}/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Stream delivery run events",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "run ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "event cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "event cursor",
+                        "name": "Last-Event-ID",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "authenticated delivery event stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/runs/{id}/reconcile": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Request safe delivery run reconciliation",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "run ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/delivery/runs/{id}/retry": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "delivery"
+                ],
+                "summary": "Create a linked retry delivery run",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "run ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "idempotency key",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/optimus-be_internal_infra_response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_modules_delivery_run.RunView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "produces": [
@@ -5392,6 +6479,88 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "approval.Decision": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "decided_at": {
+                    "type": "string"
+                },
+                "decided_by_user_id": {
+                    "type": "integer"
+                },
+                "decision": {
+                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryApprovalDecision"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "run_id": {
+                    "type": "integer"
+                },
+                "run_stage_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "approval.DecisionRequest": {
+            "type": "object",
+            "required": [
+                "comment"
+            ],
+            "properties": {
+                "comment": {
+                    "type": "string",
+                    "maxLength": 512
+                }
+            }
+        },
+        "approval.PendingApproval": {
+            "type": "object",
+            "properties": {
+                "chart_digest": {
+                    "type": "string"
+                },
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_version": {
+                    "type": "string"
+                },
+                "environment_key": {
+                    "type": "string"
+                },
+                "environment_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "initiator_user_id": {
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "project_name": {
+                    "type": "string"
+                },
+                "requested_at": {
+                    "type": "string"
+                },
+                "run_id": {
+                    "type": "integer"
+                },
+                "run_stage_id": {
+                    "type": "integer"
+                },
+                "stage_order": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_modules_apps_application.CreateRequest": {
             "type": "object",
             "required": [
@@ -6383,6 +7552,385 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_modules_delivery_project.BindEnvironmentRequest": {
+            "type": "object",
+            "required": [
+                "application_id",
+                "display_name",
+                "environment_key"
+            ],
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "environment_key": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                }
+            }
+        },
+        "internal_modules_delivery_project.CreateProjectRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 4096
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "owner_user_id": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "internal_modules_delivery_project.Environment": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "application_name": {
+                    "type": "string"
+                },
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "cluster_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "environment_key": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "installed": {
+                    "type": "boolean"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "release_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_project.ListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_project.ProjectSummary"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_project.ProjectDetail": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "environment_count": {
+                    "type": "integer"
+                },
+                "environments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_project.Environment"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_user_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_project.ProjectSummary": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "environment_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_user_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_project.UpdateEnvironmentRequest": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "description": "ApplicationID is accepted only to return an explicit error for attempted\nrebinding. Application bindings are immutable in the MVP.",
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "display_name": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "environment_key": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                }
+            }
+        },
+        "internal_modules_delivery_project.UpdateProjectRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 4096
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "owner_user_id": {
+                    "description": "OwnerUserID uses zero to clear the nullable owner and a non-zero value to set it.",
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_run.CreateRequest": {
+            "type": "object",
+            "required": [
+                "chart_name",
+                "chart_repo_id",
+                "chart_version"
+            ],
+            "properties": {
+                "chart_name": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "chart_version": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            }
+        },
+        "internal_modules_delivery_run.ListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_run.RunView"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_modules_delivery_run.RunView": {
+            "type": "object",
+            "properties": {
+                "chart_digest": {
+                    "type": "string"
+                },
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "chart_version": {
+                    "type": "string"
+                },
+                "correlation_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error_code": {
+                    "type": "integer"
+                },
+                "error_message_key": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "initiator_user_id": {
+                    "type": "integer"
+                },
+                "pipeline_id": {
+                    "type": "integer"
+                },
+                "pipeline_version": {
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "retry_of_run_id": {
+                    "type": "integer"
+                },
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_modules_delivery_run.StageView"
+                    }
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "state": {
+                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryRunState"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_modules_delivery_run.StageView": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer"
+                },
+                "approval_required": {
+                    "type": "boolean"
+                },
+                "cluster_id": {
+                    "type": "integer"
+                },
+                "correlation_id": {
+                    "type": "string"
+                },
+                "environment_id": {
+                    "type": "integer"
+                },
+                "environment_key": {
+                    "type": "string"
+                },
+                "environment_name": {
+                    "type": "string"
+                },
+                "error_code": {
+                    "type": "integer"
+                },
+                "error_message_key": {
+                    "type": "string"
+                },
+                "executor": {
+                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryExecutor"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "release_name": {
+                    "type": "string"
+                },
+                "result_digest": {
+                    "type": "string"
+                },
+                "result_revision": {
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "state": {
+                    "$ref": "#/definitions/optimus-be_internal_models.DeliveryStageState"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "10m0s"
+                }
+            }
+        },
         "internal_modules_k8s_cluster.CreateRequest": {
             "type": "object",
             "required": [
@@ -7267,6 +8815,86 @@ const docTemplate = `{
                 }
             }
         },
+        "optimus-be_internal_models.DeliveryApprovalDecision": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "approved",
+                "rejected"
+            ],
+            "x-enum-varnames": [
+                "DeliveryApprovalPending",
+                "DeliveryApprovalApproved",
+                "DeliveryApprovalRejected"
+            ]
+        },
+        "optimus-be_internal_models.DeliveryExecutor": {
+            "type": "string",
+            "enum": [
+                "helm_upgrade_existing_release"
+            ],
+            "x-enum-varnames": [
+                "DeliveryExecutorHelmUpgradeExistingRelease"
+            ]
+        },
+        "optimus-be_internal_models.DeliveryRunState": {
+            "type": "string",
+            "enum": [
+                "queued",
+                "running",
+                "waiting_approval",
+                "cancel_requested",
+                "reconciling",
+                "succeeded",
+                "failed",
+                "rejected",
+                "canceled",
+                "timed_out",
+                "outcome_unknown"
+            ],
+            "x-enum-varnames": [
+                "DeliveryRunQueued",
+                "DeliveryRunRunning",
+                "DeliveryRunWaitingApproval",
+                "DeliveryRunCancelRequested",
+                "DeliveryRunReconciling",
+                "DeliveryRunSucceeded",
+                "DeliveryRunFailed",
+                "DeliveryRunRejected",
+                "DeliveryRunCanceled",
+                "DeliveryRunTimedOut",
+                "DeliveryRunOutcomeUnknown"
+            ]
+        },
+        "optimus-be_internal_models.DeliveryStageState": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "waiting_approval",
+                "queued",
+                "running",
+                "reconciling",
+                "succeeded",
+                "failed",
+                "rejected",
+                "canceled",
+                "timed_out",
+                "outcome_unknown"
+            ],
+            "x-enum-varnames": [
+                "DeliveryStagePending",
+                "DeliveryStageWaitingApproval",
+                "DeliveryStageQueued",
+                "DeliveryStageRunning",
+                "DeliveryStageReconciling",
+                "DeliveryStageSucceeded",
+                "DeliveryStageFailed",
+                "DeliveryStageRejected",
+                "DeliveryStageCanceled",
+                "DeliveryStageTimedOut",
+                "DeliveryStageOutcomeUnknown"
+            ]
+        },
         "optimus-be_internal_modules_observability_prometheus.Result": {
             "type": "object",
             "properties": {
@@ -7318,6 +8946,140 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/optimus-be_internal_modules_observability_prometheus.Sample"
                     }
+                }
+            }
+        },
+        "pipeline.ArtifactVersion": {
+            "type": "object",
+            "properties": {
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "pipeline.Pipeline": {
+            "type": "object",
+            "properties": {
+                "created_by_user_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pipeline.Stage"
+                    }
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "pipeline.PublishRequest": {
+            "type": "object",
+            "required": [
+                "stages"
+            ],
+            "properties": {
+                "stages": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/pipeline.StageInput"
+                    }
+                }
+            }
+        },
+        "pipeline.ResolveArtifactRequest": {
+            "type": "object",
+            "required": [
+                "chart_name",
+                "chart_repo_id",
+                "chart_version"
+            ],
+            "properties": {
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "chart_version": {
+                    "type": "string"
+                }
+            }
+        },
+        "pipeline.ResolvedArtifact": {
+            "type": "object",
+            "properties": {
+                "chart_name": {
+                    "type": "string"
+                },
+                "chart_repo_id": {
+                    "type": "integer"
+                },
+                "digest": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "pipeline.Stage": {
+            "type": "object",
+            "properties": {
+                "approval_required": {
+                    "type": "boolean"
+                },
+                "environment_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "10m"
+                }
+            }
+        },
+        "pipeline.StageInput": {
+            "type": "object",
+            "required": [
+                "environment_id"
+            ],
+            "properties": {
+                "approval_required": {
+                    "type": "boolean"
+                },
+                "environment_id": {
+                    "type": "integer"
+                },
+                "timeout": {
+                    "type": "string",
+                    "example": "10m"
                 }
             }
         }

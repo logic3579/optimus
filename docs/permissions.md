@@ -48,6 +48,21 @@ Auto-generated from `optimus-be/internal/infra/permissions/codes.go`. Run `make 
 | `credentials:ssh_key:use` | `perm.credentials.ssh_key.use` | Use SSH credentials |
 | `credentials:ssh_key:write` | `perm.credentials.ssh_key.write` | Create/update SSH credentials |
 
+## delivery
+
+| Code | Name (i18n) | Description |
+|---|---|---|
+| `delivery:approval:decide` | `perm.delivery.approval.decide` | Approve or reject delivery stages |
+| `delivery:approval:read` | `perm.delivery.approval.read` | Read delivery approvals |
+| `delivery:pipeline:read` | `perm.delivery.pipeline.read` | Read delivery pipelines |
+| `delivery:pipeline:write` | `perm.delivery.pipeline.write` | Publish delivery pipeline versions |
+| `delivery:project:delete` | `perm.delivery.project.delete` | Delete delivery projects |
+| `delivery:project:read` | `perm.delivery.project.read` | Read delivery projects and environments |
+| `delivery:project:write` | `perm.delivery.project.write` | Create and update delivery projects and environments |
+| `delivery:run:cancel` | `perm.delivery.run.cancel` | Cancel delivery runs |
+| `delivery:run:create` | `perm.delivery.run.create` | Create, reconcile, and retry delivery runs |
+| `delivery:run:read` | `perm.delivery.run.read` | Read delivery runs and events |
+
 ## k8s
 
 | Code | Name (i18n) | Description |
