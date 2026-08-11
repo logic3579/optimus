@@ -157,15 +157,15 @@ func TestHandler_GetMyMenus_FiltersByPermission(t *testing.T) {
 	defer h.cleanup()
 
 	uid, token := h.loginUser(t, "alice", "alice@example.com", "Pass1234")
-	// Bind alice to viewer (carries every :read perm from seed).
+	// Bind alice to viewer (read-only, excluding system and credentials).
 	var viewer models.Role
 	require.NoError(t, h.gdb.Where("code = ?", "viewer").First(&viewer).Error)
 	require.NoError(t, h.gdb.Create(&models.UserRole{UserID: uid, RoleID: viewer.ID}).Error)
 	// Two menus: one tied to a permission the user holds, one tied to a code they don't.
-	holds := "system:user:read"
-	nope := "credentials:vault:read"
-	require.NoError(t, h.gdb.Create(&models.Menu{Code: "vis", Name: "menu.vis", Path: "/vis", PermissionCode: &holds}).Error)
-	require.NoError(t, h.gdb.Create(&models.Menu{Code: "hid", Name: "menu.hid", Path: "/hid", PermissionCode: &nope}).Error)
+	holds := "assets:resource:read"
+	nope := "system:user:read"
+	require.NoError(t, h.gdb.Create(&models.Menu{Code: "vis", Name: "menu.vis", Path: "/vis", Component: "vis/Index", PermissionCode: &holds}).Error)
+	require.NoError(t, h.gdb.Create(&models.Menu{Code: "hid", Name: "menu.hid", Path: "/hid", Component: "hid/Index", PermissionCode: &nope}).Error)
 
 	w := h.do(t, http.MethodGet, "/api/v1/me/menus", "", token)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -184,5 +184,6 @@ func TestHandler_GetMyPermissions_ReturnsCodes(t *testing.T) {
 
 	w := h.do(t, http.MethodGet, "/api/v1/me/permissions", "", token)
 	require.Equal(t, http.StatusOK, w.Code)
-	require.Contains(t, w.Body.String(), `"system:user:read"`)
+	require.Contains(t, w.Body.String(), `"assets:resource:read"`)
+	require.NotContains(t, w.Body.String(), `"system:user:read"`)
 }

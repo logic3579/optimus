@@ -87,6 +87,7 @@ func TestE2E_MeMenusFiltersByPermission(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+access)
 	r.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), "system.users")
+	require.Contains(t, rec.Body.String(), "assets.instances")
+	require.NotContains(t, rec.Body.String(), "system.users")
 	require.Contains(t, rec.Body.String(), "dashboard")
 }
