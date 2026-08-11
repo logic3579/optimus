@@ -37,6 +37,7 @@ import { isBizError } from '@/utils/http-error'
 import PageHeader from '@/components/PageHeader.vue'
 import type { PermissionApi } from '@/api/permission'
 import type { Permission } from '@/types/api'
+import { comparePermissionCategories } from './order'
 
 const { t } = useI18n()
 const permissionApi = inject<PermissionApi>('permissionApi')!
@@ -62,7 +63,7 @@ const filteredGroups = computed<PermGroup[]>(() => {
     byCategory.set(p.category, arr)
   }
   return Array.from(byCategory.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => comparePermissionCategories(a, b))
     .map(([category, items]) => ({ category, items: items.sort((a, b) => a.code.localeCompare(b.code)) }))
 })
 

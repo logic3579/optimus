@@ -34,7 +34,8 @@
     "username": "用户名",
     "password": "密码",
     "login": "登录",
-    "invalid_credentials": "用户名或密码错误"
+    "invalid_credentials": "用户名或密码错误",
+    "account_disabled": "账号已被禁用，请联系管理员"
   },
   "profile": {
     "title": "个人资料",
@@ -133,7 +134,7 @@
       "config": "配置与 Secret",
       "cluster_resources": "集群资源"
     },
-    "apps_group": "应用",
+    "apps_group": "应用管理",
     "apps": {
       "applications": "应用列表",
       "chart_repos": "Chart 仓库"
@@ -146,7 +147,12 @@
       "databases": "RDS 数据库",
       "sync_runs": "同步运行记录"
     },
-    "observability_group": "可观测性",
+    "delivery_group": "交付管理",
+    "delivery": {
+      "projects": "交付项目",
+      "approvals": "审批队列"
+    },
+    "observability_group": "可观测中心",
     "observability": { "kubernetes": "Kubernetes 监控", "dashboards": "仪表盘", "datasources": "数据源" }
   },
   "perm": {
@@ -187,12 +193,20 @@
       "metric": { "read": "查询指标" },
       "dashboard": { "read": "查看仪表盘", "write": "新建/修改仪表盘", "delete": "删除仪表盘" }
     },
+    "delivery": {
+      "project": { "read": "查看交付项目和环境", "write": "新建/修改交付项目和环境", "delete": "删除交付项目" },
+      "pipeline": { "read": "查看交付流水线", "write": "发布交付流水线版本" },
+      "run": { "read": "查看交付运行和事件", "create": "创建、协调和重试交付运行", "cancel": "取消交付运行" },
+      "approval": { "read": "查看交付审批", "decide": "批准或拒绝交付阶段" }
+    },
     "category": {
       "system": "系统管理",
       "credentials": "凭证管理",
       "k8s": "Kubernetes",
+      "apps": "应用管理",
       "assets": "资产管理",
-      "observability": "可观测性",
+      "delivery": "交付管理",
+      "observability": "可观测中心",
       "cicd": "CI/CD",
       "applications": "应用管理"
     }

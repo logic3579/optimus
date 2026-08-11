@@ -8,6 +8,10 @@ import (
 	apperr "optimus-be/internal/infra/errors"
 )
 
+func TestAuthCodesAreStable(t *testing.T) {
+	require.Equal(t, apperr.Code(40105), apperr.CodeAccountDisabled)
+}
+
 func TestP2_NewCodesAreDistinct(t *testing.T) {
 	codes := map[apperr.Code]string{
 		apperr.CodeClusterUnreachable:    "CodeClusterUnreachable",

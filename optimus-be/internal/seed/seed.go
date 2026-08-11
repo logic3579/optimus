@@ -39,6 +39,9 @@ func Run(ctx context.Context, gdb *gorm.DB, opts Options) (*Result, error) {
 		if err := bindViewerPermissions(ctx, tx); err != nil {
 			return err
 		}
+		if err := bindEditorPermissions(ctx, tx); err != nil {
+			return err
+		}
 		if err := ensureInitialMenus(ctx, tx); err != nil {
 			return err
 		}
@@ -58,6 +61,7 @@ func ensureBuiltinRoles(ctx context.Context, tx *gorm.DB) error {
 	roles := []models.Role{
 		{Code: "admin", Name: "role.admin", Description: "Full access", IsBuiltin: true},
 		{Code: "viewer", Name: "role.viewer", Description: "Read-only", IsBuiltin: true},
+		{Code: "editor", Name: "role.editor", Description: "Full access except system administration", IsBuiltin: true},
 	}
 	for i := range roles {
 		var existing models.Role
@@ -69,6 +73,11 @@ func ensureBuiltinRoles(ctx context.Context, tx *gorm.DB) error {
 			continue
 		}
 		if err != nil {
+			return err
+		}
+		if err := tx.WithContext(ctx).Model(&existing).Updates(map[string]any{
+			"name": roles[i].Name, "description": roles[i].Description, "is_builtin": true,
+		}).Error; err != nil {
 			return err
 		}
 	}
@@ -96,10 +105,32 @@ func bindViewerPermissions(ctx context.Context, tx *gorm.DB) error {
 		return err
 	}
 	var perms []models.Permission
-	if err := tx.WithContext(ctx).Where("code LIKE ?", "%:read").Find(&perms).Error; err != nil {
+	if err := tx.WithContext(ctx).
+		Where("code LIKE ?", "%:read").
+		Where("code NOT LIKE ? AND code NOT LIKE ?", "system:%", "credentials:%").
+		Find(&perms).Error; err != nil {
 		return err
 	}
-	return bindPermsToRole(ctx, tx, role.ID, perms)
+	return replaceRolePermissions(ctx, tx, role.ID, perms)
+}
+
+func bindEditorPermissions(ctx context.Context, tx *gorm.DB) error {
+	var role models.Role
+	if err := tx.WithContext(ctx).Where("code = ?", "editor").First(&role).Error; err != nil {
+		return err
+	}
+	var perms []models.Permission
+	if err := tx.WithContext(ctx).Where("code NOT LIKE ?", "system:%").Find(&perms).Error; err != nil {
+		return err
+	}
+	return replaceRolePermissions(ctx, tx, role.ID, perms)
+}
+
+func replaceRolePermissions(ctx context.Context, tx *gorm.DB, roleID uint64, perms []models.Permission) error {
+	if err := tx.WithContext(ctx).Where("role_id = ?", roleID).Delete(&models.RolePermission{}).Error; err != nil {
+		return err
+	}
+	return bindPermsToRole(ctx, tx, roleID, perms)
 }
 
 func bindPermsToRole(ctx context.Context, tx *gorm.DB, roleID uint64, perms []models.Permission) error {
@@ -123,18 +154,12 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 	sp := func(s string) *string { return &s }
 	tree := []spec{
 		{Code: "dashboard", Name: "menu.dashboard", Path: "/dashboard", Component: "dashboard/Index", Icon: "dashboard"},
-		{Code: "system", Name: "menu.system_group", Path: "/system", Component: "", Icon: "setting", Children: []spec{
-			{Code: "system.users", Name: "menu.system.users", Path: "/system/users", Component: "system/users/List", PermissionCode: sp("system:user:read")},
-			{Code: "system.roles", Name: "menu.system.roles", Path: "/system/roles", Component: "system/roles/List", PermissionCode: sp("system:role:read")},
-			{Code: "system.permissions", Name: "menu.system.permissions", Path: "/system/permissions", Component: "system/permissions/List", PermissionCode: sp("system:permission:read")},
-			{Code: "system.menus", Name: "menu.system.menus", Path: "/system/menus", Component: "system/menus/List", PermissionCode: sp("system:menu:read")},
-			{Code: "system.audit_logs", Name: "menu.system.audit_logs", Path: "/system/audit-logs", Component: "system/audit-logs/List", PermissionCode: sp("system:audit:read")},
-		}},
-		{Code: "credentials", Name: "menu.credentials_group", Path: "/credentials", Component: "", Icon: "key", Children: []spec{
-			{Code: "credentials.ssh_keys", Name: "menu.credentials.ssh_keys", Path: "/credentials/ssh-keys", Component: "credentials/ssh-keys/List", PermissionCode: sp("credentials:ssh_key:read")},
-			{Code: "credentials.kubeconfigs", Name: "menu.credentials.kubeconfigs", Path: "/credentials/kubeconfigs", Component: "credentials/kubeconfigs/List", PermissionCode: sp("credentials:kubeconfig:read")},
-			{Code: "credentials.cloud_keys", Name: "menu.credentials.cloud_keys", Path: "/credentials/cloud-keys", Component: "credentials/cloud-keys/List", PermissionCode: sp("credentials:cloud_key:read")},
-			{Code: "credentials.http_credentials", Name: "menu.credentials.http_credentials", Path: "/credentials/http-credentials", Component: "credentials/http-credentials/List", PermissionCode: sp("credentials:http:read")},
+		{Code: "assets", Name: "menu.assets_group", Path: "/assets", Component: "", Icon: "cloud-server", PermissionCode: sp("assets:resource:read"), ChildSortStart: 1, Children: []spec{
+			{Code: "assets.cloud_accounts", Name: "menu.assets.cloud_accounts", Path: "/assets/cloud-accounts", Component: "assets/cloud-accounts/List", PermissionCode: sp("assets:account:read")},
+			{Code: "assets.instances", Name: "menu.assets.instances", Path: "/assets/instances", Component: "assets/instances/List", PermissionCode: sp("assets:resource:read")},
+			{Code: "assets.vpcs", Name: "menu.assets.vpcs", Path: "/assets/vpcs", Component: "assets/vpcs/List", PermissionCode: sp("assets:resource:read")},
+			{Code: "assets.databases", Name: "menu.assets.databases", Path: "/assets/databases", Component: "assets/databases/List", PermissionCode: sp("assets:resource:read")},
+			{Code: "assets.sync_runs", Name: "menu.assets.sync_runs", Path: "/assets/sync-runs", Component: "assets/sync-runs/List", PermissionCode: sp("assets:sync:read")},
 		}},
 		{Code: "k8s", Name: "menu.k8s_group", Path: "/k8s", Component: "", Icon: "cluster", Children: []spec{
 			{Code: "k8s.clusters", Name: "menu.k8s.clusters", Path: "/k8s/clusters", Component: "k8s/clusters/List", PermissionCode: sp("k8s:cluster:read")},
@@ -154,23 +179,27 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 			{Code: "apps.applications", Name: "menu.apps.applications", Path: "/apps/applications", Component: "apps/applications/List", PermissionCode: sp("apps:application:read")},
 			{Code: "apps.chart_repos", Name: "menu.apps.chart_repos", Path: "/apps/chart-repos", Component: "apps/chart-repos/List", PermissionCode: sp("apps:repo:read")},
 		}},
-		// P4 assets uses the same automatic role grants as the other modules:
-		// admin receives every permission and viewer receives every read permission.
-		{Code: "assets", Name: "menu.assets_group", Path: "/assets", Component: "", Icon: "cloud-server", PermissionCode: sp("assets:resource:read"), ChildSortStart: 1, Children: []spec{
-			{Code: "assets.cloud_accounts", Name: "menu.assets.cloud_accounts", Path: "/assets/cloud-accounts", Component: "assets/cloud-accounts/List", PermissionCode: sp("assets:account:read")},
-			{Code: "assets.instances", Name: "menu.assets.instances", Path: "/assets/instances", Component: "assets/instances/List", PermissionCode: sp("assets:resource:read")},
-			{Code: "assets.vpcs", Name: "menu.assets.vpcs", Path: "/assets/vpcs", Component: "assets/vpcs/List", PermissionCode: sp("assets:resource:read")},
-			{Code: "assets.databases", Name: "menu.assets.databases", Path: "/assets/databases", Component: "assets/databases/List", PermissionCode: sp("assets:resource:read")},
-			{Code: "assets.sync_runs", Name: "menu.assets.sync_runs", Path: "/assets/sync-runs", Component: "assets/sync-runs/List", PermissionCode: sp("assets:sync:read")},
+		{Code: "delivery", Name: "menu.delivery_group", Path: "/delivery", Component: "", Icon: "deployment-unit", Children: []spec{
+			{Code: "delivery.projects", Name: "menu.delivery.projects", Path: "/delivery/projects", Component: "delivery/projects/List", PermissionCode: sp("delivery:project:read")},
+			{Code: "delivery.approvals", Name: "menu.delivery.approvals", Path: "/delivery/approvals", Component: "delivery/approvals/List", PermissionCode: sp("delivery:approval:read")},
 		}},
 		{Code: "observability", Name: "menu.observability_group", Path: "/observability", Component: "", Icon: "line-chart", Children: []spec{
 			{Code: "observability.kubernetes", Name: "menu.observability.kubernetes", Path: "/observability/kubernetes", Component: "observability/kubernetes/Index", PermissionCode: sp("observability:metric:read")},
 			{Code: "observability.dashboards", Name: "menu.observability.dashboards", Path: "/observability/dashboards", Component: "observability/dashboards/List", PermissionCode: sp("observability:dashboard:read")},
 			{Code: "observability.datasources", Name: "menu.observability.datasources", Path: "/observability/datasources", Component: "observability/datasources/List", PermissionCode: sp("observability:datasource:read")},
 		}},
-		{Code: "delivery", Name: "menu.delivery_group", Path: "/delivery", Component: "", Icon: "deployment-unit", Children: []spec{
-			{Code: "delivery.projects", Name: "menu.delivery.projects", Path: "/delivery/projects", Component: "delivery/projects/List", PermissionCode: sp("delivery:project:read")},
-			{Code: "delivery.approvals", Name: "menu.delivery.approvals", Path: "/delivery/approvals", Component: "delivery/approvals/List", PermissionCode: sp("delivery:approval:read")},
+		{Code: "credentials", Name: "menu.credentials_group", Path: "/credentials", Component: "", Icon: "key", Children: []spec{
+			{Code: "credentials.ssh_keys", Name: "menu.credentials.ssh_keys", Path: "/credentials/ssh-keys", Component: "credentials/ssh-keys/List", PermissionCode: sp("credentials:ssh_key:read")},
+			{Code: "credentials.kubeconfigs", Name: "menu.credentials.kubeconfigs", Path: "/credentials/kubeconfigs", Component: "credentials/kubeconfigs/List", PermissionCode: sp("credentials:kubeconfig:read")},
+			{Code: "credentials.cloud_keys", Name: "menu.credentials.cloud_keys", Path: "/credentials/cloud-keys", Component: "credentials/cloud-keys/List", PermissionCode: sp("credentials:cloud_key:read")},
+			{Code: "credentials.http_credentials", Name: "menu.credentials.http_credentials", Path: "/credentials/http-credentials", Component: "credentials/http-credentials/List", PermissionCode: sp("credentials:http:read")},
+		}},
+		{Code: "system", Name: "menu.system_group", Path: "/system", Component: "", Icon: "setting", Children: []spec{
+			{Code: "system.users", Name: "menu.system.users", Path: "/system/users", Component: "system/users/List", PermissionCode: sp("system:user:read")},
+			{Code: "system.roles", Name: "menu.system.roles", Path: "/system/roles", Component: "system/roles/List", PermissionCode: sp("system:role:read")},
+			{Code: "system.permissions", Name: "menu.system.permissions", Path: "/system/permissions", Component: "system/permissions/List", PermissionCode: sp("system:permission:read")},
+			{Code: "system.menus", Name: "menu.system.menus", Path: "/system/menus", Component: "system/menus/List", PermissionCode: sp("system:menu:read")},
+			{Code: "system.audit_logs", Name: "menu.system.audit_logs", Path: "/system/audit-logs", Component: "system/audit-logs/List", PermissionCode: sp("system:audit:read")},
 		}},
 	}
 	var insert func(parentID *uint64, nodes []spec, sortStart int) error
@@ -178,7 +207,8 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 		for i, n := range nodes {
 			var existing models.Menu
 			err := tx.WithContext(ctx).Where("code = ?", n.Code).First(&existing).Error
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+			switch {
+			case errors.Is(err, gorm.ErrRecordNotFound):
 				m := models.Menu{
 					ParentID:       parentID,
 					Code:           n.Code,
@@ -193,8 +223,17 @@ func ensureInitialMenus(ctx context.Context, tx *gorm.DB) error {
 					return err
 				}
 				existing = m
-			} else if err != nil {
+			case err != nil:
 				return err
+			default:
+				updates := map[string]any{
+					"parent_id": parentID, "name": n.Name, "path": n.Path,
+					"component": n.Component, "icon": n.Icon,
+					"permission_code": n.PermissionCode, "sort_order": sortStart + i,
+				}
+				if err := tx.WithContext(ctx).Model(&existing).Updates(updates).Error; err != nil {
+					return err
+				}
 			}
 			if len(n.Children) > 0 {
 				id := existing.ID

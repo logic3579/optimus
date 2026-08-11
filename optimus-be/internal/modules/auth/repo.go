@@ -53,10 +53,12 @@ func (r *Repo) RevokeAllRefreshTokensForUser(ctx context.Context, userID uint64)
 		Update("revoked_at", &now).Error
 }
 
-// FindUserByUsername loads the user by username (only non-deleted, status='enabled').
+// FindUserByUsername loads a non-deleted user by username. The service checks
+// status after password verification so disabled accounts receive a precise
+// error without exposing account state to callers with an invalid password.
 func (r *Repo) FindUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	var u models.User
-	if err := r.db.WithContext(ctx).Where("username = ? AND status = ?", username, "enabled").First(&u).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("username = ?", username).First(&u).Error; err != nil {
 		return nil, err
 	}
 	return &u, nil

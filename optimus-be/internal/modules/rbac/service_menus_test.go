@@ -35,18 +35,22 @@ func TestMeService_ListMenus_ViewerSeesOnlyPermittedNodes(t *testing.T) {
 	tree, err := svc.ListMenus(context.Background(), u.ID)
 	require.NoError(t, err)
 
-	var foundDashboard, foundSystem bool
+	var foundDashboard, foundSystem, foundCredentials bool
 	for _, top := range tree {
 		if top.Code == "dashboard" {
 			foundDashboard = true
 		}
 		if top.Code == "system" {
 			foundSystem = true
-			require.Contains(t, codes(top.Children), "system.users")
+		}
+		if top.Code == "credentials" {
+			foundCredentials = true
 		}
 	}
 	require.True(t, foundDashboard)
-	require.True(t, foundSystem)
+	require.False(t, foundSystem)
+	require.False(t, foundCredentials)
+	require.Equal(t, []string{"dashboard", "assets", "k8s", "apps", "delivery", "observability"}, codes(tree))
 }
 
 func codes(nodes []rbac.MeMenuNode) []string {

@@ -34,7 +34,8 @@
     "username": "Username",
     "password": "Password",
     "login": "Sign in",
-    "invalid_credentials": "Invalid username or password"
+    "invalid_credentials": "Invalid username or password",
+    "account_disabled": "This account is disabled. Contact an administrator."
   },
   "profile": {
     "title": "Profile",
@@ -110,8 +111,8 @@
   },
   "menu": {
     "dashboard": "Dashboard",
-    "system_group": "System",
-    "credentials_group": "Credentials",
+    "system_group": "System Management",
+    "credentials_group": "Credential Management",
     "k8s_group": "Kubernetes",
     "system": {
       "users": "Users",
@@ -133,12 +134,12 @@
       "config": "Config & Secrets",
       "cluster_resources": "Cluster Resources"
     },
-    "apps_group": "Applications",
+    "apps_group": "Application Management",
     "apps": {
       "applications": "Applications",
       "chart_repos": "Chart repos"
     },
-    "assets_group": "Cloud Assets",
+    "assets_group": "Assets Management",
     "assets": {
       "cloud_accounts": "Cloud Accounts",
       "instances": "EC2 Instances",
@@ -146,7 +147,12 @@
       "databases": "RDS Databases",
       "sync_runs": "Sync Runs"
     },
-    "observability_group": "Observability",
+    "delivery_group": "Delivery Management",
+    "delivery": {
+      "projects": "Delivery Projects",
+      "approvals": "Approval Queue"
+    },
+    "observability_group": "Observability Center",
     "observability": { "kubernetes": "Kubernetes monitoring", "dashboards": "Dashboards", "datasources": "Data sources" }
   },
   "perm": {
@@ -187,12 +193,20 @@
       "metric": { "read": "Query metrics" },
       "dashboard": { "read": "View dashboards", "write": "Create/update dashboards", "delete": "Delete dashboards" }
     },
+    "delivery": {
+      "project": { "read": "View delivery projects and environments", "write": "Create/update delivery projects and environments", "delete": "Delete delivery projects" },
+      "pipeline": { "read": "View delivery pipelines", "write": "Publish delivery pipeline versions" },
+      "run": { "read": "View delivery runs and events", "create": "Create, reconcile, and retry delivery runs", "cancel": "Cancel delivery runs" },
+      "approval": { "read": "View delivery approvals", "decide": "Approve or reject delivery stages" }
+    },
     "category": {
       "system": "System",
-      "credentials": "Credentials",
+      "credentials": "Credential Management",
       "k8s": "Kubernetes",
+      "apps": "Application Management",
       "assets": "Assets",
-      "observability": "Observability",
+      "delivery": "Delivery Management",
+      "observability": "Observability Center",
       "cicd": "CI/CD",
       "applications": "Applications"
     }

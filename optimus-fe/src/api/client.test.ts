@@ -112,6 +112,25 @@ describe('axios client single-flight refresh', () => {
     expect(onLogout).toHaveBeenCalledTimes(1)
   })
 
+  it('surfaces a login envelope error without attempting token refresh', async () => {
+    const onLogout = vi.fn()
+    const client = createApiClient({ baseURL: '/api/v1', onLogout })
+    fetchStub = stubRefreshFetch(() => ({ status: 500, body: {} }))
+    const mock = new MockAdapter(client)
+    mock.onPost('/auth/login').reply(401, {
+      code: 40105,
+      data: null,
+      message: 'account is disabled',
+      message_key: 'auth.account_disabled'
+    })
+
+    await expect(client.post('/auth/login', {})).rejects.toMatchObject({
+      name: 'BizError', code: 40105, messageKey: 'auth.account_disabled'
+    })
+    expect((fetchStub as unknown as { calls: number }).calls).toBe(0)
+    expect(onLogout).not.toHaveBeenCalled()
+  })
+
   it('attaches Authorization + Accept-Language headers', async () => {
     const auth = useAuthStore()
     auth.setActiveTokens('access-x', null)

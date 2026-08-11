@@ -9,4 +9,11 @@ describe('static asset routes', () => {
     expect(detail?.path).toBe('assets/vpcs/:id(\\d+)')
     expect(detail?.meta?.permission).toBe('assets:resource:read')
   })
+
+  it('keeps the catch-all behind auth bootstrap instead of redirecting early', () => {
+    const catchall = staticRoutes.find((route) => route.name === 'catchall')
+    expect(catchall?.redirect).toBeUndefined()
+    expect(catchall?.component).toBeDefined()
+    expect(catchall?.meta?.public).not.toBe(true)
+  })
 })

@@ -86,22 +86,23 @@ func TestE2E_AdminCRUDHappyPath(t *testing.T) {
 	require.Equalf(t, http.StatusOK, rec.Code, "GET /roles body=%s", rec.Body.String())
 	require.Contains(t, rec.Body.String(), `"code":"admin"`)
 	require.Contains(t, rec.Body.String(), `"code":"viewer"`)
+	require.Contains(t, rec.Body.String(), `"code":"editor"`)
 
 	rec = do(http.MethodPost, "/api/v1/roles", map[string]any{
-		"code": "editor",
-		"name": "Editor",
+		"code": "auditor",
+		"name": "Auditor",
 	})
 	require.Equalf(t, http.StatusOK, rec.Code, "POST /roles body=%s", rec.Body.String())
-	editor := bodyMap(t, rec)["data"].(map[string]any)
-	editorID := uint64(editor["id"].(float64))
+	auditor := bodyMap(t, rec)["data"].(map[string]any)
+	auditorID := uint64(auditor["id"].(float64))
 
-	rec = do(http.MethodPut, "/api/v1/roles/"+itoa(editorID)+"/permissions", map[string]any{
+	rec = do(http.MethodPut, "/api/v1/roles/"+itoa(auditorID)+"/permissions", map[string]any{
 		"permission_codes": []string{"system:user:read", "system:role:read"},
 	})
 	require.Equalf(t, http.StatusOK, rec.Code, "PUT /roles/:id/permissions body=%s", rec.Body.String())
 	require.Contains(t, rec.Body.String(), "system:user:read")
 
-	rec = do(http.MethodDelete, "/api/v1/roles/"+itoa(editorID), nil)
+	rec = do(http.MethodDelete, "/api/v1/roles/"+itoa(auditorID), nil)
 	require.Equalf(t, http.StatusOK, rec.Code, "DELETE /roles/:id body=%s", rec.Body.String())
 
 	// --- Permissions (read-only) ----------------------------------------

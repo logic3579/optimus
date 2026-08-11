@@ -19,6 +19,7 @@ const (
 	CodeTokenInvalid         Code = 40102
 	CodeTokenExpired         Code = 40103
 	CodeRefreshTokenReplay   Code = 40104
+	CodeAccountDisabled      Code = 40105
 	CodeForbidden            Code = 40301
 	CodePermissionDenied     Code = 40302
 	CodeNotFound             Code = 40401

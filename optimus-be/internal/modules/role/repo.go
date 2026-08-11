@@ -35,10 +35,13 @@ func (r *Repo) FindByCode(ctx context.Context, code string) (*models.Role, error
 	return &m, nil
 }
 
-// List returns all non-deleted roles, ordered by id.
+// List returns all non-deleted roles with builtins first in their governance
+// order, followed by custom roles ordered by code.
 func (r *Repo) List(ctx context.Context) ([]models.Role, error) {
 	var rows []models.Role
-	if err := r.db.WithContext(ctx).Order("id ASC").Find(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Order("CASE code WHEN 'admin' THEN 0 WHEN 'editor' THEN 1 WHEN 'viewer' THEN 2 ELSE 3 END").
+		Order("code ASC, id ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return rows, nil

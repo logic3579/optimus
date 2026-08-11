@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMenuStore } from '@/stores/menu'
 import { useI18n } from '@/hooks/useI18n'
@@ -51,15 +51,6 @@ const codeByPath = computed(() => {
 
 const currentKey = computed(() => codeByPath.value.get(route.path) ?? '')
 const openKeys = ref<string[]>([])
-
-watch(
-  () => menu.tree,
-  ts => {
-    // open every group by default
-    openKeys.value = ts.filter(n => n.children?.length).map(n => n.code)
-  },
-  { immediate: true }
-)
 
 function onClick({ key }: { key: string }) {
   const node = findNode(menu.tree, key)

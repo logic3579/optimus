@@ -29,6 +29,7 @@ import { isBizError } from '@/utils/http-error'
 import type { RoleApi } from '@/api/role'
 import type { PermissionApi } from '@/api/permission'
 import type { RoleSummary, Permission } from '@/types/api'
+import { comparePermissionCategories } from '@/views/system/permissions/order'
 
 const props = defineProps<{
   open: boolean
@@ -65,7 +66,7 @@ const treeData = computed<PermTreeNode[]>(() => {
     byCategory.set(p.category, arr)
   }
   return Array.from(byCategory.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => comparePermissionCategories(a, b))
     .map(([category, perms]) => ({
       title: t(`perm.category.${category}`),
       key: `${CATEGORY_PREFIX}${category}`,

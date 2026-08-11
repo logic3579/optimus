@@ -13,11 +13,10 @@ import (
 	"optimus-be/internal/models"
 )
 
-// TestE2E_ViewerCanReadCannotWrite asserts the per-route RBAC gates wired in
-// main.go actually enforce permissions: the seeded "viewer" role gets only
-// "*:read" permissions, so viewer1 must succeed on GET /users but be denied
-// on POST /users.
-func TestE2E_ViewerCanReadCannotWrite(t *testing.T) {
+// TestE2E_ViewerCannotAccessSystemAdministration asserts the per-route RBAC
+// gates wired in main.go actually enforce the seeded "viewer" role boundary:
+// read-only access excludes system administration and credential management.
+func TestE2E_ViewerCannotAccessSystemAdministration(t *testing.T) {
 	r, gdb := setupServer(t)
 
 	// Create viewer1 with the seeded "viewer" role (read-only perms).
@@ -31,12 +30,12 @@ func TestE2E_ViewerCanReadCannotWrite(t *testing.T) {
 	access := login(t, r, "viewer1", "viewer-pw-1")
 	bearer := "Bearer " + access
 
-	// GET /users — viewer has system:user:read → 200
+	// GET /users — viewer lacks system:user:read → 403
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users?page=1&page_size=20", nil)
 	req.Header.Set("Authorization", bearer)
 	r.ServeHTTP(rec, req)
-	require.Equalf(t, http.StatusOK, rec.Code, "viewer GET /users body=%s", rec.Body.String())
+	require.Equalf(t, http.StatusForbidden, rec.Code, "viewer GET /users body=%s", rec.Body.String())
 
 	// POST /users — viewer lacks system:user:write → 403
 	rec = httptest.NewRecorder()
