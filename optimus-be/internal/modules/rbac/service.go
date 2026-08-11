@@ -91,6 +91,10 @@ func (s *MeService) ListMenus(ctx context.Context, userID uint64) ([]MeMenuNode,
 					continue
 				}
 			}
+			children := build(m.ID)
+			if m.Component == "" && len(children) == 0 {
+				continue
+			}
 			node := MeMenuNode{
 				ID:             m.ID,
 				Code:           m.Code,
@@ -101,7 +105,7 @@ func (s *MeService) ListMenus(ctx context.Context, userID uint64) ([]MeMenuNode,
 				PermissionCode: m.PermissionCode,
 				SortOrder:      m.SortOrder,
 				Hidden:         m.Hidden,
-				Children:       build(m.ID),
+				Children:       children,
 			}
 			out = append(out, node)
 		}
