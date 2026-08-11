@@ -33,6 +33,7 @@ func TestAsBizError(t *testing.T) {
 func TestHTTPStatus_DerivedFromCode(t *testing.T) {
 	require.Equal(t, 400, apperr.HTTPStatus(apperr.CodeBadRequest))
 	require.Equal(t, 401, apperr.HTTPStatus(apperr.CodeInvalidCredentials))
+	require.Equal(t, 401, apperr.HTTPStatus(apperr.CodeAccountDisabled))
 	require.Equal(t, 403, apperr.HTTPStatus(apperr.CodeForbidden))
 	require.Equal(t, 404, apperr.HTTPStatus(apperr.CodeNotFound))
 	require.Equal(t, 409, apperr.HTTPStatus(apperr.CodeConflict))

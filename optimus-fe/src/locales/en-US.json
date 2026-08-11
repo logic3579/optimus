@@ -34,7 +34,8 @@
     "username": "Username",
     "password": "Password",
     "login": "Sign in",
-    "invalid_credentials": "Invalid username or password"
+    "invalid_credentials": "Invalid username or password",
+    "account_disabled": "This account is disabled. Contact an administrator."
   },
   "profile": {
     "title": "Profile",
@@ -110,8 +111,8 @@
   },
   "menu": {
     "dashboard": "Dashboard",
-    "system_group": "System",
-    "credentials_group": "Credentials",
+    "system_group": "System Management",
+    "credentials_group": "Credential Management",
     "k8s_group": "Kubernetes",
     "system": {
       "users": "Users",
@@ -138,7 +139,7 @@
       "applications": "Applications",
       "chart_repos": "Chart repos"
     },
-    "assets_group": "Cloud Assets",
+    "assets_group": "Assets Management",
     "assets": {
       "cloud_accounts": "Cloud Accounts",
       "instances": "EC2 Instances",
@@ -146,7 +147,7 @@
       "databases": "RDS Databases",
       "sync_runs": "Sync Runs"
     },
-    "delivery_group": "Delivery Center",
+    "delivery_group": "Delivery Management",
     "delivery": {
       "projects": "Delivery Projects",
       "approvals": "Approval Queue"
@@ -200,11 +201,11 @@
     },
     "category": {
       "system": "System",
-      "credentials": "Credentials",
+      "credentials": "Credential Management",
       "k8s": "Kubernetes",
       "apps": "Application Management",
       "assets": "Assets",
-      "delivery": "Delivery Center",
+      "delivery": "Delivery Management",
       "observability": "Observability Center",
       "cicd": "CI/CD",
       "applications": "Applications"

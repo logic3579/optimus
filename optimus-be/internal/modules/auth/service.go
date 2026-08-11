@@ -53,6 +53,11 @@ func (s *Service) Login(ctx context.Context, req LoginRequest, ip, ua string) (*
 		_ = s.repo.InsertAuditLog(ctx, &uid, "auth.login.failed", ip, ua, mustJSON(map[string]any{"reason": "bad_password"}))
 		return nil, apperr.New(apperr.CodeInvalidCredentials, "auth.invalid_credentials", "invalid username or password")
 	}
+	if u.Status != "enabled" {
+		uid := u.ID
+		_ = s.repo.InsertAuditLog(ctx, &uid, "auth.login.failed", ip, ua, mustJSON(map[string]any{"reason": "account_disabled"}))
+		return nil, apperr.New(apperr.CodeAccountDisabled, "auth.account_disabled", "account is disabled")
+	}
 
 	pair, err := s.issuePair(ctx, u.ID, ip, ua)
 	if err != nil {

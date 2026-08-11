@@ -56,8 +56,9 @@ export function createApiClient(opts: ClientOptions): AxiosInstance {
       const original = error?.config as RetriableConfig | undefined
       const url = original?.url ?? ''
       const isRefreshCall = url.includes('/auth/refresh')
+      const isLoginCall = url.includes('/auth/login')
 
-      if (status === 401 && !isRefreshCall && original && !original.__retried) {
+      if (status === 401 && !isRefreshCall && !isLoginCall && original && !original.__retried) {
         try {
           const auth = useAuthStore()
           const pair = await auth.refreshAccessTokenShared()
@@ -87,6 +88,8 @@ export function createApiClient(opts: ClientOptions): AxiosInstance {
         opts.onLogout()
       }
 
+      const bizErr = parseEnvelopeError(error?.response?.data)
+      if (bizErr) throw bizErr
       throw error
     }
   )

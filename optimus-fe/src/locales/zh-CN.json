@@ -34,7 +34,8 @@
     "username": "用户名",
     "password": "密码",
     "login": "登录",
-    "invalid_credentials": "用户名或密码错误"
+    "invalid_credentials": "用户名或密码错误",
+    "account_disabled": "账号已被禁用，请联系管理员"
   },
   "profile": {
     "title": "个人资料",
@@ -146,7 +147,7 @@
       "databases": "RDS 数据库",
       "sync_runs": "同步运行记录"
     },
-    "delivery_group": "交付中心",
+    "delivery_group": "交付管理",
     "delivery": {
       "projects": "交付项目",
       "approvals": "审批队列"
@@ -204,7 +205,7 @@
       "k8s": "Kubernetes",
       "apps": "应用管理",
       "assets": "资产管理",
-      "delivery": "交付中心",
+      "delivery": "交付管理",
       "observability": "可观测中心",
       "cicd": "CI/CD",
       "applications": "应用管理"

@@ -37,6 +37,23 @@ func TestRepo_CreateAndList(t *testing.T) {
 	require.Contains(t, codes, "operator")
 }
 
+func TestRepo_ListOrdersBuiltinRolesBeforeCustomRoles(t *testing.T) {
+	r, td := newRepo(t)
+	defer td()
+	ctx := context.Background()
+	for _, code := range []string{"viewer", "z-custom", "editor", "admin", "a-custom"} {
+		require.NoError(t, r.Create(ctx, &models.Role{Code: code, Name: code, IsBuiltin: code == "admin" || code == "editor" || code == "viewer"}))
+	}
+
+	rows, err := r.List(ctx)
+	require.NoError(t, err)
+	codes := make([]string, 0, len(rows))
+	for _, row := range rows {
+		codes = append(codes, row.Code)
+	}
+	require.Equal(t, []string{"admin", "editor", "viewer", "a-custom", "z-custom"}, codes)
+}
+
 func TestRepo_SetPermissions_ReplacesAtomically(t *testing.T) {
 	r, td := newRepo(t)
 	defer td()

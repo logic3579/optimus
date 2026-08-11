@@ -79,6 +79,37 @@ func TestLogin_UnknownUserReturnsInvalidCredentials(t *testing.T) {
 	require.Equal(t, apperr.CodeInvalidCredentials, be.Code)
 }
 
+func TestLogin_DisabledUserWithValidPasswordReturnsAccountDisabled(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
+	defer teardown()
+	uid := seedUserWithPassword(t, gdb, "alice", "s3cret")
+	require.NoError(t, gdb.Model(&models.User{}).Where("id = ?", uid).Update("status", "disabled").Error)
+
+	svc := mkSvc(t, gdb)
+	_, err := svc.Login(context.Background(), auth.LoginRequest{Username: "alice", Password: "s3cret"}, "1.1.1.1", "ua")
+	require.Error(t, err)
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeAccountDisabled, be.Code)
+	require.Equal(t, "auth.account_disabled", be.MessageKey)
+
+	var audit models.AuditLog
+	require.NoError(t, gdb.Where("user_id = ? AND action = ?", uid, "auth.login.failed").First(&audit).Error)
+	require.Contains(t, string(audit.Payload), "account_disabled")
+}
+
+func TestLogin_DisabledUserWithWrongPasswordStillReturnsInvalidCredentials(t *testing.T) {
+	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
+	defer teardown()
+	uid := seedUserWithPassword(t, gdb, "alice", "s3cret")
+	require.NoError(t, gdb.Model(&models.User{}).Where("id = ?", uid).Update("status", "disabled").Error)
+
+	_, err := mkSvc(t, gdb).Login(context.Background(), auth.LoginRequest{Username: "alice", Password: "wrong"}, "1.1.1.1", "ua")
+	be, ok := apperr.AsBiz(err)
+	require.True(t, ok)
+	require.Equal(t, apperr.CodeInvalidCredentials, be.Code)
+}
+
 func TestLogin_RateLimitsExcessAttempts(t *testing.T) {
 	gdb, teardown := db.StartTestPostgres(t, filepath.Join("..", "..", "..", "migrations"))
 	defer teardown()
