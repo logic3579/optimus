@@ -85,6 +85,8 @@ export const staticRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/404'
+    name: 'catchall',
+    component: () => import('@/views/errors/404.vue'),
+    meta: { layout: 'blank' }
   }
 ]

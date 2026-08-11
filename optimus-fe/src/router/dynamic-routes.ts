@@ -44,10 +44,8 @@ export function buildViewResolver(): (component: string) => Loader | undefined {
   }
 }
 
-export function registerDynamicRoutes(router: Router, tree: MeMenuNode[]) {
+export function registerDynamicRoutes(router: Router, tree: MeMenuNode[]): Array<() => void> {
   const resolve = buildViewResolver()
   const routes = flattenMenusToRoutes(tree, resolve)
-  for (const r of routes) {
-    router.addRoute('root', r)
-  }
+  return routes.map(route => router.addRoute('root', route))
 }
