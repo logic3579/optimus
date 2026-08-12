@@ -1,6 +1,17 @@
-.PHONY: run build test test-int lint swag swagger-diff migrate-up migrate-down migrate-new seed dump-perms perm-check perm-db-check air-install goose-install tools
+.PHONY: run build test test-int lint swag swagger-diff migrate-up migrate-down migrate-new seed dump-perms perm-check perm-db-check air-install goose-install tools backend-cache
 
 DSN ?= host=localhost port=5432 user=optimus password=optimus dbname=optimus sslmode=disable
+BACKEND_TMP ?= $(CURDIR)/tmp
+export TMPDIR := $(BACKEND_TMP)/work
+export GOCACHE := $(BACKEND_TMP)/go-cache
+export GOLANGCI_LINT_CACHE := $(BACKEND_TMP)/golangci-lint-cache
+SWAG_DIFF_TMP := $(BACKEND_TMP)/swagger-diff
+PERMS_DIFF_TMP := $(BACKEND_TMP)/permissions-diff.md
+
+backend-cache:
+	mkdir -p "$(TMPDIR)" "$(GOCACHE)" "$(GOLANGCI_LINT_CACHE)" "$(SWAG_DIFF_TMP)"
+
+run build test test-int lint swag swagger-diff migrate-up migrate-down migrate-new seed dump-perms perm-check perm-db-check tools: | backend-cache
 
 run:
 	air
@@ -22,8 +33,8 @@ swag:
 	cp api/docs/swagger.json ../docs/api/swagger.json
 
 swagger-diff:
-	@swag init -g cmd/server/main.go -o /tmp/optimus-swag --parseDependency --parseInternal >/dev/null
-	@diff -q /tmp/optimus-swag/swagger.json ../docs/api/swagger.json || \
+	@swag init -g cmd/server/main.go -o "$(SWAG_DIFF_TMP)" --parseDependency --parseInternal >/dev/null
+	@diff -q "$(SWAG_DIFF_TMP)/swagger.json" ../docs/api/swagger.json || \
 	  (echo "swagger.json is stale — run 'make swag' and commit"; exit 1)
 
 migrate-up:
@@ -43,8 +54,8 @@ dump-perms:
 	go run ./cmd/dump-permissions > ../docs/permissions.md
 
 perm-check:
-	@go run ./cmd/dump-permissions > /tmp/optimus-perms.md
-	@diff -q /tmp/optimus-perms.md ../docs/permissions.md || \
+	@go run ./cmd/dump-permissions > "$(PERMS_DIFF_TMP)"
+	@diff -q "$(PERMS_DIFF_TMP)" ../docs/permissions.md || \
 	  (echo "permissions.md is stale — run 'make dump-perms' and commit"; exit 1)
 
 perm-db-check:

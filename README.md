@@ -7,11 +7,20 @@ application delivery. Monorepo: `optimus-be` (Go/Gin/Postgres) and
 
 ## Project status
 
-P0-P6 are implemented on `dev` as of 2026-07-30. P6 Application Delivery
-completed all 29 planned tasks and passed backend/frontend quality gates plus a
-real disposable PostgreSQL + Kind + Helm smoke. Current release candidate:
-`57a0c58`. The next milestone is merging `dev` into `main` and running a
-production-like deployment/upgrade smoke before tagging a release.
+P0-P6 are implemented and merged to `main` as of 2026-08-12. P6 Application
+Delivery completed all 29 planned tasks and passed backend/frontend quality
+gates plus a real disposable PostgreSQL + Kubernetes + Helm smoke. PR #5 then
+fixed CI reliability and frontend build issues, and PR #6 refined authentication
+feedback, built-in RBAC roles, menu metadata, and dynamic-route bootstrap.
+
+The merged release-candidate baseline on `main` is `db4606a`. The current
+`dev` branch adds the cross-platform Colima runtime policy, Colima Kubernetes
+P6 smoke path, repository-local backend caches, and refreshed project status.
+No release tag exists yet. The next milestone is release sign-off: confirm CI
+on `dev`, merge it into `main`, run a production-like persistent-data upgrade
+smoke from the P5 baseline `4e2d08b` through migration
+`00023_p6_delivery.sql`, rerun the P4/P5/P6 manual release checks, and only then
+tag/release.
 
 ## Repository layout
 

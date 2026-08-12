@@ -1,24 +1,29 @@
 # P6 application delivery — disposable local smoke checklist
 
-> Run only against disposable PostgreSQL, Kind, and chart-repository resources.
+> Run only against disposable PostgreSQL, an isolated namespace in Colima
+> Kubernetes, and disposable chart-repository resources. Do not stop, reset, or
+> delete the shared Colima VM or Kubernetes cluster during this smoke.
 > Never paste or commit JWTs, kubeconfigs, chart values, manifests, Helm notes,
 > authorization headers, or raw Helm errors. Examples below retain only IDs,
 > states, revisions, digests, stable error codes, and correlation IDs.
 
 ## 1. Prerequisites and isolated workspace
 
-Required commands: `docker`, `kind`, `kubectl`, `helm`, `curl`, `jq`, `openssl`,
-`go`, and `make`. Start from `optimus-be/` with the normal disposable backend
+Required commands: `colima`, `docker`, `kubectl`, `helm`, `curl`, `jq`,
+`openssl`, `go`, and `make`. Start from `optimus-be/` with Colima running with
+the Docker runtime and Kubernetes enabled, plus the normal disposable backend
 configuration and migrations available.
 
 ```bash
 export P6_SMOKE_DIR="$(mktemp -d /tmp/optimus-p6-smoke.XXXXXX)"
-export P6_CLUSTER=optimus-p6-smoke
 export P6_API=http://127.0.0.1:8080/api/v1
-export P6_NAMESPACE=optimus-p6-smoke
-kind create cluster --name "$P6_CLUSTER"
+export P6_NAMESPACE="optimus-p6-smoke-$(openssl rand -hex 4)"
+colima status
+test "$(docker context show)" = colima
+test "$(kubectl config current-context)" = colima
+kubectl cluster-info
 kubectl create namespace "$P6_NAMESPACE"
-kubectl config view --raw > "$P6_SMOKE_DIR/kubeconfig"
+kubectl config view --raw --minify > "$P6_SMOKE_DIR/kubeconfig"
 chmod 600 "$P6_SMOKE_DIR/kubeconfig"
 ```
 
@@ -105,8 +110,8 @@ Create one P1 kubeconfig credential, P2 cluster, P3 HTTP chart repository, and
 three applications. The kubeconfig enters JSON directly and is never printed:
 
 ```bash
-export P6_KUBECONFIG_ID="$(jq -n --rawfile kubeconfig "$P6_SMOKE_DIR/kubeconfig" '{name:"p6-smoke",description:"disposable P6 smoke",default_namespace:"optimus-p6-smoke",kubeconfig:$kubeconfig}' | curl --fail --silent "${p6_admin[@]}" --data-binary @- "$P6_API/credentials/kubeconfigs" | jq -er '.data.id')"
-export P6_CLUSTER_ID="$(curl --fail --silent "${p6_admin[@]}" -d "{\"name\":\"p6-smoke\",\"description\":\"disposable P6 smoke\",\"kubeconfig_id\":$P6_KUBECONFIG_ID,\"context\":\"kind-$P6_CLUSTER\",\"tags\":[\"p6-smoke\"]}" "$P6_API/k8s/clusters" | jq -er '.data.id')"
+export P6_KUBECONFIG_ID="$(jq -n --arg namespace "$P6_NAMESPACE" --rawfile kubeconfig "$P6_SMOKE_DIR/kubeconfig" '{name:"p6-smoke",description:"disposable P6 smoke",default_namespace:$namespace,kubeconfig:$kubeconfig}' | curl --fail --silent "${p6_admin[@]}" --data-binary @- "$P6_API/credentials/kubeconfigs" | jq -er '.data.id')"
+export P6_CLUSTER_ID="$(curl --fail --silent "${p6_admin[@]}" -d "{\"name\":\"p6-smoke\",\"description\":\"disposable P6 smoke on Colima Kubernetes\",\"kubeconfig_id\":$P6_KUBECONFIG_ID,\"context\":\"colima\",\"tags\":[\"p6-smoke\"]}" "$P6_API/k8s/clusters" | jq -er '.data.id')"
 export P6_REPO_ID="$(curl --fail --silent "${p6_admin[@]}" -d '{"name":"p6-smoke","description":"disposable P6 smoke","type":"http","url":"http://127.0.0.1:18080"}' "$P6_API/apps/repos" | jq -er '.data.id')"
 create_app(){ env="$1"; curl --fail --silent "${p6_admin[@]}" -d "{\"name\":\"p6-smoke-$env\",\"description\":\"disposable P6 smoke\",\"cluster_id\":$P6_CLUSTER_ID,\"namespace\":\"$P6_NAMESPACE\",\"release_name\":\"p6-smoke-$env\",\"chart_repo_id\":$P6_REPO_ID,\"chart_name\":\"p6-smoke\",\"tags\":[\"p6-smoke\"]}" "$P6_API/apps/applications" | jq -er '.data.id'; }
 export P6_DEV_APP="$(create_app dev)" P6_STAGING_APP="$(create_app staging)" P6_PROD_APP="$(create_app prod)"
@@ -183,7 +188,8 @@ set +e
 kill -TERM "$P6_SERVER_PID"
 wait "$P6_SERVER_PID"
 docker rm -f optimus-p6-chart-repo
-kind delete cluster --name "$P6_CLUSTER"
+kubectl config use-context colima
+kubectl delete namespace "$P6_NAMESPACE" --wait=true --timeout=5m
 docker compose down -v
 find "$P6_SMOKE_DIR" -type f -exec chmod 600 {} +
 rm -rf -- "$P6_SMOKE_DIR"

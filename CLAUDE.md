@@ -15,24 +15,75 @@ Monorepo with two deployable apps plus shared deployment assets:
 
 ## Current project phase
 
-As of 2026-07-30, P0-P6 are implemented on `dev`. P6 Application Delivery
-completed its approved 2026-07-27 design and all 29 implementation tasks. The
-final disposable Kind/Helm smoke found and fixed two production wiring gaps:
-system kubeconfig purposes now receive the required `system:` prefix, and the
-production Helm adapter forwards `LoadVerifiedChart`. `dev` and `origin/dev`
-both resolve to `57a0c58`; the worktree is clean.
+As of 2026-08-12, P0-P6 are implemented and merged to `main`. P6 Application
+Delivery completed its approved 2026-07-27 design and all 29 implementation
+tasks. The final disposable Kubernetes/Helm smoke found and fixed two production
+wiring gaps: system kubeconfig purposes now receive the required `system:`
+prefix, and the production Helm adapter forwards `LoadVerifiedChart`.
 
-The next milestone is release integration rather than another feature phase:
-review and merge `dev` into `main`, run a production-like deployment/upgrade
-smoke (including migration `00023_p6_delivery.sql`), and only then tag/release.
+P6 merged through PR #4 (`14be03d`), PR #5 (`f1857f5`) fixed CI reliability
+and frontend build issues, and PR #6 (`db4606a`) added authentication feedback,
+built-in RBAC/menu refinements, dynamic-route bootstrap fixes, and regression
+tests. `main` and `origin/main` resolve to release-candidate baseline
+`db4606a`. The current `dev` branch adds the cross-platform Colima runtime
+policy, Colima Kubernetes P6 smoke path, repository-local backend caches, and
+refreshed project status. The repository has no release tag yet.
+
+The next milestone is release sign-off rather than another feature phase:
+confirm CI on the current `dev`, merge it into `main`, run a production-like
+persistent-data upgrade smoke from the P5 baseline `4e2d08b` to the merged
+release candidate (including migration `00023_p6_delivery.sql`, seed
+idempotency, restart, rollback, and recovery checks), rerun the P4/P5/P6 manual
+release checklists, and only then tag/release.
 
 For release sign-off, use `optimus-be/scripts/p4-smoke.md` with a disposable
 read-only AWS credential for P4 and `optimus-be/scripts/p5-smoke.md` with
 disposable local Prometheus containers for P5.
-Use `optimus-be/scripts/p6-smoke.md` with disposable PostgreSQL, Kind, and a
-local HTTP chart repository for P6.
+Use `optimus-be/scripts/p6-smoke.md` with disposable PostgreSQL, an isolated
+namespace in Colima Kubernetes, and a local HTTP chart repository for P6.
 
 ## Daily commands
+
+### Local Docker and Kubernetes runtime
+
+Local development on both macOS and Linux uses **Colima** as the project
+runtime boundary. Use the default Colima profile with the Docker runtime and
+its built-in Kubernetes enabled:
+
+```bash
+colima start --runtime docker --kubernetes
+docker context use colima
+kubectl config use-context colima
+colima status
+docker info
+kubectl cluster-info
+```
+
+All project-local `docker`, `docker compose`, dockertest, `make test-int`, and
+P5 container fixtures must use the active Colima Docker context. Do not
+silently fall back to Docker Desktop or a host system Docker daemon. If a tool
+does not honor Docker contexts, obtain the socket path from `colima status` and
+set `DOCKER_HOST` for that command or shell; do not hardcode a macOS
+`/Users/...` socket path because Linux uses a different home layout.
+
+Colima's built-in Kubernetes is the default cluster for routine P2/P3 local
+development and P6 release smoke. The P6 checklist requires the `colima` kube
+context and isolates all Kubernetes resources in a disposable namespace. Check
+the active kube context before cluster operations:
+
+```bash
+kubectl config use-context colima
+```
+
+Colima supports both macOS and Linux. Linux/WSL2 hosts without `/dev/kvm` can
+run through QEMU software virtualization, but startup and integration tests may
+be slower. CI runners are not subject to this local-runtime rule.
+
+All local backend build and analysis caches live under the ignored
+`optimus-be/tmp/` tree. The backend Makefile prepares and exports repository-
+local `TMPDIR`, `GOCACHE`, and `GOLANGCI_LINT_CACHE` paths automatically. Do not
+redirect backend build caches to `/tmp`; this project can exceed a small tmpfs
+while compiling the Helm, Kubernetes, and AWS dependency graph.
 
 ### Backend (run from `optimus-be/`)
 
@@ -244,7 +295,11 @@ frontend, generated-artifact, architectural scan, and real disposable
 
 ## Gotchas (local-only)
 
-- **Docker daemon is Colima on this workstation.** If `docker compose` / dockertest can't find a daemon, export `DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` or `colima start`. The `make test-int` and `tests/integration/` paths both depend on this.
+- **Docker and local Kubernetes run through Colima on macOS and Linux.** If
+  `docker compose`, dockertest, or `kubectl` cannot connect, run `colima status`,
+  verify the `colima` Docker and kube contexts, and use the socket reported by
+  `colima status` for context-unaware tools. Do not assume `/var/run/docker.sock`
+  or a platform-specific Colima socket path.
 - **HEAD vs GET on healthcheck**: the container healthchecks use `wget` which issues GET. Gin only registers GET handlers by default — keep `/api/v1/health` on GET, not HEAD-aliased.
 - **Initial admin password is logged exactly once**, on the first run of `cmd/seed` (or first `make run` against an empty DB). Capture it from stdout / `docker logs optimus-seed | grep INITIAL`. Subsequent runs print "admin user already exists; no password generated." If you lose it, you must reset via DB.
 - **Vault master key must be set before BE starts.** `OPTIMUS_VAULT_MASTER_KEY` (base64'd 32 bytes) or `OPTIMUS_VAULT_MASTER_KEY_FILE`. Generate with `cd optimus-be && go run ./cmd/vault-keygen` (or the `vault-keygen` Dockerfile target). Loaded BEFORE `db.Open` so a missing/wrong key fails fast.
@@ -253,9 +308,14 @@ frontend, generated-artifact, architectural scan, and real disposable
 
 ## First-session checklist (new machine)
 
-If this is the first time touching this repo on this Mac:
+If this is the first time touching this repo on macOS or Linux:
 
-1. **Tools**: `brew install uv bun colima git` then `colima start`.
+1. **Tools**: install `uv`, `bun`, `colima`, the Docker CLI with Docker Compose,
+   `kubectl`, `helm`, and `git`. Homebrew may be used on both supported host
+   platforms. Confirm Docker Compose works (`docker compose version` or the
+   Homebrew `docker-compose version` executable), then run
+   `colima start --runtime docker --kubernetes` and verify the `colima` Docker
+   and kube contexts.
 2. **mem0 API key**: `export MEM0_API_KEY="..."` (from password manager). Persist in `~/.zshrc`. Claude Code auto-loads the repository's `.mcp.json`, which starts `uvx mem0-mcp-server`. Scope mem0 calls to `user_id = "logic"` unless another user is explicitly requested.
 3. **First prompt** in Claude Code:
    > "Read CLAUDE.md, search mem0 for the optimus checkpoint, then `git log dev..main` to confirm what's actually merged. Summarize where the project is and recommend the next step."
