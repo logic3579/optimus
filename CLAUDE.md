@@ -15,7 +15,7 @@ Monorepo with two deployable apps plus shared deployment assets:
 
 ## Current project phase
 
-As of 2026-08-12, P0-P6 are implemented and merged to `main`. P6 Application
+As of 2026-08-13, P0-P6 are implemented and merged to `main`. P6 Application
 Delivery completed its approved 2026-07-27 design and all 29 implementation
 tasks. The final disposable Kubernetes/Helm smoke found and fixed two production
 wiring gaps: system kubeconfig purposes now receive the required `system:`
@@ -28,6 +28,13 @@ tests. `main` and `origin/main` resolve to release-candidate baseline
 `db4606a`. The current `dev` branch adds the cross-platform Colima runtime
 policy, Colima Kubernetes P6 smoke path, repository-local backend caches, and
 refreshed project status. The repository has no release tag yet.
+
+Local pre-release validation steps 1-10 now pass on `dev`, including the local
+UI/backend flow, the Colima Kubernetes connection path, and `make lint`,
+`make swagger-diff`, and `make perm-check`. The Kubernetes validation exposed
+and fixed the missing authenticated-actor bridge into `credentials.Consumer`.
+These checks establish the local-development baseline but do not replace the
+remaining release-sign-off gates below.
 
 The next milestone is release sign-off rather than another feature phase:
 confirm CI on the current `dev`, merge it into `main`, run a production-like
