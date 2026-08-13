@@ -105,6 +105,7 @@ func (m *Module) SetObservabilityCounter(c cluster.ObservabilityDatasourceCounte
 // config vs secret etc), so no middleware is wrapped around it here.
 func (m *Module) MountRoutes(protected *gin.RouterGroup, cache *rbac.PermissionCache) {
 	k := protected.Group("/k8s")
+	k.Use(withCredentialActor())
 
 	// ---- cluster CRUD ------------------------------------------------------
 	cl := k.Group("/clusters")
@@ -150,4 +151,19 @@ func (m *Module) MountRoutes(protected *gin.RouterGroup, cache *rbac.PermissionC
 	// YAML endpoint — permission dispatched inside the handler based on
 	// ?kind=, so no middleware is wrapped around the route itself.
 	live.GET("/yaml", m.yamlH.Get())
+}
+
+// withCredentialActor bridges Gin's JWT identity into the request context
+// consumed by credentials.Consumer. Gin values are not visible through
+// c.Request.Context(), so without this adapter authenticated K8s requests are
+// misclassified as system callers and rejected unless their purpose starts
+// with "system:".
+func withCredentialActor() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if actor := c.GetUint64(middleware.CtxKeyUserID); actor != 0 {
+			ctx := credentials.WithActor(c.Request.Context(), actor)
+			c.Request = c.Request.WithContext(ctx)
+		}
+		c.Next()
+	}
 }
