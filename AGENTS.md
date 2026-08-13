@@ -78,6 +78,10 @@ Use `bun` only for frontend dependency work. Do not use npm, pnpm, or yarn.
 - Run Docker Compose, dockertest, `make test-int`, and P5 containers on Colima's
   Docker runtime. Do not silently use Docker Desktop or a host system Docker
   daemon instead.
+- Invoke Docker Compose exclusively through the Docker CLI as
+  `docker compose ...`. The Homebrew Compose plugin is exposed through
+  `~/.docker/cli-plugins/docker-compose`; verify it with
+  `docker compose version` before local development or smoke tests.
 - For tools that ignore Docker contexts, use the socket reported by
   `colima status` through `DOCKER_HOST`; never hardcode a macOS `/Users/...`
   path or assume `/var/run/docker.sock`.

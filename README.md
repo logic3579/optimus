@@ -36,6 +36,10 @@ optimus/
 
 ## Local development
 
+Docker Compose commands use the Docker CLI plugin form exclusively. The
+Homebrew plugin is available through `~/.docker/cli-plugins/docker-compose`;
+verify setup with `docker compose version`.
+
 ```bash
 # Infrastructure
 docker compose up -d
@@ -81,7 +85,7 @@ bun run dev   # http://localhost:5173, proxies /api/v1 to backend on :8080
 - Permissions: [`docs/permissions.md`](docs/permissions.md)
 - API: [`docs/api/swagger.json`](docs/api/swagger.json) (also browsable at http://localhost:8080/swagger/ when running)
 
-## Production deploy (single-machine, docker-compose)
+## Production deploy (single-machine, Docker Compose)
 
 1. `cd deploy`
 2. `cp .env.example .env` and fill in the **REQUIRED** section.
@@ -110,6 +114,7 @@ bun run dev   # http://localhost:5173, proxies /api/v1 to backend on :8080
 - Stop:  `docker compose -f deploy/docker-compose.prod.yml down`
 - Reset DB (destructive): add `-v` to `down`.
 
-**Local docker note:** this workstation typically uses Colima. Set
-`DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` if `docker compose`
-can't find a daemon, or run `colima start`.
+**Local Docker note:** this workstation uses Colima. If `docker compose` cannot
+find the daemon, run `colima status`, select the `colima` Docker context, and
+use the socket reported by Colima through `DOCKER_HOST` only for tools that do
+not honor Docker contexts.

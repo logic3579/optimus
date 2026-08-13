@@ -655,12 +655,12 @@ Two existing files need light edits when this plan ships:
 **`docs/superpowers/specs/2026-06-05-p0-platform-skeleton-design.md`**:
 
 - §9.6: change Go `1.22` → `1.25`; `bun.lockb` → `bun.lock`; add a "See `2026-06-09-p0-plan3-deployment-design.md` for the production-grade Dockerfiles and compose" pointer.
-- §9.7: keep the prose (it correctly says "single-machine docker-compose"); add the same pointer.
+- §9.7: keep the prose (it correctly says "single-machine Docker Compose"); add the same pointer.
 
 **`README.md`** at repo root — add a "Production deploy" section:
 
 ```markdown
-## Production deploy (single-machine, docker-compose)
+## Production deploy (single-machine, Docker Compose)
 
 1. `cd deploy`
 2. `cp .env.example .env` and fill in the REQUIRED section.
@@ -677,9 +677,9 @@ Useful commands:
 - Stop: `docker compose -f deploy/docker-compose.prod.yml down`
 - Reset DB (destructive): `... down -v`
 
-Local docker note: this repo's primary workstation uses Colima, so set
-`DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` if `docker compose`
-can't find a daemon.
+Local Docker note: this repo uses Colima. If `docker compose` cannot find the
+daemon, run `colima status`, select the `colima` Docker context, and use the
+socket reported by Colima through `DOCKER_HOST` only for context-unaware tools.
 ```
 
 ---

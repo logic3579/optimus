@@ -4,7 +4,7 @@
 
 **Goal:** Stand up `optimus-be`'s foundation: Go module, config/log/errors infrastructure, Postgres schema (8 tables with partial unique indexes & FKs), GORM models, permission-code registration, admin/role/menu seed, and a `/health` endpoint.
 
-**Architecture:** Single Go binary using Gin (HTTP, introduced minimally here for `/health`), GORM (ORM, no `uniqueIndex` tags), goose (SQL migrations), viper (config), slog (logging). Local infra via docker-compose (Postgres 16). All Postgres-specific (partial unique indexes, JSONB, `ON DELETE` rules) intentional.
+**Architecture:** Single Go binary using Gin (HTTP, introduced minimally here for `/health`), GORM (ORM, no `uniqueIndex` tags), goose (SQL migrations), viper (config), slog (logging). Local infra via Docker Compose (Postgres 16). All Postgres-specific (partial unique indexes, JSONB, `ON DELETE` rules) intentional.
 
 **Tech Stack:** Go 1.22, Gin, GORM, Postgres 16, goose, viper, slog, testify, dockertest, golangci-lint, air, bcrypt.
 
@@ -251,7 +251,7 @@ git commit -m "feat(be): add Makefile and air config"
 
 ---
 
-### Task 3: docker-compose for local Postgres
+### Task 3: Docker Compose for local Postgres
 
 **Files:** Create: `docker-compose.yml`
 
@@ -306,7 +306,7 @@ Expected: `Did not find any relations.` (empty DB).
 
 ```bash
 git add docker-compose.yml
-git commit -m "chore: add docker-compose for local postgres"
+git commit -m "chore: add Docker Compose for local postgres"
 ```
 
 ---

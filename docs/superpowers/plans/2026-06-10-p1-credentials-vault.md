@@ -3887,7 +3887,7 @@ In `deploy/.env.example`, append:
 # Or with the host Go toolchain: cd optimus-be && go run ./cmd/vault-keygen
 OPTIMUS_VAULT_MASTER_KEY=
 # Alternative to OPTIMUS_VAULT_MASTER_KEY: file path inside the container.
-# Mount the file via docker-compose volumes if you use this.
+# Mount the file via Docker Compose volumes if you use this.
 OPTIMUS_VAULT_MASTER_KEY_FILE=
 ```
 

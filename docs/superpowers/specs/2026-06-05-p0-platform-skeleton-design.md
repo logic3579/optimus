@@ -90,8 +90,8 @@ optimus 是一个面向内部小团队（< 50 人，单租户）的 DevOps 平�
 | 密码哈希 | bcrypt，cost 10 |
 | 后端测试 | testify + dockertest（真实 Postgres） |
 | 前端测试 | vitest（仅 utils / stores / 关键 hooks） |
-| 本地开发 | docker-compose（Postgres + Adminer） |
-| 生产部署 | 二进制 + Dockerfile，单机 docker-compose；K8s 部署延迟到 P2 |
+| 本地开发 | Docker Compose（Postgres + Adminer） |
+| 生产部署 | 二进制 + Dockerfile，单机 Docker Compose；K8s 部署延迟到 P2 |
 | 热重载 | air（后端），vite（前端） |
 | CI | GitHub Actions |
 | Mock | 不引入 MSW |
@@ -725,7 +725,7 @@ EXPOSE 80
 
 ### 9.7 生产部署
 
-P0 假设单机 docker-compose：postgres + optimus-be + optimus-fe (nginx)。
+P0 假设单机 Docker Compose：postgres + optimus-be + optimus-fe (nginx)。
 
 `deploy/docker-compose.prod.yml` + `deploy/.env.example`。
 
@@ -807,7 +807,7 @@ optimus/
 
 | 阶段 | 任务 | 估时 |
 |---|---|---|
-| W1-1 | 仓库骨架、Makefile、docker-compose、配置、日志、错误体系 | 1.5d |
+| W1-1 | 仓库骨架、Makefile、Docker Compose、配置、日志、错误体系 | 1.5d |
 | W1-2 | DB 迁移（8 张表 + 部分唯一索引 + 外键）、GORM models | 1d |
 | W1-3 | seed（admin + 内置角色 + 菜单常量 + 权限码注册） | 0.5d |
 | W2-1 | auth：login / refresh / logout / JWT / bcrypt / 登录限速 | 2d |

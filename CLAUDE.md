@@ -298,8 +298,12 @@ frontend, generated-artifact, architectural scan, and real disposable
 - **Docker and local Kubernetes run through Colima on macOS and Linux.** If
   `docker compose`, dockertest, or `kubectl` cannot connect, run `colima status`,
   verify the `colima` Docker and kube contexts, and use the socket reported by
-  `colima status` for context-unaware tools. Do not assume `/var/run/docker.sock`
-  or a platform-specific Colima socket path.
+`colima status` for context-unaware tools. Do not assume `/var/run/docker.sock`
+or a platform-specific Colima socket path.
+- **Run Compose only as `docker compose ...`.** The Homebrew Compose plugin is
+  exposed through `~/.docker/cli-plugins/docker-compose`; confirm the Docker CLI
+  discovers it with `docker compose version` before running local or smoke
+  workflows.
 - **HEAD vs GET on healthcheck**: the container healthchecks use `wget` which issues GET. Gin only registers GET handlers by default — keep `/api/v1/health` on GET, not HEAD-aliased.
 - **Initial admin password is logged exactly once**, on the first run of `cmd/seed` (or first `make run` against an empty DB). Capture it from stdout / `docker logs optimus-seed | grep INITIAL`. Subsequent runs print "admin user already exists; no password generated." If you lose it, you must reset via DB.
 - **Vault master key must be set before BE starts.** `OPTIMUS_VAULT_MASTER_KEY` (base64'd 32 bytes) or `OPTIMUS_VAULT_MASTER_KEY_FILE`. Generate with `cd optimus-be && go run ./cmd/vault-keygen` (or the `vault-keygen` Dockerfile target). Loaded BEFORE `db.Open` so a missing/wrong key fails fast.
@@ -312,8 +316,9 @@ If this is the first time touching this repo on macOS or Linux:
 
 1. **Tools**: install `uv`, `bun`, `colima`, the Docker CLI with Docker Compose,
    `kubectl`, `helm`, and `git`. Homebrew may be used on both supported host
-   platforms. Confirm Docker Compose works (`docker compose version` or the
-   Homebrew `docker-compose version` executable), then run
+   platforms. Expose the Homebrew Compose plugin through
+   `~/.docker/cli-plugins/docker-compose`, confirm it with
+   `docker compose version`, then run
    `colima start --runtime docker --kubernetes` and verify the `colima` Docker
    and kube contexts.
 2. **mem0 API key**: `export MEM0_API_KEY="..."` (from password manager). Persist in `~/.zshrc`. Claude Code auto-loads the repository's `.mcp.json`, which starts `uvx mem0-mcp-server`. Scope mem0 calls to `user_id = "logic"` unless another user is explicitly requested.

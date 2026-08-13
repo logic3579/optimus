@@ -6,7 +6,7 @@
 
 **Architecture:** Five-service compose stack (postgres → migrate → seed → be → fe) using one multi-stage BE Dockerfile with three targets, a multi-stage FE Dockerfile that produces an nginx image, and a small new Go binary `cmd/migrate` that runs goose programmatically against embedded SQL.
 
-**Tech Stack:** Go 1.25, docker compose v2, nginx 1.27-alpine, Vite 5 (`manualChunks` rollup option), goose v3 (programmatic API + `embed.FS`), pgx v5 stdlib driver, GitHub Actions docker/build-push-action v6.
+**Tech Stack:** Go 1.25, Docker Compose v2, nginx 1.27-alpine, Vite 5 (`manualChunks` rollup option), goose v3 (programmatic API + `embed.FS`), pgx v5 stdlib driver, GitHub Actions docker/build-push-action v6.
 
 **Reference spec:** `docs/superpowers/specs/2026-06-09-p0-plan3-deployment-design.md` (commit `e367765`).
 
@@ -43,7 +43,10 @@
 
 3. **`bun.lock` is text, not `bun.lockb`** — confirmed in the working tree. The original platform spec §9.6 was wrong; the FE Dockerfile and Task 9 spec edit both fix this.
 
-4. **Docker daemon on this workstation is Colima.** `DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` is set in the user shell (per memory). Verification steps that need docker assume the daemon is reachable; if a step's docker command errors with "Cannot connect", check `docker context ls` and switch contexts, or `colima start`.
+4. **Docker daemon on this workstation is Colima.** Verification steps that
+   need Docker assume the `colima` context is active. If a tool does not honor
+   Docker contexts, obtain the socket from `colima status` and set
+   `DOCKER_HOST` for that command; do not hardcode a platform-specific path.
 
 5. **Bundle size acceptance is "best effort"** — actual antd-vue bundle size depends on tree-shaking and may differ. If a chunk overshoots its budget after step 1 of Task 6, adjust splits (e.g., move `@ant-design/icons-vue` into its own chunk) and re-verify. Don't tune indefinitely — main `index-*.js` < 250 KB is the only hard requirement.
 
@@ -1355,7 +1358,7 @@ docker compose -f docker-compose.prod.yml down
 Open `README.md` at the repo root. If a "Production deploy" section doesn't exist, append it; if it does (it shouldn't), replace it. The section content:
 
 ```markdown
-## Production deploy (single-machine, docker-compose)
+## Production deploy (single-machine, Docker Compose)
 
 1. `cd deploy`
 2. `cp .env.example .env` and fill in the **REQUIRED** section.
@@ -1377,9 +1380,10 @@ Open `README.md` at the repo root. If a "Production deploy" section doesn't exis
 - Stop:  `docker compose -f deploy/docker-compose.prod.yml down`
 - Reset DB (destructive): add `-v` to `down`.
 
-**Local docker note:** this workstation typically uses Colima. Set
-`DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` if `docker compose`
-can't find a daemon, or run `colima start`.
+**Local Docker note:** this workstation uses Colima. If `docker compose` cannot
+find the daemon, run `colima status`, select the `colima` Docker context, and
+use the socket reported by Colima through `DOCKER_HOST` only for tools that do
+not honor Docker contexts.
 ```
 
 Use this insertion point — append at the end of `README.md` (assuming there isn't already a Deploy section; check first with `grep -i 'production deploy' README.md`).

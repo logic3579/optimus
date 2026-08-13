@@ -14,7 +14,9 @@
 
 **Implementation notes for the agent:**
 - All commands run from repo root unless noted. Frontend tasks use `cd optimus-fe` (or `git -C optimus-fe`).
-- Use `bun` everywhere (never `npm`/`pnpm`/`yarn`). For docker compose, use the legacy `docker-compose` plugin only if `docker compose` is not installed — `project_colima_docker_socket` memory.
+- Use `bun` everywhere (never `npm`/`pnpm`/`yarn`). Invoke Docker Compose only
+  through the Docker CLI as `docker compose ...`; confirm plugin discovery with
+  `docker compose version`.
 - The repository's `.git` lives at `/Users/logic/Projects/optimus/.git`. Backend root = `optimus-be/`.
 - One task = one commit unless the task explicitly says otherwise.
 - Each FE batch ends with the full sweep: `cd optimus-fe && bun run lint && bun run typecheck && bun run i18n:check && bun run test && bun run build`. Whenever a task's verify step omits one of these, the agent should still run the whole sweep at the end of that subagent batch.
