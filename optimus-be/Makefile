@@ -1,4 +1,4 @@
-.PHONY: run build test test-int lint swag swagger-diff migrate-up migrate-down migrate-new seed dump-perms perm-check perm-db-check air-install goose-install tools backend-cache
+.PHONY: run build test test-int lint swag swagger-diff migrate-up migrate-down migrate-status migrate-new seed dump-perms perm-check perm-db-check air-install goose-install tools backend-cache
 
 DSN ?= host=localhost port=5432 user=optimus password=optimus dbname=optimus sslmode=disable
 BACKEND_TMP ?= $(CURDIR)/tmp
@@ -9,9 +9,9 @@ SWAG_DIFF_TMP := $(BACKEND_TMP)/swagger-diff
 PERMS_DIFF_TMP := $(BACKEND_TMP)/permissions-diff.md
 
 backend-cache:
-	mkdir -p "$(TMPDIR)" "$(GOCACHE)" "$(GOLANGCI_LINT_CACHE)" "$(SWAG_DIFF_TMP)"
+	@mkdir -p "$(TMPDIR)" "$(GOCACHE)" "$(GOLANGCI_LINT_CACHE)" "$(SWAG_DIFF_TMP)"
 
-run build test test-int lint swag swagger-diff migrate-up migrate-down migrate-new seed dump-perms perm-check perm-db-check tools: | backend-cache
+run build test test-int lint swag swagger-diff migrate-up migrate-down migrate-status migrate-new seed dump-perms perm-check perm-db-check tools: | backend-cache
 
 run:
 	air
@@ -42,6 +42,9 @@ migrate-up:
 
 migrate-down:
 	goose -dir migrations postgres "$(DSN)" down
+
+migrate-status:
+	goose -dir migrations postgres "$(DSN)" status
 
 migrate-new:
 	@test -n "$(name)" || (echo "usage: make migrate-new name=<name>"; exit 1)
