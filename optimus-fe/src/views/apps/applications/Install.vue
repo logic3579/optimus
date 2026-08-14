@@ -105,7 +105,7 @@ const relApi = inject<AppsReleaseApi>('appsReleaseApi')!
 const current = ref(0)
 const submitting = ref(false)
 
-const basic = reactive<ApplicationFormModel>({
+const basic = ref<ApplicationFormModel>({
   name: '',
   release_name: '',
   cluster_id: undefined,
@@ -131,10 +131,10 @@ const basicsLocked = computed(() => applicationId.value !== null)
 
 const canProceedToValues = computed(
   () =>
-    !!basic.name &&
-    !!basic.release_name &&
-    !!basic.cluster_id &&
-    !!basic.namespace &&
+    !!basic.value.name &&
+    !!basic.value.release_name &&
+    !!basic.value.cluster_id &&
+    !!basic.value.namespace &&
     !!chart.repoId &&
     !!chart.name,
 )
@@ -154,21 +154,21 @@ async function onCreateAndNext() {
     current.value = 1
     return
   }
-  if (basic.cluster_id === undefined || !chart.repoId || !chart.name) {
+  if (basic.value.cluster_id === undefined || !chart.repoId || !chart.name) {
     return
   }
   submitting.value = true
   try {
     const created = await appApi.create({
-      name: basic.name,
-      release_name: basic.release_name,
-      cluster_id: basic.cluster_id,
-      namespace: basic.namespace,
+      name: basic.value.name,
+      release_name: basic.value.release_name,
+      cluster_id: basic.value.cluster_id,
+      namespace: basic.value.namespace,
       chart_repo_id: chart.repoId,
       chart_name: chart.name,
-      description: basic.description || undefined,
-      tags: basic.tags.length > 0 ? basic.tags : undefined,
-      owner_user_id: basic.owner_user_id,
+      description: basic.value.description || undefined,
+      tags: basic.value.tags.length > 0 ? basic.value.tags : undefined,
+      owner_user_id: basic.value.owner_user_id,
     })
     applicationId.value = created.id
     current.value = 1

@@ -77,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onMounted, ref } from 'vue'
+import { inject, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from '@/hooks/useI18n'
 import { isBizError } from '@/utils/http-error'
@@ -113,8 +113,14 @@ const { t } = useI18n()
 const clusterApi = inject<ClusterApi>('clusterApi')!
 const userApi = inject<UserApi>('userApi')!
 
-// Local alias so the template doesn't have to drill through props.
-const model = props.modelValue
+// Ant Design validates a field in the same event cycle as the control update.
+// Keep a stable local object and mutate it before emitting so the form never
+// validates against the previous modelValue render.
+const model = reactive<ApplicationFormModel>({ ...props.modelValue })
+watch(
+  () => props.modelValue,
+  (value) => Object.assign(model, value),
+)
 
 const clusterOptions = ref<Array<{ label: string; value: number }>>([])
 const userOptions = ref<Array<{ label: string; value: number }>>([])
@@ -122,9 +128,8 @@ const loadingClusters = ref(false)
 const loadingUsers = ref(false)
 
 function onField<K extends keyof ApplicationFormModel>(key: K, value: ApplicationFormModel[K]): void {
-  // Emit a fresh copy so v-model's reactivity contract is honoured even
-  // when the parent compares by reference (e.g. computed sources).
-  emit('update:modelValue', { ...model, [key]: value })
+  Object.assign(model, { [key]: value })
+  emit('update:modelValue', { ...model })
 }
 
 onMounted(async () => {
