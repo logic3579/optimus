@@ -19,7 +19,7 @@ If mem0 is available, search with `user_id = "logic"` for the latest
 `git status --short --branch` and recent
 `git log --oneline --decorate --max-count=20 --all`.
 
-Current expected project state (2026-08-13): P0-P6 are implemented and merged
+Current expected project state (2026-08-14): P0-P6 are implemented and merged
 to `main`. P6 Application Delivery completed the approved 2026-07-27 design
 and all 29 plan tasks, including immutable Helm promotion runs, approvals, SSE
 events, restart/reconciliation recovery, frontend delivery pages, generated
@@ -33,15 +33,16 @@ Kubernetes P6 smoke path, repository-local backend caches, and refreshed
 project status. No release tag exists yet. The next project task is release
 sign-off: confirm CI on `dev`, merge it into `main`, run a production-like
 persistent-data upgrade smoke from P5 baseline `4e2d08b` to the merged release
-candidate including migration `00023_p6_delivery.sql`, rerun the P4/P5/P6
-manual release checks, and only then tag/release.
+candidate including migration `00023_p6_delivery.sql`, complete the remaining
+P5/P6 manual release checks, and only then tag/release.
 
-Local pre-release validation steps 1-10 have passed on `dev`. This includes the
-local UI/backend path, Colima Kubernetes cluster connection after bridging the
-authenticated actor into credential consumption, and the backend lint,
-Swagger-diff, and permission gates. This local milestone does not replace the
-remaining CI, `main` merge, persistent-data upgrade, or P4/P5/P6 manual release
-gates.
+Local pre-release validation steps 1-11 have passed on `dev`. This includes the
+local UI/backend path, Colima Kubernetes cluster connection, backend lint and
+generated-artifact gates, the complete P3 application lifecycle smoke, and the
+complete P4 AWS assets smoke with a disposable read-only credential. The next
+manual validation task is step 12, `optimus-be/scripts/p5-smoke.md`. These local
+milestones do not replace the remaining CI, `main` merge, persistent-data
+upgrade, P5/P6 manual release checks, or final release gates.
 
 ## Project Shape
 

@@ -15,7 +15,7 @@ Monorepo with two deployable apps plus shared deployment assets:
 
 ## Current project phase
 
-As of 2026-08-13, P0-P6 are implemented and merged to `main`. P6 Application
+As of 2026-08-14, P0-P6 are implemented and merged to `main`. P6 Application
 Delivery completed its approved 2026-07-27 design and all 29 implementation
 tasks. The final disposable Kubernetes/Helm smoke found and fixed two production
 wiring gaps: system kubeconfig purposes now receive the required `system:`
@@ -29,23 +29,25 @@ tests. `main` and `origin/main` resolve to release-candidate baseline
 policy, Colima Kubernetes P6 smoke path, repository-local backend caches, and
 refreshed project status. The repository has no release tag yet.
 
-Local pre-release validation steps 1-10 now pass on `dev`, including the local
-UI/backend flow, the Colima Kubernetes connection path, and `make lint`,
-`make swagger-diff`, and `make perm-check`. The Kubernetes validation exposed
-and fixed the missing authenticated-actor bridge into `credentials.Consumer`.
-These checks establish the local-development baseline but do not replace the
-remaining release-sign-off gates below.
+Local pre-release validation steps 1-11 now pass on `dev`. In addition to the
+local UI/backend flow, Colima Kubernetes path, and backend quality gates, the
+user completed the full P3 application lifecycle smoke and the full P4 AWS
+assets smoke with a disposable read-only credential. The Kubernetes validation
+exposed and fixed the missing authenticated-actor bridge into
+`credentials.Consumer`; P4 synchronization was verified after removing an
+ambient host `AWS_PROFILE` from the backend environment. Step 12 and the next
+manual release gate is `optimus-be/scripts/p5-smoke.md`.
 
 The next milestone is release sign-off rather than another feature phase:
 confirm CI on the current `dev`, merge it into `main`, run a production-like
 persistent-data upgrade smoke from the P5 baseline `4e2d08b` to the merged
 release candidate (including migration `00023_p6_delivery.sql`, seed
-idempotency, restart, rollback, and recovery checks), rerun the P4/P5/P6 manual
-release checklists, and only then tag/release.
+idempotency, restart, rollback, and recovery checks), complete the remaining
+P5/P6 manual release checklists, and only then tag/release.
 
-For release sign-off, use `optimus-be/scripts/p4-smoke.md` with a disposable
-read-only AWS credential for P4 and `optimus-be/scripts/p5-smoke.md` with
-disposable local Prometheus containers for P5.
+The P4 release checklist has passed with a disposable read-only AWS credential.
+Continue release sign-off with `optimus-be/scripts/p5-smoke.md` and disposable
+local Prometheus containers for P5.
 Use `optimus-be/scripts/p6-smoke.md` with disposable PostgreSQL, an isolated
 namespace in Colima Kubernetes, and a local HTTP chart repository for P6.
 
