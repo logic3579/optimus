@@ -22,7 +22,7 @@ describe('makeAppsReleaseApi', () => {
     }
   }
 
-  it('status() GETs /apps/applications/:id/release and unwraps envelope', async () => {
+  it('status() GETs /apps/applications/:id/release/status and unwraps envelope', async () => {
     const client = makeClient()
     client.get.mockResolvedValue(envelope({
       status: 'deployed',
@@ -34,7 +34,7 @@ describe('makeAppsReleaseApi', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const api = makeAppsReleaseApi(client as any)
     const r = await api.status(7)
-    expect(client.get).toHaveBeenCalledWith('/apps/applications/7/release')
+    expect(client.get).toHaveBeenCalledWith('/apps/applications/7/release/status')
     expect(r.status).toBe('deployed')
     expect(r.revision).toBe(3)
   })
