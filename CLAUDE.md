@@ -35,21 +35,25 @@ user completed the full P3 application lifecycle smoke and the full P4 AWS
 assets smoke with a disposable read-only credential. The Kubernetes validation
 exposed and fixed the missing authenticated-actor bridge into
 `credentials.Consumer`; P4 synchronization was verified after removing an
-ambient host `AWS_PROFILE` from the backend environment. Step 12 and the next
-manual release gate is `optimus-be/scripts/p5-smoke.md`.
+ambient host `AWS_PROFILE` from the backend environment. Basic development
+environment acceptance has passed.
 
-The next milestone is release sign-off rather than another feature phase:
-confirm CI on the current `dev`, merge it into `main`, run a production-like
-persistent-data upgrade smoke from the P5 baseline `4e2d08b` to the merged
-release candidate (including migration `00023_p6_delivery.sql`, seed
-idempotency, restart, rollback, and recovery checks), complete the remaining
-P5/P6 manual release checklists, and only then tag/release.
+Steps 12 and 13, `optimus-be/scripts/p5-smoke.md` and
+`optimus-be/scripts/p6-smoke.md`, are temporarily skipped locally. They have
+not passed and are not waived; both remain pending until real Dev/UAT/Prod
+environments are available. The next milestone is to prepare and deploy those
+environments, then perform environment-specific acceptance.
+
+Release sign-off still requires CI on the current `dev`, the `main` merge, a
+production-like persistent-data upgrade smoke from the P5 baseline `4e2d08b`
+to the merged release candidate (including migration
+`00023_p6_delivery.sql`, seed idempotency, restart, rollback, and recovery
+checks), the deferred P5/P6 environment checks, and only then tag/release.
 
 The P4 release checklist has passed with a disposable read-only AWS credential.
-Continue release sign-off with `optimus-be/scripts/p5-smoke.md` and disposable
-local Prometheus containers for P5.
-Use `optimus-be/scripts/p6-smoke.md` with disposable PostgreSQL, an isolated
-namespace in Colima Kubernetes, and a local HTTP chart repository for P6.
+Retain `optimus-be/scripts/p5-smoke.md` and
+`optimus-be/scripts/p6-smoke.md` as the acceptance contracts for the future
+real-environment validation; do not mark either complete until it is run.
 
 ## Daily commands
 

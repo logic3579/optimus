@@ -30,19 +30,21 @@ built-in RBAC roles, menu metadata, dynamic-route bootstrap, and related tests.
 `main` and `origin/main` are at release-candidate baseline `db4606a`. The
 current `dev` branch adds the cross-platform Colima runtime policy, Colima
 Kubernetes P6 smoke path, repository-local backend caches, and refreshed
-project status. No release tag exists yet. The next project task is release
-sign-off: confirm CI on `dev`, merge it into `main`, run a production-like
-persistent-data upgrade smoke from P5 baseline `4e2d08b` to the merged release
-candidate including migration `00023_p6_delivery.sql`, complete the remaining
-P5/P6 manual release checks, and only then tag/release.
+project status. No release tag exists yet. Local development-environment
+basic acceptance has passed. The next project task is to prepare and deploy
+real Dev/UAT/Prod environments, then continue environment-specific acceptance
+and release sign-off.
 
 Local pre-release validation steps 1-11 have passed on `dev`. This includes the
 local UI/backend path, Colima Kubernetes cluster connection, backend lint and
 generated-artifact gates, the complete P3 application lifecycle smoke, and the
-complete P4 AWS assets smoke with a disposable read-only credential. The next
-manual validation task is step 12, `optimus-be/scripts/p5-smoke.md`. These local
-milestones do not replace the remaining CI, `main` merge, persistent-data
-upgrade, P5/P6 manual release checks, or final release gates.
+complete P4 AWS assets smoke with a disposable read-only credential. Steps 12
+and 13, `optimus-be/scripts/p5-smoke.md` and
+`optimus-be/scripts/p6-smoke.md`, are temporarily skipped in the local
+environment; they are not waived or passed and remain pending until real
+Dev/UAT/Prod environments are available. The remaining work includes real
+environment deployment and acceptance, CI, the `main` merge, the persistent
+data upgrade smoke, the deferred P5/P6 checks, and final release gates.
 
 ## Project Shape
 

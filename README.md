@@ -15,17 +15,20 @@ feedback, built-in RBAC roles, menu metadata, and dynamic-route bootstrap.
 
 Local pre-release validation steps 1-11 pass on `dev`, covering the local
 UI/backend flow, Colima Kubernetes connectivity, backend quality gates, the P3
-application lifecycle smoke, and the complete P4 AWS assets smoke. Step 12 is
-the P5 observability smoke with disposable local Prometheus containers.
+application lifecycle smoke, and the complete P4 AWS assets smoke. Basic
+development environment acceptance has passed. Steps 12 and 13, the P5 and P6
+smoke checks, are temporarily skipped locally and remain pending—not passed or
+waived—until real Dev/UAT/Prod environments are available.
 
 The merged release-candidate baseline on `main` is `db4606a`. The current
 `dev` branch adds the cross-platform Colima runtime policy, Colima Kubernetes
 P6 smoke path, repository-local backend caches, and refreshed project status.
-No release tag exists yet. The next milestone is release sign-off: confirm CI
-on `dev`, merge it into `main`, run a production-like persistent-data upgrade
-smoke from the P5 baseline `4e2d08b` through migration
-`00023_p6_delivery.sql`, complete the remaining P5/P6 manual release checks,
-and only then tag/release.
+No release tag exists yet. The next milestone is to prepare and deploy real
+Dev/UAT/Prod environments and begin environment-specific acceptance. Final
+release sign-off still requires CI on `dev`, the `main` merge, a
+production-like persistent-data upgrade smoke from the P5 baseline `4e2d08b`
+through migration `00023_p6_delivery.sql`, the deferred P5/P6 checks, and only
+then tag/release.
 
 ## Repository layout
 
