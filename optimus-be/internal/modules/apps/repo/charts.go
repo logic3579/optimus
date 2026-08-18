@@ -81,7 +81,7 @@ func (s *Service) GetDefaultValues(ctx context.Context, repoID uint64, chart, ve
 	}
 	switch m.Type {
 	case "http":
-		return defaultValuesHTTP(m, pwd, chart, version)
+		return defaultValuesHTTP(ctx, m, pwd, chart, version)
 	case "oci":
 		return defaultValuesOCI(m, pwd, chart, version)
 	default:
@@ -137,6 +137,18 @@ func chartTgzHTTP(
 	m *models.AppsChartRepo,
 	pwd, chartName, version string,
 ) ([]byte, error) {
+	return chartTgzHTTPWithOCI(ctx, client, m, pwd, chartName, version, chartTgzOCIArtifact)
+}
+
+type ociArtifactDownloadFunc func(context.Context, string) ([]byte, error)
+
+func chartTgzHTTPWithOCI(
+	ctx context.Context,
+	client *http.Client,
+	m *models.AppsChartRepo,
+	pwd, chartName, version string,
+	downloadOCI ociArtifactDownloadFunc,
+) ([]byte, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -170,6 +182,13 @@ func chartTgzHTTP(
 		return nil, apperr.New(apperr.CodeAppsRepoInvalidIndex, "apps.repo.bad_index", chartName)
 	}
 	tgzURL := absoluteURL(m.URL, picked.URLs[0])
+	parsed, parseErr := url.Parse(tgzURL)
+	if parseErr == nil && strings.EqualFold(parsed.Scheme, "oci") {
+		// An HTTP index may point at an artifact in a different OCI registry
+		// (Bitnami does this). Pull it anonymously rather than passing the HTTP
+		// repository's Basic Auth credentials to another origin.
+		return downloadOCI(ctx, tgzURL)
+	}
 	return downloadHTTPBytes(ctx, client, tgzURL, m.URL, m.Username, pwd)
 }
 
@@ -257,6 +276,23 @@ func chartTgzOCIWithPull(
 	pwd, chartName, version string,
 	pullChart ociPullFunc,
 ) ([]byte, error) {
+	ref := ociRef(m.URL, chartName) + ":" + version
+	return pullOCIChart(ctx, m.URL, m.Username, pwd, ref, pullChart)
+}
+
+func chartTgzOCIArtifact(ctx context.Context, rawRef string) ([]byte, error) {
+	ref, err := trimOCIScheme(rawRef)
+	if err != nil {
+		return nil, err
+	}
+	return pullOCIChart(ctx, rawRef, "", "", ref, defaultOCIPull)
+}
+
+func pullOCIChart(
+	ctx context.Context,
+	registryURL, username, password, ref string,
+	pullChart ociPullFunc,
+) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -266,16 +302,15 @@ func chartTgzOCIWithPull(
 	if err != nil {
 		return nil, apps.MapError(err)
 	}
-	if m.Username != "" || pwd != "" {
-		host := ociHost(m.URL)
-		if err := rc.Login(host, registry.LoginOptBasicAuth(m.Username, pwd)); err != nil {
+	if username != "" || password != "" {
+		host := ociHost(registryURL)
+		if err := rc.Login(host, registry.LoginOptBasicAuth(username, password)); err != nil {
 			return nil, apps.MapError(err)
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	ref := ociRef(m.URL, chartName) + ":" + version
 	pull, err := pullChart(ctx, rc, ref, registry.PullOptWithChart(true))
 	var data []byte
 	if pull != nil && pull.Chart != nil {
@@ -288,6 +323,14 @@ func chartTgzOCIWithPull(
 		return nil, apperr.New(apperr.CodeAppsRepoOCIError, "apps.repo.oci_empty_chart", "empty chart pull result")
 	}
 	return data, nil
+}
+
+func trimOCIScheme(raw string) (string, error) {
+	const prefix = "oci://"
+	if len(raw) < len(prefix) || !strings.EqualFold(raw[:len(prefix)], prefix) {
+		return "", apperr.New(apperr.CodeAppsRepoOCIError, "apps.repo.oci_invalid_ref", "invalid OCI chart reference")
+	}
+	return raw[len(prefix):], nil
 }
 
 type contextRoundTripper struct {
@@ -358,34 +401,15 @@ func versionsHTTP(m *models.AppsChartRepo, pwd, chart string) ([]VersionSummary,
 	return out, nil
 }
 
-func defaultValuesHTTP(m *models.AppsChartRepo, pwd, chart, version string) (string, error) {
-	idx, err := fetchHTTPIndex(m, pwd)
+func defaultValuesHTTP(ctx context.Context, m *models.AppsChartRepo, pwd, chart, version string) (string, error) {
+	tgz, err := chartTgzHTTP(ctx, nil, m, pwd, chart, version)
+	if tgz != nil {
+		defer wipeChartBytes(tgz)
+	}
 	if err != nil {
 		return "", err
 	}
-	entries, ok := idx.Entries[chart]
-	if !ok {
-		return "", apperr.New(apperr.CodeAppsRepoChartNotFound, "apps.repo.chart_not_found", chart)
-	}
-	var picked *helmrepo.ChartVersion
-	for _, e := range entries {
-		if e.Version == version {
-			picked = e
-			break
-		}
-	}
-	if picked == nil {
-		return "", apperr.New(apperr.CodeAppsRepoChartNotFound, "apps.repo.version_not_found", version)
-	}
-	if len(picked.URLs) == 0 {
-		return "", apperr.New(apperr.CodeAppsRepoInvalidIndex, "apps.repo.bad_index", chart)
-	}
-	tgzURL := absoluteURL(m.URL, picked.URLs[0])
-	values, err := downloadValuesYAML(tgzURL, m.Username, pwd)
-	if err != nil {
-		return "", err
-	}
-	return values, nil
+	return readValuesFromTgz(tgz)
 }
 
 // fetchHTTPIndex downloads and parses the upstream index.yaml. The helm SDK
@@ -419,23 +443,6 @@ func absoluteURL(repoBase, chartURL string) string {
 	}
 	base := strings.TrimRight(repoBase, "/")
 	return base + "/" + strings.TrimLeft(chartURL, "/")
-}
-
-// downloadValuesYAML fetches the .tgz over HTTP and extracts values.yaml.
-func downloadValuesYAML(tgzURL, username, password string) (string, error) {
-	opts := []getter.Option{}
-	if username != "" || password != "" {
-		opts = append(opts, getter.WithBasicAuth(username, password))
-	}
-	g, err := getter.NewHTTPGetter(opts...)
-	if err != nil {
-		return "", apps.MapError(err)
-	}
-	buf, err := g.Get(tgzURL)
-	if err != nil {
-		return "", apps.MapError(err)
-	}
-	return readValuesFromTgz(buf.Bytes())
 }
 
 // --- OCI repo path ---------------------------------------------------------

@@ -8,31 +8,109 @@ Monorepo with two deployable apps plus shared deployment assets:
 
 - `optimus-be/` — Go 1.25 / Gin / GORM / Postgres backend. Modules under `internal/modules/`: `auth`, `user`, `role`, `rbac`, `menu`, `permission`, `audit`, `me` (P0); `credentials/{vault,sshkey,kubeconfig,cloudkey}` (P1); `k8s/{cluster,client,clusterscoped,workload,network,config,secret,log,yaml,apierr}` (P2, read-only).
 - `optimus-fe/` — Vue 3 + Ant Design Vue + Pinia + vue-router SPA. Talks only to `/api/v1/*`. P2 adds `vue-codemirror` + `@codemirror/lang-yaml` + `@codemirror/theme-one-dark` for the YAML viewer.
-- `deploy/` — production `docker-compose.prod.yml` + multi-stage Dockerfiles (`be.Dockerfile` builds `server` / `migrate` / `seed` targets; `fe.Dockerfile` builds the nginx-served SPA).
+- `deploy/` — the single Dev/UAT/Prod `docker-compose.yml`, one `.env.example`
+  with local Dev defaults, and multi-stage Dockerfiles (`be.Dockerfile` builds
+  one backend image containing the server/migrate/seed/vault-keygen binaries;
+  `fe.Dockerfile` builds the nginx-served SPA).
+  UAT and Production override the defaults in their untracked `.env`.
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` — the authoritative P0 design spec and execution plans. Permission/API contracts come from here.
 - `docs/api/swagger.json` and `docs/permissions.md` — **generated artifacts**, checked in. CI (`make swagger-diff` / `make perm-check`) fails if they drift from source.
-- `docker-compose.yml` (repo root) — local Postgres + Adminer only. Production stack lives in `deploy/`.
 
 ## Current project phase
 
-As of 2026-07-30, P0-P6 are implemented on `dev`. P6 Application Delivery
-completed its approved 2026-07-27 design and all 29 implementation tasks. The
-final disposable Kind/Helm smoke found and fixed two production wiring gaps:
-system kubeconfig purposes now receive the required `system:` prefix, and the
-production Helm adapter forwards `LoadVerifiedChart`. `dev` and `origin/dev`
-both resolve to `57a0c58`; the worktree is clean.
+As of 2026-08-18, P0-P6 are implemented and merged to `main`. P6 Application
+Delivery completed its approved 2026-07-27 design and all 29 implementation
+tasks. The final disposable Kubernetes/Helm smoke found and fixed two production
+wiring gaps: system kubeconfig purposes now receive the required `system:`
+prefix, and the production Helm adapter forwards `LoadVerifiedChart`.
 
-The next milestone is release integration rather than another feature phase:
-review and merge `dev` into `main`, run a production-like deployment/upgrade
-smoke (including migration `00023_p6_delivery.sql`), and only then tag/release.
+P6 merged through PR #4 (`14be03d`), PR #5 (`f1857f5`) fixed CI reliability
+and frontend build issues, and PR #6 (`db4606a`) added authentication feedback,
+built-in RBAC/menu refinements, dynamic-route bootstrap fixes, and regression
+tests. `main` and `origin/main` resolve to release-candidate baseline
+`db4606a`. The current `dev` branch adds the cross-platform Colima runtime
+policy, Colima Kubernetes P6 smoke path, repository-local backend caches, and
+refreshed project status. The repository has no release tag yet.
 
-For release sign-off, use `optimus-be/scripts/p4-smoke.md` with a disposable
-read-only AWS credential for P4 and `optimus-be/scripts/p5-smoke.md` with
-disposable local Prometheus containers for P5.
-Use `optimus-be/scripts/p6-smoke.md` with disposable PostgreSQL, Kind, and a
-local HTTP chart repository for P6.
+Local pre-release validation steps 1-11 now pass on `dev`. In addition to the
+local UI/backend flow, Colima Kubernetes path, and backend quality gates, the
+user completed the full P3 application lifecycle smoke and the full P4 AWS
+assets smoke with a disposable read-only credential. The Kubernetes validation
+exposed and fixed the missing authenticated-actor bridge into
+`credentials.Consumer`; P4 synchronization was verified after removing an
+ambient host `AWS_PROFILE` from the backend environment. Basic development
+environment acceptance has passed.
+
+Steps 12 and 13, `optimus-be/scripts/p5-smoke.md` and
+`optimus-be/scripts/p6-smoke.md`, are temporarily skipped locally. They have
+not passed and are not waived; both remain pending until real UAT/Production
+environments are available. Deployment assets are now prepared; the next
+milestone is CI on `dev`, merging to `main`, publishing the images, and
+deploying UAT before Production acceptance.
+
+Release sign-off still requires CI on the current `dev`, the `main` merge, a
+production-like persistent-data upgrade smoke from the P5 baseline `4e2d08b`
+to the merged release candidate (including migration
+`00023_p6_delivery.sql`, seed idempotency, restart, rollback, and recovery
+checks), the deferred P5/P6 environment checks, and only then tag/release.
+
+The P4 release checklist has passed with a disposable read-only AWS credential.
+Retain `optimus-be/scripts/p5-smoke.md` and
+`optimus-be/scripts/p6-smoke.md` as the acceptance contracts for the future
+real-environment validation; do not mark either complete until it is run.
+
+Deployment preparation on `dev` now has one Compose entry point and one
+environment example with local Dev defaults and UAT/Production overrides. The
+backend server, migrate, seed, and vault-keygen programs are packaged in one
+image; Compose selects the role-specific entrypoint. A real cold Buildx build
+of that image passed on a freshly recreated 2C4G Colima VM. CI keeps quality
+checks on `dev`, `main`, and pull requests, while image build and dual
+GHCR/Docker Hub publishing run only on `main` pushes and emit the immutable
+`main-<short-sha>` tag. The next deployment action is to merge these changes to
+`main`, publish the images, and deploy UAT before Production acceptance.
 
 ## Daily commands
+
+### Local Docker and Kubernetes runtime
+
+Local development on both macOS and Linux uses **Colima** as the project
+runtime boundary. Use the default Colima profile with the Docker runtime and
+its built-in Kubernetes enabled:
+
+```bash
+colima start --runtime docker --kubernetes
+docker context use colima
+kubectl config use-context colima
+colima status
+docker info
+kubectl cluster-info
+```
+
+All project-local `docker`, `docker compose`, dockertest, `make test-int`, and
+P5 container fixtures must use the active Colima Docker context. Do not
+silently fall back to Docker Desktop or a host system Docker daemon. If a tool
+does not honor Docker contexts, obtain the socket path from `colima status` and
+set `DOCKER_HOST` for that command or shell; do not hardcode a macOS
+`/Users/...` socket path because Linux uses a different home layout.
+
+Colima's built-in Kubernetes is the default cluster for routine P2/P3 local
+development and P6 release smoke. The P6 checklist requires the `colima` kube
+context and isolates all Kubernetes resources in a disposable namespace. Check
+the active kube context before cluster operations:
+
+```bash
+kubectl config use-context colima
+```
+
+Colima supports both macOS and Linux. Linux/WSL2 hosts without `/dev/kvm` can
+run through QEMU software virtualization, but startup and integration tests may
+be slower. CI runners are not subject to this local-runtime rule.
+
+All local backend build and analysis caches live under the ignored
+`optimus-be/tmp/` tree. The backend Makefile prepares and exports repository-
+local `TMPDIR`, `GOCACHE`, and `GOLANGCI_LINT_CACHE` paths automatically. Do not
+redirect backend build caches to `/tmp`; this project can exceed a small tmpfs
+while compiling the Helm, Kubernetes, and AWS dependency graph.
 
 ### Backend (run from `optimus-be/`)
 
@@ -57,7 +135,9 @@ go test ./internal/modules/user/... -run TestService_Create -race
 go test -tags=dbtest ./tests/integration/... -run TestUserCRUD -race -count=1
 ```
 
-`OPTIMUS_JWT_SECRET` (≥32 bytes) must be exported or the server refuses to start. Default DSN in `configs/config.yaml` matches the dev `docker-compose.yml` Postgres.
+`OPTIMUS_JWT_SECRET` (≥32 bytes) must be exported or the server refuses to
+start. The default DSN in `configs/config.yaml` matches the PostgreSQL service
+exposed by `deploy/docker-compose.yml` on `127.0.0.1:5432`.
 
 ### Frontend (run from `optimus-fe/`)
 
@@ -75,15 +155,34 @@ Package manager is **bun** (never npm/pnpm/yarn).
 
 Single test: `bun x vitest run path/to/file.test.ts -t "name pattern"`.
 
-### Production deploy (run from repo root)
+### Dev / UAT / Production Compose
 
 ```bash
-cp deploy/.env.example deploy/.env   # fill REQUIRED block, generate JWT with `openssl rand -base64 48`
-docker compose -f deploy/docker-compose.prod.yml up -d --build
-docker logs optimus-seed | grep INITIAL    # initial admin password (logged only on first run)
+cd deploy
+docker compose up -d --build         # local full-stack Dev
+docker compose ps -a
 ```
 
-Expected steady state: `optimus-pg` healthy, `optimus-migrate` Exited(0), `optimus-seed` Exited(0), `optimus-be` healthy, `optimus-fe` healthy.
+For host-side hot reload, start only PostgreSQL with
+`cd deploy && docker compose up -d postgres`, then use `make run` and
+`bun run dev`. Connect to PostgreSQL with `psql` on `127.0.0.1:5432`; there is
+no Adminer service.
+
+For UAT or Production:
+
+```bash
+cd deploy
+cp .env.example .env                 # replace every development credential
+docker compose pull
+docker compose up -d --no-build
+docker compose logs seed | grep INITIAL  # initial admin password (first run only)
+```
+
+Set the real environment's Compose project name, image repository, immutable
+version, domains, secrets, and capacity/retention values in `.env`.
+
+Expected steady state: `postgres` healthy, `migrate` Exited(0), `seed`
+Exited(0), `optimus-be` healthy, and `optimus-fe` healthy.
 
 ## Architecture — backend
 
@@ -244,7 +343,15 @@ frontend, generated-artifact, architectural scan, and real disposable
 
 ## Gotchas (local-only)
 
-- **Docker daemon is Colima on this workstation.** If `docker compose` / dockertest can't find a daemon, export `DOCKER_HOST=unix:///Users/<you>/.colima/docker.sock` or `colima start`. The `make test-int` and `tests/integration/` paths both depend on this.
+- **Docker and local Kubernetes run through Colima on macOS and Linux.** If
+  `docker compose`, dockertest, or `kubectl` cannot connect, run `colima status`,
+  verify the `colima` Docker and kube contexts, and use the socket reported by
+`colima status` for context-unaware tools. Do not assume `/var/run/docker.sock`
+or a platform-specific Colima socket path.
+- **Run Compose only as `docker compose ...`.** The Homebrew Compose plugin is
+  exposed through `~/.docker/cli-plugins/docker-compose`; confirm the Docker CLI
+  discovers it with `docker compose version` before running local or smoke
+  workflows.
 - **HEAD vs GET on healthcheck**: the container healthchecks use `wget` which issues GET. Gin only registers GET handlers by default — keep `/api/v1/health` on GET, not HEAD-aliased.
 - **Initial admin password is logged exactly once**, on the first run of `cmd/seed` (or first `make run` against an empty DB). Capture it from stdout / `docker logs optimus-seed | grep INITIAL`. Subsequent runs print "admin user already exists; no password generated." If you lose it, you must reset via DB.
 - **Vault master key must be set before BE starts.** `OPTIMUS_VAULT_MASTER_KEY` (base64'd 32 bytes) or `OPTIMUS_VAULT_MASTER_KEY_FILE`. Generate with `cd optimus-be && go run ./cmd/vault-keygen` (or the `vault-keygen` Dockerfile target). Loaded BEFORE `db.Open` so a missing/wrong key fails fast.
@@ -253,9 +360,15 @@ frontend, generated-artifact, architectural scan, and real disposable
 
 ## First-session checklist (new machine)
 
-If this is the first time touching this repo on this Mac:
+If this is the first time touching this repo on macOS or Linux:
 
-1. **Tools**: `brew install uv bun colima git` then `colima start`.
+1. **Tools**: install `uv`, `bun`, `colima`, the Docker CLI with Docker Compose,
+   `kubectl`, `helm`, and `git`. Homebrew may be used on both supported host
+   platforms. Expose the Homebrew Compose plugin through
+   `~/.docker/cli-plugins/docker-compose`, confirm it with
+   `docker compose version`, then run
+   `colima start --runtime docker --kubernetes` and verify the `colima` Docker
+   and kube contexts.
 2. **mem0 API key**: `export MEM0_API_KEY="..."` (from password manager). Persist in `~/.zshrc`. Claude Code auto-loads the repository's `.mcp.json`, which starts `uvx mem0-mcp-server`. Scope mem0 calls to `user_id = "logic"` unless another user is explicitly requested.
 3. **First prompt** in Claude Code:
    > "Read CLAUDE.md, search mem0 for the optimus checkpoint, then `git log dev..main` to confirm what's actually merged. Summarize where the project is and recommend the next step."

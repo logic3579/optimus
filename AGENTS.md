@@ -19,19 +19,43 @@ If mem0 is available, search with `user_id = "logic"` for the latest
 `git status --short --branch` and recent
 `git log --oneline --decorate --max-count=20 --all`.
 
-Current expected project state (2026-07-30): P0-P6 are implemented on `dev`.
-P6 Application Delivery completed the approved 2026-07-27 design and all 29
-plan tasks, including immutable Helm promotion runs, approvals, SSE events,
-restart/reconciliation recovery, frontend delivery pages, generated artifacts,
-and a real disposable Kind/Helm smoke. `dev` and `origin/dev` are at `57a0c58`.
-The next project task is release integration: review/merge `dev` into `main`,
-then run production-like deployment and upgrade smoke before tagging a release.
+Current expected project state (2026-08-18): P0-P6 are implemented and merged
+to `main`. P6 Application Delivery completed the approved 2026-07-27 design
+and all 29 plan tasks, including immutable Helm promotion runs, approvals, SSE
+events, restart/reconciliation recovery, frontend delivery pages, generated
+artifacts, and a real disposable Kubernetes/Helm smoke. PR #5 fixed CI
+reliability and frontend build issues; PR #6 refined authentication feedback,
+built-in RBAC roles, menu metadata, dynamic-route bootstrap, and related tests.
+
+`main` and `origin/main` are at release-candidate baseline `db4606a`. The
+current `dev` branch adds the cross-platform Colima runtime policy, Colima
+Kubernetes P6 smoke path, repository-local backend caches, and refreshed
+project status. Deployment preparation now uses one Dev/UAT/Prod Compose file,
+one environment example with local Dev defaults, one backend image containing
+all operational binaries, and dual GHCR/Docker Hub publishing on `main` with
+immutable `main-<short-sha>` tags. The unified backend image passed a real cold
+Buildx build on a fresh 2C4G Colima VM. No release tag exists yet. Local
+development-environment basic acceptance has passed. The next project task is
+to merge the prepared deployment changes through `main`, deploy UAT and
+Production, then continue environment-specific acceptance and release sign-off.
+
+Local pre-release validation steps 1-11 have passed on `dev`. This includes the
+local UI/backend path, Colima Kubernetes cluster connection, backend lint and
+generated-artifact gates, the complete P3 application lifecycle smoke, and the
+complete P4 AWS assets smoke with a disposable read-only credential. Steps 12
+and 13, `optimus-be/scripts/p5-smoke.md` and
+`optimus-be/scripts/p6-smoke.md`, are temporarily skipped in the local
+environment; they are not waived or passed and remain pending until real
+UAT/Production environments are available. The remaining work includes real
+environment deployment and acceptance, CI, the `main` merge, the persistent
+data upgrade smoke, the deferred P5/P6 checks, and final release gates.
 
 ## Project Shape
 
 - Backend: `optimus-be/`, Go 1.25, Gin, GORM, Postgres.
 - Frontend: `optimus-fe/`, Vue 3, Ant Design Vue, Pinia, vue-router, vue-i18n.
-- Deployment: `deploy/` plus root `docker-compose.yml`.
+- Deployment: `deploy/docker-compose.yml` is the single Dev/UAT/Prod Compose
+  entry point; `deploy/.env.example` contains local Dev defaults.
 - Specs/plans: `docs/superpowers/specs/` and `docs/superpowers/plans/`.
 - Generated artifacts: `docs/api/swagger.json` and `docs/permissions.md`.
 
@@ -57,6 +81,38 @@ Frontend commands run from `optimus-fe/`:
 - `bun run build`
 
 Use `bun` only for frontend dependency work. Do not use npm, pnpm, or yarn.
+
+## Local Runtime Policy
+
+- Use Colima for project-local Docker and Kubernetes on both macOS and Linux.
+- Start the default profile with
+  `colima start --runtime docker --kubernetes`, then select the `colima` Docker
+  and kube contexts.
+- Verify readiness with `colima status`, `docker info`, and
+  `kubectl cluster-info` before Docker-backed integration or smoke tests.
+- Run Docker Compose, dockertest, `make test-int`, and P5 containers on Colima's
+  Docker runtime. Do not silently use Docker Desktop or a host system Docker
+  daemon instead.
+- Run the full local stack from `deploy/` with `docker compose up -d --build`.
+  Start only `postgres` when running the backend/frontend directly on the host.
+  Connect with `psql` through the loopback-only PostgreSQL port; no Adminer
+  service is maintained.
+- Invoke Docker Compose exclusively through the Docker CLI as
+  `docker compose ...`. The Homebrew Compose plugin is exposed through
+  `~/.docker/cli-plugins/docker-compose`; verify it with
+  `docker compose version` before local development or smoke tests.
+- For tools that ignore Docker contexts, use the socket reported by
+  `colima status` through `DOCKER_HOST`; never hardcode a macOS `/Users/...`
+  path or assume `/var/run/docker.sock`.
+- Use Colima's built-in Kubernetes for routine P2/P3 local development and P6
+  release smoke. P6 must use the `colima` kube context and isolate resources in
+  its disposable namespace; it must not stop or delete the shared Colima
+  cluster during teardown.
+- Linux/WSL2 without `/dev/kvm` may use slower QEMU software virtualization.
+  This local-runtime policy does not apply to CI runners.
+- Keep backend `TMPDIR`, `GOCACHE`, and `GOLANGCI_LINT_CACHE` under the ignored
+  `optimus-be/tmp/` tree. The backend Makefile owns these defaults. Do not place
+  backend build caches under `/tmp`, which may be a size-limited tmpfs.
 
 ## Non-Negotiable Invariants
 
@@ -136,8 +192,9 @@ not add AWS write/manage APIs in P4.
   Helm loader must preserve `LoadVerifiedChart` digest verification.
 - SSE and audit projections must never expose values, kubeconfigs, auth
   headers, manifests, Helm notes, or raw executor errors.
-- Run `optimus-be/scripts/p6-smoke.md` only against disposable PostgreSQL,
-  Kind, and chart-repository resources.
+- Run `optimus-be/scripts/p6-smoke.md` only against disposable PostgreSQL, an
+  isolated namespace in Colima Kubernetes, and disposable chart-repository
+  resources.
 
 ## Codex Environment Notes
 

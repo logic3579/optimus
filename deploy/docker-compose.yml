@@ -1,0 +1,147 @@
+name: ${COMPOSE_PROJECT_NAME:-optimus-dev}
+
+x-optimus-backend: &optimus-backend
+  image: ${IMAGE_REPOSITORY:-local}/optimus-be:${VERSION:-dev}
+  build:
+    context: ..
+    dockerfile: deploy/be.Dockerfile
+    target: backend
+    args:
+      VERSION: ${VERSION:-dev}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-optimus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-optimus}
+      POSTGRES_DB: ${POSTGRES_DB:-optimus}
+    ports:
+      - "${POSTGRES_BIND:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-optimus} -d ${POSTGRES_DB:-optimus}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    <<: *optimus-backend
+    entrypoint: ["/usr/local/bin/optimus-migrate"]
+    command: ["-config", "/etc/optimus/config.yaml", "-dir", "up"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OPTIMUS_DATABASE_DSN: ${OPTIMUS_DATABASE_DSN:-host=postgres port=5432 user=optimus password=optimus dbname=optimus sslmode=disable}
+      OPTIMUS_LOG_LEVEL: ${OPTIMUS_LOG_LEVEL:-debug}
+      OPTIMUS_LOG_FORMAT: ${OPTIMUS_LOG_FORMAT:-json}
+
+  seed:
+    <<: *optimus-backend
+    entrypoint: ["/usr/local/bin/optimus-seed"]
+    command: ["-config", "/etc/optimus/config.yaml"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      OPTIMUS_DATABASE_DSN: ${OPTIMUS_DATABASE_DSN:-host=postgres port=5432 user=optimus password=optimus dbname=optimus sslmode=disable}
+      OPTIMUS_JWT_SECRET: ${OPTIMUS_JWT_SECRET:-dev-only-jwt-secret-at-least-32-bytes}
+      OPTIMUS_AUTH_BCRYPT_COST: ${OPTIMUS_AUTH_BCRYPT_COST:-10}
+      OPTIMUS_BOOTSTRAP_ADMIN_USERNAME: ${OPTIMUS_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      OPTIMUS_BOOTSTRAP_ADMIN_EMAIL: ${OPTIMUS_BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      OPTIMUS_LOG_LEVEL: ${OPTIMUS_LOG_LEVEL:-debug}
+      OPTIMUS_LOG_FORMAT: ${OPTIMUS_LOG_FORMAT:-json}
+
+  optimus-be:
+    <<: *optimus-backend
+    entrypoint: ["/usr/local/bin/optimus-be"]
+    command: ["-config", "/etc/optimus/config.yaml"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+    environment:
+      OPTIMUS_DATABASE_DSN: ${OPTIMUS_DATABASE_DSN:-host=postgres port=5432 user=optimus password=optimus dbname=optimus sslmode=disable}
+      OPTIMUS_DATABASE_MAX_OPEN_CONNS: ${OPTIMUS_DATABASE_MAX_OPEN_CONNS:-25}
+      OPTIMUS_DATABASE_MAX_IDLE_CONNS: ${OPTIMUS_DATABASE_MAX_IDLE_CONNS:-5}
+      OPTIMUS_DATABASE_CONN_MAX_LIFETIME: ${OPTIMUS_DATABASE_CONN_MAX_LIFETIME:-1h}
+      OPTIMUS_JWT_SECRET: ${OPTIMUS_JWT_SECRET:-dev-only-jwt-secret-at-least-32-bytes}
+      OPTIMUS_JWT_ACCESS_TTL: ${OPTIMUS_JWT_ACCESS_TTL:-15m}
+      OPTIMUS_JWT_REFRESH_TTL: ${OPTIMUS_JWT_REFRESH_TTL:-168h}
+      OPTIMUS_AUTH_BCRYPT_COST: ${OPTIMUS_AUTH_BCRYPT_COST:-10}
+      OPTIMUS_AUTH_LOGIN_RATE_LIMIT_PER_IP: ${OPTIMUS_AUTH_LOGIN_RATE_LIMIT_PER_IP:-5}
+      OPTIMUS_AUTH_LOGIN_RATE_LIMIT_PER_USERNAME: ${OPTIMUS_AUTH_LOGIN_RATE_LIMIT_PER_USERNAME:-5}
+      OPTIMUS_AUTH_LOGIN_RATE_LIMIT_WINDOW: ${OPTIMUS_AUTH_LOGIN_RATE_LIMIT_WINDOW:-1m}
+      OPTIMUS_AUTH_LOGIN_RATE_LIMIT_BLOCK: ${OPTIMUS_AUTH_LOGIN_RATE_LIMIT_BLOCK:-1m}
+      OPTIMUS_VAULT_MASTER_KEY: ${OPTIMUS_VAULT_MASTER_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+      OPTIMUS_VAULT_MASTER_KEY_FILE: ${OPTIMUS_VAULT_MASTER_KEY_FILE:-}
+      OPTIMUS_CORS_ALLOWED_ORIGINS: ${OPTIMUS_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:8080}
+      OPTIMUS_CORS_ALLOWED_METHODS: ${OPTIMUS_CORS_ALLOWED_METHODS:-GET,POST,PUT,DELETE,OPTIONS}
+      OPTIMUS_CORS_ALLOW_CREDENTIALS: ${OPTIMUS_CORS_ALLOW_CREDENTIALS:-false}
+      OPTIMUS_I18N_DEFAULT_LANG: ${OPTIMUS_I18N_DEFAULT_LANG:-zh-CN}
+      OPTIMUS_I18N_SUPPORTED: ${OPTIMUS_I18N_SUPPORTED:-zh-CN,en-US}
+      OPTIMUS_SERVER_READ_TIMEOUT: ${OPTIMUS_SERVER_READ_TIMEOUT:-15s}
+      OPTIMUS_SERVER_WRITE_TIMEOUT: ${OPTIMUS_SERVER_WRITE_TIMEOUT:-15s}
+      OPTIMUS_SERVER_SHUTDOWN_TIMEOUT: ${OPTIMUS_SERVER_SHUTDOWN_TIMEOUT:-20s}
+      OPTIMUS_LOG_LEVEL: ${OPTIMUS_LOG_LEVEL:-debug}
+      OPTIMUS_LOG_FORMAT: ${OPTIMUS_LOG_FORMAT:-json}
+      OPTIMUS_ASSETS_SYNC_CRON: ${OPTIMUS_ASSETS_SYNC_CRON:-*/15 * * * *}
+      OPTIMUS_ASSETS_SYNC_STARTUP_DELAY: ${OPTIMUS_ASSETS_SYNC_STARTUP_DELAY:-30s}
+      OPTIMUS_ASSETS_SYNC_RUN_RETENTION_DAYS: ${OPTIMUS_ASSETS_SYNC_RUN_RETENTION_DAYS:-30}
+      OPTIMUS_ASSETS_AWS_REQUEST_TIMEOUT: ${OPTIMUS_ASSETS_AWS_REQUEST_TIMEOUT:-30s}
+      OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS: ${OPTIMUS_OBSERVABILITY_ALLOWED_PRIVATE_CIDRS:-}
+      OPTIMUS_OBSERVABILITY_QUERY_TIMEOUT: ${OPTIMUS_OBSERVABILITY_QUERY_TIMEOUT:-15s}
+      OPTIMUS_OBSERVABILITY_MAX_BATCH_QUERIES: ${OPTIMUS_OBSERVABILITY_MAX_BATCH_QUERIES:-12}
+      OPTIMUS_OBSERVABILITY_MAX_CONCURRENT: ${OPTIMUS_OBSERVABILITY_MAX_CONCURRENT:-4}
+      OPTIMUS_OBSERVABILITY_MAX_RANGE: ${OPTIMUS_OBSERVABILITY_MAX_RANGE:-168h}
+      OPTIMUS_OBSERVABILITY_MIN_STEP: ${OPTIMUS_OBSERVABILITY_MIN_STEP:-15s}
+      OPTIMUS_OBSERVABILITY_MAX_POINTS_PER_SERIES: ${OPTIMUS_OBSERVABILITY_MAX_POINTS_PER_SERIES:-11000}
+      OPTIMUS_OBSERVABILITY_MAX_SERIES: ${OPTIMUS_OBSERVABILITY_MAX_SERIES:-1000}
+      OPTIMUS_OBSERVABILITY_MAX_RESPONSE_BYTES: ${OPTIMUS_OBSERVABILITY_MAX_RESPONSE_BYTES:-16777216}
+      OPTIMUS_OBSERVABILITY_MAX_ENRICHMENT_IPS: ${OPTIMUS_OBSERVABILITY_MAX_ENRICHMENT_IPS:-100}
+      OPTIMUS_DELIVERY_WORKER_CONCURRENCY: ${OPTIMUS_DELIVERY_WORKER_CONCURRENCY:-2}
+      OPTIMUS_DELIVERY_LEASE_DURATION: ${OPTIMUS_DELIVERY_LEASE_DURATION:-30s}
+      OPTIMUS_DELIVERY_LEASE_RENEW_INTERVAL: ${OPTIMUS_DELIVERY_LEASE_RENEW_INTERVAL:-10s}
+      OPTIMUS_DELIVERY_DEFAULT_STAGE_TIMEOUT: ${OPTIMUS_DELIVERY_DEFAULT_STAGE_TIMEOUT:-10m}
+      OPTIMUS_DELIVERY_MAX_STAGE_TIMEOUT: ${OPTIMUS_DELIVERY_MAX_STAGE_TIMEOUT:-30m}
+      OPTIMUS_DELIVERY_RECONCILE_INTERVAL: ${OPTIMUS_DELIVERY_RECONCILE_INTERVAL:-15s}
+      OPTIMUS_DELIVERY_EVENT_RETENTION_DAYS: ${OPTIMUS_DELIVERY_EVENT_RETENTION_DAYS:-30}
+      OPTIMUS_DELIVERY_SSE_HEARTBEAT: ${OPTIMUS_DELIVERY_SSE_HEARTBEAT:-20s}
+      OPTIMUS_DELIVERY_SSE_MAX_CONNECTIONS: ${OPTIMUS_DELIVERY_SSE_MAX_CONNECTIONS:-50}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/api/v1/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  optimus-fe:
+    build:
+      context: ..
+      dockerfile: deploy/fe.Dockerfile
+    image: ${IMAGE_REPOSITORY:-local}/optimus-fe:${VERSION:-dev}
+    restart: unless-stopped
+    depends_on:
+      optimus-be:
+        condition: service_healthy
+    ports:
+      - "${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,44 @@ type artifactRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f artifactRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestChartTgzHTTPPullsOCIArtifactReferencedByIndex(t *testing.T) {
+	want := artifactChartArchive(t, "nginx", "25.0.20")
+	index := `apiVersion: v1
+entries:
+  nginx:
+    - name: nginx
+      version: 25.0.20
+      urls:
+        - oci://registry-1.docker.io/bitnamicharts/nginx:25.0.20
+`
+	client := &http.Client{Transport: artifactRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		require.Equal(t, "https://charts.example.test/index.yaml", req.URL.String())
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(index)),
+			Request:    req,
+		}, nil
+	})}
+
+	var pulledRef string
+	got, err := chartTgzHTTPWithOCI(
+		context.Background(),
+		client,
+		&models.AppsChartRepo{URL: "https://charts.example.test"},
+		"http-repo-password",
+		"nginx",
+		"25.0.20",
+		func(_ context.Context, ref string) ([]byte, error) {
+			pulledRef = ref
+			return append([]byte(nil), want...), nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, "oci://registry-1.docker.io/bitnamicharts/nginx:25.0.20", pulledRef)
+	require.Equal(t, want, got)
 }
 
 func artifactChartArchive(t *testing.T, name, version string) []byte {

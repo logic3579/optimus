@@ -15,7 +15,7 @@ export function makeAppsReleaseApi(client: AxiosInstance) {
   const base = (appId: number) => `/apps/applications/${appId}/release`
   return {
     status: async (appId: number) => {
-      const r = await client.get<Envelope<ReleaseStatus>>(base(appId))
+      const r = await client.get<Envelope<ReleaseStatus>>(`${base(appId)}/status`)
       return r.data.data
     },
     history: async (appId: number) => {
