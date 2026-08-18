@@ -1,5 +1,14 @@
 name: ${COMPOSE_PROJECT_NAME:-optimus-dev}
 
+x-optimus-backend: &optimus-backend
+  image: ${IMAGE_REPOSITORY:-local}/optimus-be:${VERSION:-dev}
+  build:
+    context: ..
+    dockerfile: deploy/be.Dockerfile
+    target: backend
+    args:
+      VERSION: ${VERSION:-dev}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -19,13 +28,9 @@ services:
       retries: 10
 
   migrate:
-    image: ${IMAGE_REPOSITORY:-local}/optimus-migrate:${VERSION:-dev}
-    build:
-      context: ..
-      dockerfile: deploy/be.Dockerfile
-      target: migrate
-      args:
-        VERSION: ${VERSION:-dev}
+    <<: *optimus-backend
+    entrypoint: ["/usr/local/bin/optimus-migrate"]
+    command: ["-config", "/etc/optimus/config.yaml", "-dir", "up"]
     restart: "no"
     depends_on:
       postgres:
@@ -36,13 +41,9 @@ services:
       OPTIMUS_LOG_FORMAT: ${OPTIMUS_LOG_FORMAT:-json}
 
   seed:
-    image: ${IMAGE_REPOSITORY:-local}/optimus-seed:${VERSION:-dev}
-    build:
-      context: ..
-      dockerfile: deploy/be.Dockerfile
-      target: seed
-      args:
-        VERSION: ${VERSION:-dev}
+    <<: *optimus-backend
+    entrypoint: ["/usr/local/bin/optimus-seed"]
+    command: ["-config", "/etc/optimus/config.yaml"]
     restart: "no"
     depends_on:
       postgres:
@@ -59,13 +60,9 @@ services:
       OPTIMUS_LOG_FORMAT: ${OPTIMUS_LOG_FORMAT:-json}
 
   optimus-be:
-    image: ${IMAGE_REPOSITORY:-local}/optimus-be:${VERSION:-dev}
-    build:
-      context: ..
-      dockerfile: deploy/be.Dockerfile
-      target: server
-      args:
-        VERSION: ${VERSION:-dev}
+    <<: *optimus-backend
+    entrypoint: ["/usr/local/bin/optimus-be"]
+    command: ["-config", "/etc/optimus/config.yaml"]
     restart: unless-stopped
     depends_on:
       postgres:
