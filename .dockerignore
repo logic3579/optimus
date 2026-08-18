@@ -13,11 +13,15 @@
 .vscode/
 .DS_Store
 
+# Local agent/runtime state and repository-owned build caches
+.agents/
+.omo/
+.serena/
+.worktrees/
+optimus-be/tmp/
+
 # Local environment files. Vite reads .env.production at build time so it
 # is intentionally NOT ignored.
 **/.env
 **/.env.local
 **/.env.development
-
-# Existing dev-only compose at the repo root
-docker-compose.yml
