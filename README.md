@@ -161,10 +161,11 @@ jobs without building container images. A successful `main` run publishes both
 images to `ghcr.io/<owner>/...` and Docker Hub. Configure these repository
 settings before the first `main` run:
 
-- Secret `DOCKERHUB_USERNAME`.
 - Secret `DOCKERHUB_TOKEN` (use a Docker Hub access token, not a password).
+- Optional secret `DOCKERHUB_USERNAME`; it defaults to the GitHub repository
+  owner when the Docker Hub and GHCR usernames are the same.
 - Optional variable `DOCKERHUB_NAMESPACE` when the target namespace differs
-  from `DOCKERHUB_USERNAME`.
+  from the effective Docker Hub username.
 
 GHCR uses the workflow `GITHUB_TOKEN` with `packages: write`. Each image is
 published with the immutable `main-<short-sha>` tag only.
