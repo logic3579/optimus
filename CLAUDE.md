@@ -8,14 +8,17 @@ Monorepo with two deployable apps plus shared deployment assets:
 
 - `optimus-be/` — Go 1.25 / Gin / GORM / Postgres backend. Modules under `internal/modules/`: `auth`, `user`, `role`, `rbac`, `menu`, `permission`, `audit`, `me` (P0); `credentials/{vault,sshkey,kubeconfig,cloudkey}` (P1); `k8s/{cluster,client,clusterscoped,workload,network,config,secret,log,yaml,apierr}` (P2, read-only).
 - `optimus-fe/` — Vue 3 + Ant Design Vue + Pinia + vue-router SPA. Talks only to `/api/v1/*`. P2 adds `vue-codemirror` + `@codemirror/lang-yaml` + `@codemirror/theme-one-dark` for the YAML viewer.
-- `deploy/` — production `docker-compose.prod.yml` + multi-stage Dockerfiles (`be.Dockerfile` builds `server` / `migrate` / `seed` targets; `fe.Dockerfile` builds the nginx-served SPA).
+- `deploy/` — the single Dev/UAT/Prod `docker-compose.yml`, one `.env.example`
+  with local Dev defaults, and multi-stage Dockerfiles (`be.Dockerfile` builds
+  one backend image containing the server/migrate/seed/vault-keygen binaries;
+  `fe.Dockerfile` builds the nginx-served SPA).
+  UAT and Production override the defaults in their untracked `.env`.
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` — the authoritative P0 design spec and execution plans. Permission/API contracts come from here.
 - `docs/api/swagger.json` and `docs/permissions.md` — **generated artifacts**, checked in. CI (`make swagger-diff` / `make perm-check`) fails if they drift from source.
-- `docker-compose.yml` (repo root) — local Postgres + Adminer only. Production stack lives in `deploy/`.
 
 ## Current project phase
 
-As of 2026-08-14, P0-P6 are implemented and merged to `main`. P6 Application
+As of 2026-08-18, P0-P6 are implemented and merged to `main`. P6 Application
 Delivery completed its approved 2026-07-27 design and all 29 implementation
 tasks. The final disposable Kubernetes/Helm smoke found and fixed two production
 wiring gaps: system kubeconfig purposes now receive the required `system:`
@@ -40,9 +43,10 @@ environment acceptance has passed.
 
 Steps 12 and 13, `optimus-be/scripts/p5-smoke.md` and
 `optimus-be/scripts/p6-smoke.md`, are temporarily skipped locally. They have
-not passed and are not waived; both remain pending until real Dev/UAT/Prod
-environments are available. The next milestone is to prepare and deploy those
-environments, then perform environment-specific acceptance.
+not passed and are not waived; both remain pending until real UAT/Production
+environments are available. Deployment assets are now prepared; the next
+milestone is CI on `dev`, merging to `main`, publishing the images, and
+deploying UAT before Production acceptance.
 
 Release sign-off still requires CI on the current `dev`, the `main` merge, a
 production-like persistent-data upgrade smoke from the P5 baseline `4e2d08b`
@@ -54,6 +58,16 @@ The P4 release checklist has passed with a disposable read-only AWS credential.
 Retain `optimus-be/scripts/p5-smoke.md` and
 `optimus-be/scripts/p6-smoke.md` as the acceptance contracts for the future
 real-environment validation; do not mark either complete until it is run.
+
+Deployment preparation on `dev` now has one Compose entry point and one
+environment example with local Dev defaults and UAT/Production overrides. The
+backend server, migrate, seed, and vault-keygen programs are packaged in one
+image; Compose selects the role-specific entrypoint. A real cold Buildx build
+of that image passed on a freshly recreated 2C4G Colima VM. CI keeps quality
+checks on `dev`, `main`, and pull requests, while image build and dual
+GHCR/Docker Hub publishing run only on `main` pushes and emit the immutable
+`main-<short-sha>` tag. The next deployment action is to merge these changes to
+`main`, publish the images, and deploy UAT before Production acceptance.
 
 ## Daily commands
 
@@ -121,7 +135,9 @@ go test ./internal/modules/user/... -run TestService_Create -race
 go test -tags=dbtest ./tests/integration/... -run TestUserCRUD -race -count=1
 ```
 
-`OPTIMUS_JWT_SECRET` (≥32 bytes) must be exported or the server refuses to start. Default DSN in `configs/config.yaml` matches the dev `docker-compose.yml` Postgres.
+`OPTIMUS_JWT_SECRET` (≥32 bytes) must be exported or the server refuses to
+start. The default DSN in `configs/config.yaml` matches the PostgreSQL service
+exposed by `deploy/docker-compose.yml` on `127.0.0.1:5432`.
 
 ### Frontend (run from `optimus-fe/`)
 
@@ -139,15 +155,34 @@ Package manager is **bun** (never npm/pnpm/yarn).
 
 Single test: `bun x vitest run path/to/file.test.ts -t "name pattern"`.
 
-### Production deploy (run from repo root)
+### Dev / UAT / Production Compose
 
 ```bash
-cp deploy/.env.example deploy/.env   # fill REQUIRED block, generate JWT with `openssl rand -base64 48`
-docker compose -f deploy/docker-compose.prod.yml up -d --build
-docker logs optimus-seed | grep INITIAL    # initial admin password (logged only on first run)
+cd deploy
+docker compose up -d --build         # local full-stack Dev
+docker compose ps -a
 ```
 
-Expected steady state: `optimus-pg` healthy, `optimus-migrate` Exited(0), `optimus-seed` Exited(0), `optimus-be` healthy, `optimus-fe` healthy.
+For host-side hot reload, start only PostgreSQL with
+`cd deploy && docker compose up -d postgres`, then use `make run` and
+`bun run dev`. Connect to PostgreSQL with `psql` on `127.0.0.1:5432`; there is
+no Adminer service.
+
+For UAT or Production:
+
+```bash
+cd deploy
+cp .env.example .env                 # replace every development credential
+docker compose pull
+docker compose up -d --no-build
+docker compose logs seed | grep INITIAL  # initial admin password (first run only)
+```
+
+Set the real environment's Compose project name, image repository, immutable
+version, domains, secrets, and capacity/retention values in `.env`.
+
+Expected steady state: `postgres` healthy, `migrate` Exited(0), `seed`
+Exited(0), `optimus-be` healthy, and `optimus-fe` healthy.
 
 ## Architecture — backend
 
