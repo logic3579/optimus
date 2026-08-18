@@ -13,21 +13,24 @@ gates plus a real disposable PostgreSQL + Kubernetes + Helm smoke. PR #5 then
 fixed CI reliability and frontend build issues, and PR #6 refined authentication
 feedback, built-in RBAC roles, menu metadata, and dynamic-route bootstrap.
 
-Local pre-release validation steps 1-11 pass on `dev`, covering the local
+Local pre-release validation steps 1-11 pass, covering the local
 UI/backend flow, Colima Kubernetes connectivity, backend quality gates, the P3
 application lifecycle smoke, and the complete P4 AWS assets smoke. Basic
 development environment acceptance has passed. Steps 12 and 13, the P5 and P6
-smoke checks, are temporarily skipped locally and remain pending—not passed or
-waived—until the real UAT/Production environments are available.
+smoke checks, remain pending—not passed or waived. The immediate next milestone
+is to start the default full-stack Dev environment on Colima and complete P5
+with disposable local Prometheus containers plus P6 with disposable
+PostgreSQL/chart resources and an isolated Colima Kubernetes namespace.
 
-The merged release-candidate baseline on `main` is `db4606a`. The current
-`dev` branch adds the cross-platform Colima runtime policy, Colima Kubernetes
-P6 smoke path, repository-local backend caches, unified deployment assets, a
-single backend image, and `main-<short-sha>` publishing to GHCR and Docker Hub.
-The unified backend image passed a cold Buildx build on a fresh 2C4G Colima VM.
-No release tag exists yet. The next milestone is CI on `dev`, merging to
-`main`, publishing the images, and deploying UAT before Production. Final
-release sign-off additionally requires a
+PR #7 merged the deployment preparation on 2026-08-18. `main` and
+`origin/main` are at `f364af7`; `origin/dev` remains at the merged branch tip
+`f555d72`, while local `dev` adds only this progress-documentation refresh.
+There was no source diff between that merged branch tip and `main`. CI
+published immutable `main-f364af7` backend and frontend images to
+both GHCR and Docker Hub with matching cross-registry digests. The unified
+backend image also passed a cold Buildx build on a fresh 2C4G Colima VM. No
+release tag exists yet. After local P5/P6 acceptance, the next deployment is
+UAT before Production. Final release sign-off additionally requires a
 production-like persistent-data upgrade smoke from the P5 baseline `4e2d08b`
 through migration `00023_p6_delivery.sql`, the deferred P5/P6 checks, and only
 then tag/release.

@@ -27,28 +27,29 @@ artifacts, and a real disposable Kubernetes/Helm smoke. PR #5 fixed CI
 reliability and frontend build issues; PR #6 refined authentication feedback,
 built-in RBAC roles, menu metadata, dynamic-route bootstrap, and related tests.
 
-`main` and `origin/main` are at release-candidate baseline `db4606a`. The
-current `dev` branch adds the cross-platform Colima runtime policy, Colima
-Kubernetes P6 smoke path, repository-local backend caches, and refreshed
-project status. Deployment preparation now uses one Dev/UAT/Prod Compose file,
-one environment example with local Dev defaults, one backend image containing
-all operational binaries, and dual GHCR/Docker Hub publishing on `main` with
-immutable `main-<short-sha>` tags. The unified backend image passed a real cold
-Buildx build on a fresh 2C4G Colima VM. No release tag exists yet. Local
-development-environment basic acceptance has passed. The next project task is
-to merge the prepared deployment changes through `main`, deploy UAT and
-Production, then continue environment-specific acceptance and release sign-off.
+PR #7 merged the deployment preparation to `main` on 2026-08-18. `main` and
+`origin/main` are at `f364af7`; `origin/dev` remains at PR #7's second parent
+`f555d72`, and local `dev` adds only this progress-documentation refresh. There
+was no source diff between the merged branch tip and `main`. The main-push
+pipeline completed and published immutable
+`main-f364af7` `optimus-be` and `optimus-fe` images to both GHCR and Docker Hub;
+the corresponding cross-registry digests match. Deployment uses one
+Dev/UAT/Prod Compose file, one environment example with local Dev defaults,
+and one backend image containing all operational binaries. No release tag
+exists yet.
 
-Local pre-release validation steps 1-11 have passed on `dev`. This includes the
-local UI/backend path, Colima Kubernetes cluster connection, backend lint and
+Local pre-release validation steps 1-11 have passed. This includes the local
+UI/backend path, Colima Kubernetes cluster connection, backend lint and
 generated-artifact gates, the complete P3 application lifecycle smoke, and the
-complete P4 AWS assets smoke with a disposable read-only credential. Steps 12
-and 13, `optimus-be/scripts/p5-smoke.md` and
-`optimus-be/scripts/p6-smoke.md`, are temporarily skipped in the local
-environment; they are not waived or passed and remain pending until real
-UAT/Production environments are available. The remaining work includes real
-environment deployment and acceptance, CI, the `main` merge, the persistent
-data upgrade smoke, the deferred P5/P6 checks, and final release gates.
+complete P4 AWS assets smoke with a disposable read-only credential. P5 and P6
+remain pending, not passed or waived. The immediate next task is to start the
+default full-stack Dev environment through `deploy/docker-compose.yml` on
+Colima and complete preliminary P5 and P6 acceptance locally: P5 uses
+disposable Prometheus fixtures on Colima Docker, while P6 uses disposable
+PostgreSQL/chart resources and an isolated namespace in Colima Kubernetes.
+After local acceptance, deploy UAT, run the production-like persistent-data
+upgrade smoke from `4e2d08b` through `00023_p6_delivery.sql`, complete
+environment-specific acceptance, deploy Production, and only then tag/release.
 
 ## Project Shape
 

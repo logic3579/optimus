@@ -27,10 +27,11 @@ prefix, and the production Helm adapter forwards `LoadVerifiedChart`.
 P6 merged through PR #4 (`14be03d`), PR #5 (`f1857f5`) fixed CI reliability
 and frontend build issues, and PR #6 (`db4606a`) added authentication feedback,
 built-in RBAC/menu refinements, dynamic-route bootstrap fixes, and regression
-tests. `main` and `origin/main` resolve to release-candidate baseline
-`db4606a`. The current `dev` branch adds the cross-platform Colima runtime
-policy, Colima Kubernetes P6 smoke path, repository-local backend caches, and
-refreshed project status. The repository has no release tag yet.
+tests. PR #7 merged the deployment preparation on 2026-08-18. `main` and
+`origin/main` resolve to `f364af7`; `origin/dev` remains at PR #7's second
+parent `f555d72`, while local `dev` adds only this progress-documentation
+refresh. There was no source diff between the merged branch tip and `main`.
+The repository has no release tag yet.
 
 Local pre-release validation steps 1-11 now pass on `dev`. In addition to the
 local UI/backend flow, Colima Kubernetes path, and backend quality gates, the
@@ -42,32 +43,38 @@ ambient host `AWS_PROFILE` from the backend environment. Basic development
 environment acceptance has passed.
 
 Steps 12 and 13, `optimus-be/scripts/p5-smoke.md` and
-`optimus-be/scripts/p6-smoke.md`, are temporarily skipped locally. They have
-not passed and are not waived; both remain pending until real UAT/Production
-environments are available. Deployment assets are now prepared; the next
-milestone is CI on `dev`, merging to `main`, publishing the images, and
-deploying UAT before Production acceptance.
+`optimus-be/scripts/p6-smoke.md`, have not passed and are not waived. The next
+milestone is preliminary local Dev acceptance: start the default full stack
+through the unified Compose file on Colima, run the disposable P5 Prometheus
+fixtures on Colima Docker, and run the disposable P6 PostgreSQL/chart fixtures
+against an isolated namespace in Colima Kubernetes. Real UAT/Production
+acceptance remains required afterward.
 
-Release sign-off still requires CI on the current `dev`, the `main` merge, a
-production-like persistent-data upgrade smoke from the P5 baseline `4e2d08b`
-to the merged release candidate (including migration
+Release sign-off still requires local P5/P6 preliminary acceptance, UAT
+deployment, a production-like persistent-data upgrade smoke from the P5
+baseline `4e2d08b` to `f364af7` (including migration
 `00023_p6_delivery.sql`, seed idempotency, restart, rollback, and recovery
-checks), the deferred P5/P6 environment checks, and only then tag/release.
+checks), environment-specific P5/P6 checks, Production deployment and
+acceptance, and only then tag/release.
 
 The P4 release checklist has passed with a disposable read-only AWS credential.
 Retain `optimus-be/scripts/p5-smoke.md` and
-`optimus-be/scripts/p6-smoke.md` as the acceptance contracts for the future
-real-environment validation; do not mark either complete until it is run.
+`optimus-be/scripts/p6-smoke.md` as the acceptance contracts for local and
+future real-environment validation; do not mark either complete until it is
+run.
 
-Deployment preparation on `dev` now has one Compose entry point and one
-environment example with local Dev defaults and UAT/Production overrides. The
-backend server, migrate, seed, and vault-keygen programs are packaged in one
-image; Compose selects the role-specific entrypoint. A real cold Buildx build
+Deployment preparation merged through PR #7 and now has one Compose entry
+point and one environment example with local Dev defaults and UAT/Production
+overrides. The backend server, migrate, seed, and vault-keygen programs are
+packaged in one image; Compose selects the role-specific entrypoint. A real
+cold Buildx build
 of that image passed on a freshly recreated 2C4G Colima VM. CI keeps quality
 checks on `dev`, `main`, and pull requests, while image build and dual
 GHCR/Docker Hub publishing run only on `main` pushes and emit the immutable
-`main-<short-sha>` tag. The next deployment action is to merge these changes to
-`main`, publish the images, and deploy UAT before Production acceptance.
+`main-<short-sha>` tag. The `main-f364af7` backend and frontend images are
+published in both registries with matching cross-registry digests. The next
+deployment action follows local P5/P6 Dev acceptance: deploy UAT before
+Production acceptance.
 
 ## Daily commands
 
