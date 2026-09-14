@@ -15,3 +15,9 @@ env_http_headers = { "CONTEXT7_API_KEY" = "CONTEXT7_API_KEY" }
 startup_timeout_sec = 15
 command = "serena"
 args = ["start-mcp-server", "--project-from-cwd", "--context=codex"]
+
+[plugins."superpowers@openai-curated"]
+enabled = true
+
+[plugins."build-web-apps@openai-curated"]
+enabled = true
