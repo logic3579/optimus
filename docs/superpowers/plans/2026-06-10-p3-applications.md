@@ -52,7 +52,7 @@ These hold for the whole plan. If a step seems to contradict one, stop and re-re
 |---|---|---|---|
 | 1 | Modify | `optimus-be/go.mod`, `optimus-be/go.sum` | Pin `helm.sh/helm/v3` (v3.16.x; fall back to v3.15.x on conflict) |
 | 1 | Modify | `optimus-fe/package.json`, `optimus-fe/bun.lockb` | Add `js-yaml` + `@types/js-yaml` |
-| 1 | Modify | `CLAUDE.md` | Record the helm version + the client-go pin invariant under P3 |
+| 1 | Modify | `AGENTS.md` | Record the helm version + the client-go pin invariant under P3 |
 | 2 | Modify | `optimus-be/internal/infra/errors/codes.go` | Append 16 new codes in `42xxx` block |
 | 2 | Modify | `optimus-be/internal/infra/errors/codes_test.go` | Smoke-test new codes are distinct + non-zero |
 | 2 | Modify | `optimus-fe/src/locales/{zh-CN,en-US}.json` | 16 `error.42xxx` entries each |
@@ -183,7 +183,7 @@ EOF
 **Files:**
 - Modify: `optimus-be/go.mod`, `optimus-be/go.sum`
 - Modify: `optimus-fe/package.json`, `optimus-fe/bun.lockb`
-- Modify: `CLAUDE.md`
+- Modify: `AGENTS.md`
 
 - [ ] **Step 1: Snapshot current `client-go` pin**
 
@@ -239,9 +239,9 @@ bun run lint
 
 Expected: no errors. `bun.lockb` is updated.
 
-- [ ] **Step 5: Record the helm version in CLAUDE.md**
+- [ ] **Step 5: Record the helm version in AGENTS.md**
 
-Open `/Users/logic/Projects/optimus/CLAUDE.md`. Under the "Conventions worth knowing" section, append a new bullet **after** the `k8s.io/client-go` pin bullet:
+Open `/Users/logic/Projects/optimus/AGENTS.md`. Under "Non-Negotiable Invariants", append a new bullet **after** the `k8s.io/client-go` pin bullet:
 
 ```markdown
 - **`helm.sh/helm/v3` is pinned to v3.16.4** (or v3.15.4 if the 3.16 line broke the `client-go v0.30.14` invariant). Bumping helm transitively bumps client-go, so any helm upgrade re-runs the P2 compatibility verification. Pin is checked at startup only by `go build`; no runtime assertion.
@@ -255,7 +255,7 @@ Use the actual version you settled on in Step 2 / Step 3.
 cd /Users/logic/Projects/optimus
 git add optimus-be/go.mod optimus-be/go.sum \
         optimus-fe/package.json optimus-fe/bun.lockb \
-        CLAUDE.md
+        AGENTS.md
 git commit -m "$(cat <<'EOF'
 chore(deps): pin helm.sh/helm/v3 + add js-yaml for P3
 
@@ -6628,13 +6628,13 @@ EOF
 
 ## Task 25: Manual smoke + final verification + dev push
 
-**Goal:** Run the P3 smoke checklist (spec §10.4), run all CI checks locally one more time, capture the helm SDK version in CLAUDE.md (if not already updated by Task 1), and prepare the dev branch for review.
+**Goal:** Run the P3 smoke checklist (spec §10.4), run all CI checks locally one more time, capture the helm SDK version in AGENTS.md (if not already updated by Task 1), and prepare the dev branch for review.
 
 **Files (new):**
 - `optimus-be/scripts/p3-smoke.md`
 
 **Files (modify):**
-- `CLAUDE.md` (final mention of P3 if Task 1's update didn't already do it)
+- `AGENTS.md` (final mention of P3 if Task 1's update didn't already do it)
 
 - [ ] **Step 1: Write the smoke checklist**
 
@@ -6709,10 +6709,10 @@ bun run build
 
 Expected: every command exits 0; the apps/* coverage line shows `>= 60.0%`.
 
-- [ ] **Step 4: Confirm CLAUDE.md mentions the helm pin**
+- [ ] **Step 4: Confirm AGENTS.md mentions the helm pin**
 
 ```bash
-grep -n 'helm.sh/helm' /Users/logic/Projects/optimus/CLAUDE.md
+grep -n 'helm.sh/helm' /Users/logic/Projects/optimus/AGENTS.md
 ```
 
 If Task 1 left a placeholder ("v3.16.x or v3.15.x"), edit to record the *actual* version locked in go.mod. Touch this commit only if a change is needed.
@@ -6722,9 +6722,9 @@ If Task 1 left a placeholder ("v3.16.x or v3.15.x"), edit to record the *actual*
 ```bash
 cd /Users/logic/Projects/optimus
 git add optimus-be/scripts/p3-smoke.md
-[[ $(git diff --cached --name-only CLAUDE.md | wc -l) -gt 0 ]] && git add CLAUDE.md || true
+[[ $(git diff --cached --name-only AGENTS.md | wc -l) -gt 0 ]] && git add AGENTS.md || true
 git commit -m "$(cat <<'EOF'
-chore(p3): smoke checklist + CLAUDE.md final touch-up
+chore(p3): smoke checklist + AGENTS.md final touch-up
 
 Adds optimus-be/scripts/p3-smoke.md covering the HTTP + OCI install /
 upgrade / rollback / uninstall happy paths plus two negative paths
@@ -6732,7 +6732,7 @@ upgrade / rollback / uninstall happy paths plus two negative paths
 revision). Smoke flow is NOT automated; it is run before any P3 release
 sign-off.
 
-CLAUDE.md records the precise helm SDK version locked at Task 1.
+AGENTS.md records the precise helm SDK version locked at Task 1.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF

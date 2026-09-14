@@ -212,7 +212,7 @@ func main() {
 	//
 	// The vault cipher is the SAME instance the credentials module owns —
 	// never construct a second AEAD; the apps/repo chart-repo password
-	// re-uses the P1 master key (see CLAUDE.md "Don't bypass Consumer").
+	// re-uses the P1 master key (see AGENTS.md "Credentials and Kubernetes Architecture").
 	appsRepoSvc := apprepo.NewService(apprepo.NewRepo(gdb), cipher, auditRec)
 	appsAppRepo := application.NewRepo(gdb)
 	appsAppSvc := application.NewService(appsAppRepo, auditRec)

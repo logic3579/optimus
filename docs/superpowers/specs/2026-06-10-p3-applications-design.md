@@ -463,7 +463,7 @@ Each call constructs a fresh `getter.HTTPGetter` (with basic-auth options when c
 
 ### 7.4 helm SDK version pinning
 
-`helm.sh/helm/v3` is pinned to a minor compatible with `k8s.io/client-go v0.30.14` (P2's chosen pin). Per P3 plan task 1: run `go get helm.sh/helm/v3@v3.16.x && go mod tidy && go build ./... && go test ./...` end-to-end before any code is written. If incompatible, fall back to `v3.15.x`. The exact version is locked at the end of task 1 and recorded in CLAUDE.md.
+`helm.sh/helm/v3` is pinned to a minor compatible with `k8s.io/client-go v0.30.14` (P2's chosen pin). Per P3 plan task 1: run `go get helm.sh/helm/v3@v3.16.x && go mod tidy && go build ./... && go test ./...` end-to-end before any code is written. If incompatible, fall back to `v3.15.x`. The exact version is locked at the end of task 1 and recorded in AGENTS.md.
 
 ### 7.5 vault password decryption
 
@@ -681,7 +681,7 @@ OCI flows are not automated. Manual checklist for release sign-off:
 - [ ] `bun run typecheck` passes.
 - [ ] `helmclient.Factory` documents per-request lifetime in its godoc; reviewers can confirm no caching.
 - [ ] `apps_chart_repos.encrypted_password` uses P1's `vault.Cipher`; no second cipher instance introduced.
-- [ ] helm SDK version pinned in go.mod and recorded in CLAUDE.md.
+- [ ] helm SDK version pinned in go.mod and recorded in AGENTS.md.
 - [ ] `client-go v0.30.14` pin preserved (P2 invariant unaffected).
 
 ### 11.3 Security & audit DoD
@@ -698,7 +698,7 @@ OCI flows are not automated. Manual checklist for release sign-off:
 
 | # | Risk | Mitigation |
 |---|---|---|
-| 1 | helm SDK ↔ client-go v0.30.14 version compatibility (helm latest pulls newer client-go transitively) | Plan task 1 is a hard gate: pin to v3.16.x; if breaks, fall back to v3.15.x. Record decision in CLAUDE.md. |
+| 1 | helm SDK ↔ client-go v0.30.14 version compatibility (helm latest pulls newer client-go transitively) | Plan task 1 is a hard gate: pin to v3.16.x; if breaks, fall back to v3.15.x. Record decision in AGENTS.md. |
 | 2 | OCI registry auth varies by registry (anonymous, basic, token, Docker Hub free-tier rate limits). Unit tests cannot cover all permutations. | Manual smoke checklist (§10.4) covers the two registries we actually use. |
 | 3 | Helm storage driver "secrets" places secrets in the target namespace; if user has tight namespace RBAC on the kubeconfig, helm may fail on the second revision. | Document the requirement: the kubeconfig context's user must have `get/list/create/update/delete/patch` on `secrets` in the application's namespace. |
 | 4 | helm rollback rewrites a new revision (revision N+1 with content of revision M); FE must show updated_at and revision numbers clearly to avoid user confusion. | UI revision table makes "this revision was a rollback of revision X" explicit when `description` contains `Rollback to`. |

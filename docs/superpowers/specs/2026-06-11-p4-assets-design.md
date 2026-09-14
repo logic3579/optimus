@@ -432,7 +432,7 @@ github.com/aws/aws-sdk-go-v2/service/rds        (latest)
 github.com/robfig/cron/v3                       (v3.0.1)
 ```
 
-**Constraint**: every chosen version must keep `go.mod`'s `go` directive at `1.25` (matches the P2 client-go pin gotcha, `CLAUDE.md` "Conventions"). If a transitive dep tries to push it to 1.26, the offending pkg gets pinned (precedent: `helm.sh/helm/v3` pinned at v3.15.4 for the same reason).
+**Constraint**: every chosen version must keep `go.mod`'s `go` directive at `1.25` (see `AGENTS.md` "Non-Negotiable Invariants"). If a transitive dep tries to push it to 1.26, the offending pkg gets pinned (precedent: `helm.sh/helm/v3` pinned at v3.15.4 for the same reason).
 
 ### 5.2 Client factory
 
@@ -572,7 +572,7 @@ type Consumer interface {
 
 ## 7. HTTP API surface
 
-All routes mounted under `/api/v1/assets/`. Each registered via the nested-group `RequirePermission` middleware pattern (`cmd/server/main.go` precedent, `CLAUDE.md` "Architecture — backend"). Envelope shape: `{code, data, message, message_key?}` — no deviations.
+All routes mounted under `/api/v1/assets/`. Each registered via the nested-group `RequirePermission` middleware pattern (`cmd/server/main.go` precedent, `AGENTS.md` "Backend Architecture"). Envelope shape: `{code, data, message, message_key?}` — no deviations.
 
 ### 7.1 CloudAccount
 
@@ -669,7 +669,7 @@ Five codes total. Registered via `permissions.Register(ctx, db, permissions.All)
 - `viewer` role grants `%:read` LIKE → picks up `assets:account:read`, `assets:resource:read`, `assets:sync:read`.
 - `assets:account:write` and `assets:account:delete` are admin-only by default.
 
-No new built-in roles created. (Sticks with CLAUDE.md note that built-in roles are `admin` + `viewer` only.)
+No new built-in roles created. (Sticks with AGENTS.md note that built-in roles are `admin` + `viewer` only.)
 
 `make dump-perms` regenerates `docs/permissions.md`; CI `make perm-check` enforces parity.
 
@@ -714,7 +714,7 @@ Gap at 43007 reserved.
 
 ## 10. Audit
 
-Existing shared `audit.Recorder` (do not construct a second one — `CLAUDE.md` "Conventions"). Service mutation methods pass `(ctx, actorID, ip, ua, ...)` per the P3 pattern.
+Existing shared `audit.Recorder` (do not construct a second one — `AGENTS.md` "Backend Architecture"). Service mutation methods pass `(ctx, actorID, ip, ua, ...)` per the P3 pattern.
 
 | Action | TargetType | TargetID | Payload |
 |---|---|---|---|
@@ -734,7 +734,7 @@ The `credentials.Consumer.GetCloudKey(ctx, id, "assets.sync")` call inside the s
 ### 11.1 Module wiring
 
 - `optimus-fe/src/types/assets.ts` — DTOs mirroring BE (no class wrappers).
-- `optimus-fe/src/api/assets/{account,resource,sync}.ts` — factory functions `makeAssetsAccountApi(client)` etc. (`CLAUDE.md` "FE injects use string keys ... API modules are functional factories").
+- `optimus-fe/src/api/assets/{account,resource,sync}.ts` — factory functions `makeAssetsAccountApi(client)` etc. (see `AGENTS.md` "Frontend Architecture").
 - `optimus-fe/src/stores/assets.ts` — single Pinia store with sub-areas: `accounts`, `instances`, `vpcs`, `databases`, `syncRuns`. State + actions only; no view logic.
 - `optimus-fe/src/main.ts` — register the three API factories and `provide` with string keys `'assetsAccountApi'`, `'assetsResourceApi'`, `'assetsSyncApi'`.
 
@@ -813,7 +813,7 @@ error: { "43001": "...", "43002": "...", ..., "43107": "..." }
 
 - `ProTable`, `ProForm`, `PageHeader`, `ConfirmButton` from `src/components/`.
 - `useTable<T,F>` from `@/hooks/useTable`.
-- `useI18n` from `@/hooks/useI18n` (NOT `vue-i18n` directly — `CLAUDE.md` gotcha).
+- `useI18n` from `@/hooks/useI18n` (NOT `vue-i18n` directly — `AGENTS.md` gotcha).
 - v-permission directive from `src/directives/`.
 
 ### 11.7 No new vendor deps
@@ -891,7 +891,7 @@ Coverage target ≥ 60% per module (matches P0/P1/P2/P3 standard).
 
 ### 13.4 CI gates
 
-`make swag` (re-runs swagger generation; `make swagger-diff` fails on drift), `make dump-perms` (`make perm-check` fails on drift), `bun run i18n:check`, `bun run lint --max-warnings=0`, `bun run typecheck`, `make lint`, `make test`, `make test-int` (gated on Docker availability — `CLAUDE.md` "Gotchas" Colima section).
+`make swag` (re-runs swagger generation; `make swagger-diff` fails on drift), `make dump-perms` (`make perm-check` fails on drift), `bun run i18n:check`, `bun run lint --max-warnings=0`, `bun run typecheck`, `make lint`, `make test`, `make test-int` (gated on Docker availability — see `AGENTS.md` "Local Runtime Policy").
 
 ---
 
@@ -933,7 +933,7 @@ No new Docker images / no new compose services / no new healthcheck. The sync en
   6. Simulate a deleted resource by toggling its visibility (e.g., stop and terminate an EC2 in AWS); next sweep should soft-delete it; FE list with `include_deleted=true` shows it.
   7. Delete the cloudkey → expect 43001 `CodeAssetsCloudAccountInUse`.
   8. Soft-delete the CloudAccount → confirm resource rows cascade-soft-delete.
-- `CLAUDE.md` updated: new "Architecture — assets (P4)" section appended after the P3 section, ≤ 200 words, captures the load-bearing invariants (no client caching, authoritative sweep gate, soft-delete-only, manual-sync async, `assets.Consumer` for downstream, P1 patch).
+- `AGENTS.md` updated: the "P4 Assets Rules" section captures the load-bearing invariants (no client caching, authoritative sweep gate, soft-delete-only, manual-sync async, `assets.Consumer` for downstream, P1 patch).
 - `docs/permissions.md` regenerated.
 - `docs/api/swagger.json` regenerated.
 
@@ -943,7 +943,7 @@ No new Docker images / no new compose services / no new healthcheck. The sync en
 
 | Risk | Mitigation |
 |---|---|
-| AWS SDK transitively raises go.mod's `go` directive past 1.25 | Pin SDK module versions explicitly in `go.mod`; verified via `go mod tidy` in CI. Document in CLAUDE.md "Conventions" as a new pin gotcha if it actually happens. |
+| AWS SDK transitively raises go.mod's `go` directive past 1.25 | Pin SDK module versions explicitly in `go.mod`; verified via `go mod tidy` in CI. Document in AGENTS.md "Generated Artifacts and Dependency Pins" if it actually happens. |
 | `robfig/cron/v3` blocks shutdown | `c.Stop()` returns a `context.Context` that completes when running jobs finish; main.go waits with a 30s timeout before forcing exit. |
 | In-memory lock lost on BE restart while sweep was active | Acceptable: the next cron tick re-runs; partial sweep wasn't committed (transactional). No "ghost lock" possible. |
 | AWS throttling causes ⇉ all sweeps fail simultaneously across regions | SDK already retries up to 3× with backoff. Sequential per-account / per-region sweeps spread the load. If a user has many accounts → many sweeps → spread is sufficient at < 50-user team scale. If not, the user can lengthen `sync_cron`. |
@@ -971,7 +971,7 @@ The implementation plan (separate document, written by `superpowers:writing-plan
 12. FE: types + api factories + store + main.ts wiring
 13. FE: cloud-accounts pages → resource list pages → sync-runs page
 14. FE: i18n keys (both locales) + v-permission audit
-15. Swagger + perm dump + smoke checklist + CLAUDE.md update
+15. Swagger + perm dump + smoke checklist + AGENTS.md update
 
 Single-PR delivery (sticks with P3 precedent — bundled PR over many small ones).
 
