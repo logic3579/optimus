@@ -49,7 +49,7 @@
 | 13 | observability data-source FE files and tests | Data-source management/test page |
 | 14 | panel components, custom dashboard views/editor and tests | ECharts panels and saved dashboards |
 | 15 | Kubernetes built-in view, seed menus, locale files, permission tests | Built-in monitoring navigation and i18n |
-| 16 | security/coverage tests, `scripts/p5-smoke.md`, `CLAUDE.md` | Hardening, full verification, handoff |
+| 16 | security/coverage tests, `scripts/p5-smoke.md`, `AGENTS.md` | Hardening, full verification, handoff |
 
 ---
 
@@ -1229,7 +1229,6 @@ rtk git commit -m "feat(observability): add Kubernetes monitoring navigation"
 **Files:**
 - Modify: P5/P1 tests where coverage or security gaps are found
 - Create: `optimus-be/scripts/p5-smoke.md`
-- Modify: `CLAUDE.md`
 - Modify: `AGENTS.md`
 
 - [ ] **Step 1: Run the explicit forbidden-surface scan**
@@ -1271,7 +1270,7 @@ Expected: every new package is at least 60%; transport, URL policy, credential s
 
 - [ ] **Step 5: Update repository handoff guides**
 
-Add P5 architecture, invariants, verification, and out-of-scope alert boundary to `CLAUDE.md` and concise operational rules to `AGENTS.md`. Update current phase to P5 implemented only after all verification passes; otherwise say P5 implementation is in progress.
+Add P5 architecture, invariants, verification, and the out-of-scope alert boundary to `AGENTS.md`. Update current phase to P5 implemented only after all verification passes; otherwise say P5 implementation is in progress.
 
 - [ ] **Step 6: Run full backend verification**
 
@@ -1317,7 +1316,7 @@ Expected: no whitespace errors, no generated drift, no unexpected files, and no 
 - [ ] **Step 9: Commit the final hardening/handoff slice**
 
 ```bash
-rtk git add optimus-be/internal/modules/observability optimus-be/internal/modules/credentials/httpcredential optimus-be/scripts/p5-smoke.md CLAUDE.md AGENTS.md
+rtk git add optimus-be/internal/modules/observability optimus-be/internal/modules/credentials/httpcredential optimus-be/scripts/p5-smoke.md AGENTS.md
 rtk git commit -m "chore(p5): harden and document observability MVP"
 ```
 
