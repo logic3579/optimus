@@ -7,33 +7,35 @@ application delivery. Monorepo: `optimus-be` (Go/Gin/Postgres) and
 
 ## Project status
 
-P0-P6 are implemented and merged to `main` as of 2026-08-18. P6 Application
+P0-P6 are implemented and merged to `main` as of 2026-09-14. P6 Application
 Delivery completed all 29 planned tasks and passed backend/frontend quality
 gates plus a real disposable PostgreSQL + Kubernetes + Helm smoke. PR #5 then
 fixed CI reliability and frontend build issues, and PR #6 refined authentication
 feedback, built-in RBAC roles, menu metadata, and dynamic-route bootstrap.
 
-Local pre-release validation steps 1-11 pass, covering the local
+Local pre-release validation steps 1-13 pass, covering the local
 UI/backend flow, Colima Kubernetes connectivity, backend quality gates, the P3
 application lifecycle smoke, and the complete P4 AWS assets smoke. Basic
-development environment acceptance has passed. Steps 12 and 13, the P5 and P6
-smoke checks, remain pending—not passed or waived. The immediate next milestone
-is to start the default full-stack Dev environment on Colima and complete P5
-with disposable local Prometheus containers plus P6 with disposable
-PostgreSQL/chart resources and an isolated Colima Kubernetes namespace.
+development environment acceptance has passed. The local P5 smoke passed with
+disposable Prometheus fixtures. The local P6 smoke passed on 2026-09-14 with
+disposable PostgreSQL/chart resources and an isolated Colima Kubernetes
+namespace, including promotion/approval/SSE, rollback/retry,
+interruption/reconciliation, and redaction checks; its disposable resources
+were cleaned up without stopping Colima.
 
 PR #7 merged the deployment preparation on 2026-08-18. `main` and
 `origin/main` are at `f364af7`; `origin/dev` remains at the merged branch tip
-`f555d72`, while local `dev` adds only this progress-documentation refresh.
+`f555d72`, while local `dev` advances it with progress and Codex configuration commits.
 There was no source diff between that merged branch tip and `main`. CI
 published immutable `main-f364af7` backend and frontend images to
 both GHCR and Docker Hub with matching cross-registry digests. The unified
 backend image also passed a cold Buildx build on a fresh 2C4G Colima VM. No
-release tag exists yet. After local P5/P6 acceptance, the next deployment is
-UAT before Production. Final release sign-off additionally requires a
+release tag exists yet. The selected deployment topology is Dev and Production
+only, so UAT is explicitly skipped and Production is the next deployment.
+Final release sign-off additionally requires a
 production-like persistent-data upgrade smoke from the P5 baseline `4e2d08b`
-through migration `00023_p6_delivery.sql`, the deferred P5/P6 checks, and only
-then tag/release.
+through migration `00023_p6_delivery.sql`, Production-specific P5/P6 checks,
+and only then tag/release.
 
 ## Repository layout
 
@@ -105,12 +107,12 @@ bun run dev   # http://localhost:5173, proxies /api/v1 to backend on :8080
 - Permissions: [`docs/permissions.md`](docs/permissions.md)
 - API: [`docs/api/swagger.json`](docs/api/swagger.json) (also browsable at http://localhost:8080/swagger/ when running)
 
-## Dev / UAT / Production with Docker Compose
+## Dev / Production with Docker Compose
 
 All environments use [deploy/docker-compose.yml](deploy/docker-compose.yml).
 Its built-in defaults and [deploy/.env.example](deploy/.env.example) describe
-local Dev; UAT and Production provide environment-specific values through an
-untracked `deploy/.env`.
+local Dev; Production provides environment-specific values through an
+untracked `deploy/.env`. This release intentionally has no UAT deployment.
 
 ### Local Dev
 
@@ -133,11 +135,11 @@ For backend/frontend hot reload, start only the database with
 the host through `127.0.0.1:5432`; use `psql` for database inspection. Adminer
 is not included.
 
-### UAT / Production
+### Production
 
 1. `cd deploy` and run `cp .env.example .env && chmod 600 .env`.
 2. Replace every development credential and set:
-   - `COMPOSE_PROJECT_NAME=optimus-uat` or `optimus-prod`.
+   - `COMPOSE_PROJECT_NAME=optimus-prod`.
    - `IMAGE_REPOSITORY=ghcr.io/<owner>` or `docker.io/<namespace>`.
    - The immutable `main-<short-sha>` `VERSION` published by CI.
    - The real HTTPS origin, database password, JWT secret, vault key, and

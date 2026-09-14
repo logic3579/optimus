@@ -19,7 +19,7 @@ If mem0 is available, search with `user_id = "logic"` for the latest
 `git status --short --branch` and recent
 `git log --oneline --decorate --max-count=20 --all`.
 
-Current expected project state (2026-08-18): P0-P6 are implemented and merged
+Current expected project state (2026-09-14): P0-P6 are implemented and merged
 to `main`. P6 Application Delivery completed the approved 2026-07-27 design
 and all 29 plan tasks, including immutable Helm promotion runs, approvals, SSE
 events, restart/reconciliation recovery, frontend delivery pages, generated
@@ -29,7 +29,8 @@ built-in RBAC roles, menu metadata, dynamic-route bootstrap, and related tests.
 
 PR #7 merged the deployment preparation to `main` on 2026-08-18. `main` and
 `origin/main` are at `f364af7`; `origin/dev` remains at PR #7's second parent
-`f555d72`, and local `dev` adds only this progress-documentation refresh. There
+`f555d72`, and local `dev` advances it with progress and Codex configuration
+commits. There
 was no source diff between the merged branch tip and `main`. The main-push
 pipeline completed and published immutable
 `main-f364af7` `optimus-be` and `optimus-fe` images to both GHCR and Docker Hub;
@@ -38,18 +39,21 @@ Dev/UAT/Prod Compose file, one environment example with local Dev defaults,
 and one backend image containing all operational binaries. No release tag
 exists yet.
 
-Local pre-release validation steps 1-11 have passed. This includes the local
+Local pre-release validation steps 1-13 have passed. This includes the local
 UI/backend path, Colima Kubernetes cluster connection, backend lint and
 generated-artifact gates, the complete P3 application lifecycle smoke, and the
-complete P4 AWS assets smoke with a disposable read-only credential. P5 and P6
-remain pending, not passed or waived. The immediate next task is to start the
-default full-stack Dev environment through `deploy/docker-compose.yml` on
-Colima and complete preliminary P5 and P6 acceptance locally: P5 uses
-disposable Prometheus fixtures on Colima Docker, while P6 uses disposable
-PostgreSQL/chart resources and an isolated namespace in Colima Kubernetes.
-After local acceptance, deploy UAT, run the production-like persistent-data
-upgrade smoke from `4e2d08b` through `00023_p6_delivery.sql`, complete
-environment-specific acceptance, deploy Production, and only then tag/release.
+complete P4 AWS assets smoke with a disposable read-only credential. Local P5
+acceptance passed with disposable Prometheus fixtures. Local P6 acceptance
+passed on 2026-09-14 with disposable PostgreSQL/chart resources and an isolated
+namespace in Colima Kubernetes, covering immutable promotion, approvals, SSE,
+failure rollback, retry, interruption/reconciliation, and secret/audit
+redaction; all disposable resources were removed without stopping Colima.
+
+The selected deployment topology is Dev and Production only; UAT is explicitly
+skipped for this release. The immediate next task is Production deployment.
+Production rollout/sign-off still includes the production-like persistent-data
+upgrade smoke from `4e2d08b` through `00023_p6_delivery.sql`,
+Production-specific acceptance, and only then tag/release.
 
 ## Project Shape
 

@@ -18,7 +18,7 @@ Monorepo with two deployable apps plus shared deployment assets:
 
 ## Current project phase
 
-As of 2026-08-18, P0-P6 are implemented and merged to `main`. P6 Application
+As of 2026-09-14, P0-P6 are implemented and merged to `main`. P6 Application
 Delivery completed its approved 2026-07-27 design and all 29 implementation
 tasks. The final disposable Kubernetes/Helm smoke found and fixed two production
 wiring gaps: system kubeconfig purposes now receive the required `system:`
@@ -29,33 +29,33 @@ and frontend build issues, and PR #6 (`db4606a`) added authentication feedback,
 built-in RBAC/menu refinements, dynamic-route bootstrap fixes, and regression
 tests. PR #7 merged the deployment preparation on 2026-08-18. `main` and
 `origin/main` resolve to `f364af7`; `origin/dev` remains at PR #7's second
-parent `f555d72`, while local `dev` adds only this progress-documentation
-refresh. There was no source diff between the merged branch tip and `main`.
+parent `f555d72`, while local `dev` advances it with progress and Codex
+configuration commits. There was no source diff between the merged branch tip and `main`.
 The repository has no release tag yet.
 
-Local pre-release validation steps 1-11 now pass on `dev`. In addition to the
+Local pre-release validation steps 1-13 now pass on `dev`. In addition to the
 local UI/backend flow, Colima Kubernetes path, and backend quality gates, the
 user completed the full P3 application lifecycle smoke and the full P4 AWS
 assets smoke with a disposable read-only credential. The Kubernetes validation
 exposed and fixed the missing authenticated-actor bridge into
 `credentials.Consumer`; P4 synchronization was verified after removing an
 ambient host `AWS_PROFILE` from the backend environment. Basic development
-environment acceptance has passed.
+environment acceptance and the local P5 smoke with disposable Prometheus
+fixtures have passed. The local P6 smoke passed on 2026-09-14 using disposable
+PostgreSQL/chart resources and an isolated Colima Kubernetes namespace. It
+verified immutable promotion and approvals, SSE, negative permission and
+idempotency paths, failure rollback and linked retry,
+interruption/reconciliation without blind replay, plus secret/audit redaction.
+The smoke removed its namespace, containers, volumes, and temporary files while
+leaving the shared Colima cluster running.
 
-Steps 12 and 13, `optimus-be/scripts/p5-smoke.md` and
-`optimus-be/scripts/p6-smoke.md`, have not passed and are not waived. The next
-milestone is preliminary local Dev acceptance: start the default full stack
-through the unified Compose file on Colima, run the disposable P5 Prometheus
-fixtures on Colima Docker, and run the disposable P6 PostgreSQL/chart fixtures
-against an isolated namespace in Colima Kubernetes. Real UAT/Production
-acceptance remains required afterward.
-
-Release sign-off still requires local P5/P6 preliminary acceptance, UAT
-deployment, a production-like persistent-data upgrade smoke from the P5
-baseline `4e2d08b` to `f364af7` (including migration
+The deployment topology selected for this release contains Dev and Production
+only; UAT is explicitly skipped. The immediate next milestone is Production
+deployment. Release sign-off still requires a production-like persistent-data
+upgrade smoke from the P5 baseline `4e2d08b` to `f364af7` (including migration
 `00023_p6_delivery.sql`, seed idempotency, restart, rollback, and recovery
-checks), environment-specific P5/P6 checks, Production deployment and
-acceptance, and only then tag/release.
+checks), Production-specific P5/P6 checks and acceptance, and only then
+tag/release.
 
 The P4 release checklist has passed with a disposable read-only AWS credential.
 Retain `optimus-be/scripts/p5-smoke.md` and
@@ -72,9 +72,9 @@ of that image passed on a freshly recreated 2C4G Colima VM. CI keeps quality
 checks on `dev`, `main`, and pull requests, while image build and dual
 GHCR/Docker Hub publishing run only on `main` pushes and emit the immutable
 `main-<short-sha>` tag. The `main-f364af7` backend and frontend images are
-published in both registries with matching cross-registry digests. The next
-deployment action follows local P5/P6 Dev acceptance: deploy UAT before
-Production acceptance.
+published in both registries with matching cross-registry digests. With local
+P5/P6 acceptance complete and UAT omitted by the selected two-environment
+topology, the next deployment action is Production.
 
 ## Daily commands
 
@@ -162,7 +162,7 @@ Package manager is **bun** (never npm/pnpm/yarn).
 
 Single test: `bun x vitest run path/to/file.test.ts -t "name pattern"`.
 
-### Dev / UAT / Production Compose
+### Dev / Production Compose
 
 ```bash
 cd deploy
@@ -175,7 +175,7 @@ For host-side hot reload, start only PostgreSQL with
 `bun run dev`. Connect to PostgreSQL with `psql` on `127.0.0.1:5432`; there is
 no Adminer service.
 
-For UAT or Production:
+For Production:
 
 ```bash
 cd deploy
